@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BIOMES } from '../config/biomes.js';
-import { WEATHER, PARANORMAL_FOG, LANTERN } from '../config/weather.js';
+import { WEATHER, PARANORMAL_FOG, LANTERN, VILLAGE_SHELTER } from '../config/weather.js';
 import {
   createParticleState, seedParticles, stepParticles, cycleIntensity,
   nearestCreatureDistance, paranormalTarget, lightningEnvelope,
@@ -147,8 +147,9 @@ export class WeatherManager {
    * @param {THREE.Vector3} o.player posição do jogador (névoa paranormal, lanterna)
    * @param {Float32Array} o.weights pesos de bioma na posição do jogador
    * @param {boolean} o.underground masmorras: sem clima, só névoa paranormal
+   * @param {number} [o.shelter] 0..1: quanto o jogador está dentro de uma vila
    */
-  update(dt, { time, camera, player, weights, underground }) {
+  update(dt, { time, camera, player, weights, underground, shelter = 0 }) {
     this._time.value = time;
     this.renderer.getDrawingBufferSize(this._size);
     this._scale.value = this._size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
@@ -158,7 +159,8 @@ export class WeatherManager {
     const forced = this.override ? BIOMES.findIndex((b) => b.id === this.override) : -1;
     for (let i = 0; i < this.weights.length; i++) {
       const place = forced >= 0 ? (i === forced ? 1 : 0) : weights[i];
-      const target = underground || !this.biomes[i] ? 0 : place * cycleIntensity(time, this.biomes[i].cycle, this.phases[i]);
+      const roof = 1 - shelter * VILLAGE_SHELTER.strength;
+      const target = underground || !this.biomes[i] ? 0 : place * roof * cycleIntensity(time, this.biomes[i].cycle, this.phases[i]);
       this.weights[i] = lerp(this.weights[i], target, k);
     }
 

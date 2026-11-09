@@ -44,6 +44,7 @@ import { Thunder } from '../audio/Thunder.js';
 import { Minimap } from '../render/Minimap.js';
 import { MINIMAP } from '../config/minimap.js';
 import { Clouds } from '../world/Clouds.js';
+import { VILLAGE_SHELTER } from '../config/weather.js';
 import { GRAPHICS_PRESETS, LOW_FPS_HINT } from '../config/graphics.js';
 import { GraphicsStore, FpsMeter, presetById, stepPreset, applyGraphics } from '../render/GraphicsSettings.js';
 
@@ -465,6 +466,19 @@ export class Game {
     this.ui.toast(`Gráficos: ${this.graphics.name}${needsReload ? ' · a suavização de bordas muda ao recarregar a página' : ''}`);
   }
 
+  /**
+   * 0..1: quanto o ponto está dentro de uma vila (1 dentro, cai a 0 em
+   * `VILLAGE_SHELTER.fade` metros fora da borda). O clima fica mais fraco.
+   */
+  villageShelter(pos) {
+    let best = 0;
+    for (const v of Object.values(this.villages)) {
+      const out = Math.hypot(pos.x - v.x, pos.z - v.z) - v.radius;
+      best = Math.max(best, THREE.MathUtils.clamp(1 - out / VILLAGE_SHELTER.fade, 0, 1));
+    }
+    return best;
+  }
+
   /** Metros mostrados no minimapa (mais longe ao voar/viajar rápido). */
   minimapViewMeters() {
     const v = MINIMAP.viewMeters;
@@ -552,7 +566,7 @@ export class Game {
     if (this.areaId === 'overworld') {
       const w = this.terrain.weightsAt(pos.x, pos.z, this._w);
       this.environment.update(dt, pos, this.camera, w, false);
-      this.weather.update(dt, { time: this.time, camera: this.camera, player: pos, weights: w, underground: false });
+      this.weather.update(dt, { time: this.time, camera: this.camera, player: pos, weights: w, underground: false, shelter: this.villageShelter(pos) });
       this.clouds.update(dt, this.environment, this.weather.overcast);
       let best = 0;
       for (let i = 1; i < w.length; i++) if (w[i] > w[best]) best = i;

@@ -154,3 +154,11 @@ export const LANTERN = { color: 0xffc98a, intensity: 18, distance: 26, decay: 1.
 
 /** Pós-processamento do bloom (UnrealBloomPass). */
 export const BLOOM = { radius: 0.55, threshold: 0.82, minStrength: 0.02 };
+
+/**
+ * Abrigo das vilas: dentro de uma vila o clima fica mais fraco (casas
+ * cortam o vento, a vila não some na nevasca). `strength` 0 = sem abrigo,
+ * 1 = clima some na vila; `fade` = metros fora da borda até o clima voltar
+ * inteiro. A névoa paranormal NÃO é afetada.
+ */
+export const VILLAGE_SHELTER = { strength: 0.75, fade: 80 };
