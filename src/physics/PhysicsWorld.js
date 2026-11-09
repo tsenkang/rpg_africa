@@ -187,6 +187,37 @@ export class PhysicsWorld {
     return body;
   }
 
+  // ------------------------------------------------------------ agentes (animais)
+
+  /**
+   * Corpo cinemático de um animal: segue a IA e empurra os objetos dinâmicos
+   * (um javali correndo derruba barris). Não é empurrado de volta.
+   * @returns {CANNON.Body}
+   */
+  addAgent({ x, y, z, radius, height }) {
+    const body = new CANNON.Body({ type: CANNON.Body.KINEMATIC, mass: 0 });
+    body.addShape(new CANNON.Cylinder(radius, radius, height, 8));
+    body.position.set(x, y + height / 2, z);
+    body.userData = { height, last: null };
+    this.world.addBody(body);
+    return body;
+  }
+
+  /** Move o corpo do animal (velocidade = deslocamento/dt → empurra o que tocar). */
+  moveAgent(body, x, y, z, dt) {
+    const cy = y + body.userData.height / 2, last = body.userData.last;
+    if (last && dt > 0) {
+      body.velocity.set((x - last.x) / dt, (cy - last.y) / dt, (z - last.z) / dt);
+      if (body.velocity.length() > 40) body.velocity.set(0, 0, 0);
+    }
+    body.position.set(x, cy, z);
+    body.userData.last = { x, y: cy, z };
+  }
+
+  removeAgent(body) {
+    this.world.removeBody(body);
+  }
+
   // ------------------------------------------------------------ simulação
 
   /**

@@ -27,7 +27,7 @@ import { FirstPersonArm } from '../entities/FirstPersonArm.js';
 import { GAMEPLAY } from '../config/gameplay.js';
 import { Fauna } from '../systems/Fauna.js';
 import { AnimalModels } from '../render/AnimalModels.js';
-import { ANIMAL_MODELS } from '../config/animalModels.js';
+import { ANIMAL_MODELS, ANIMAL_LOADER } from '../config/animalModels.js';
 import { Oxygen } from '../systems/Oxygen.js';
 import { ITEM_USES } from '../systems/Items.js';
 import { buildRenascimento } from '../villages/Renascimento.js';
@@ -143,6 +143,9 @@ export class Game {
     //     (textura do minimapa, máscara de biomas e/ou heightmap).
     this.referenceMap = await ReferenceMap.load(REFERENCE_MAP);
     await step(0.03, 'Carregando texturas fotográficas e árvores 3D…');
+    // Preloader: animais carregam junto com as texturas (cache cheio antes do jogo).
+    this.animalModels = new AnimalModels(ANIMAL_MODELS, { dracoPath: ANIMAL_LOADER.dracoPath });
+    const animalsReady = this.animalModels.loadAll((done, total) => ui.setLoading(0.03, `Carregando animais 3D… ${done}/${total}`));
     [this.photos, this.oaks] = await Promise.all([
       loadPhotoTextures(this.renderer),
       // Sem os carvalhos 3D o jogo continua com as árvores procedurais.
@@ -271,10 +274,10 @@ export class Game {
     this.cameraRig.yaw = Math.PI;
     this.setupCamera();
     this.setupCombat();
-    // Modelos 3D dos animais carregam em segundo plano; até chegarem, corpo procedural.
-    this.animalModels = new AnimalModels(ANIMAL_MODELS);
-    this.animalModels.loadAll();
+    // Animais: cache já cheio (preloader acima); espécie sem modelo usa o corpo procedural.
+    await animalsReady;
     this.fauna = new Fauna(this, { rng: this.random, models: this.animalModels });
+    this.fauna.warmup(this.renderer, this.camera); // compila os shaders de todas as espécies agora
 
     applyGraphics(this, this.graphics);
     this.ready = true;

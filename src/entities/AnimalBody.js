@@ -25,6 +25,10 @@ const SHAPES = {
   boar: { body: [1.1, 0.34], leg: 0.38, neck: [0.1, 0.18], head: [0.3, 0.3, 0.45], tail: 0.18, ears: 0.1 },
   rodent: { body: [1.3, 0.42], leg: 0.32, neck: [0.15, 0.2], head: [0.42, 0.4, 0.55], tail: 0, ears: 0.08 },
   ape: { body: [0.75, 0.38], leg: 0.6, neck: [0.1, 0.12], head: [0.32, 0.34, 0.3], tail: 0, ears: 0.06, frontLeg: 0.95 },
+  camel: { body: [1.05, 0.27], leg: 0.74, neck: [0.25, 0.6], head: [0.15, 0.17, 0.42], tail: 0.4, ears: 0.06 },
+  giraffe: { body: [0.72, 0.19], leg: 0.66, neck: [1.05, 0.95], head: [0.09, 0.1, 0.26], tail: 0.38, ears: 0.05, frontLeg: 0.76 },
+  bear: { body: [1.0, 0.36], leg: 0.5, neck: [0.15, 0.22], head: [0.32, 0.3, 0.36], tail: 0.07, ears: 0.08 },
+  cerberus: { body: [1.1, 0.27], leg: 0.62, neck: [0.5, 0.36], head: [0.26, 0.24, 0.42], tail: 0.6, ears: 0.15 },
 };
 
 /**
@@ -65,6 +69,9 @@ export class AnimalBody {
     if (spec.model === 'scorpion') this.buildScorpion();
     else if (spec.model === 'bird') this.buildBird();
     else if (spec.model === 'meerkat') this.buildMeerkat();
+    else if (spec.model === 'snake') this.buildSnake();
+    else if (spec.model === 'croc') this.buildCroc();
+    else if (spec.model === 'ostrich') this.buildOstrich();
     else this.buildQuadruped(SHAPES[spec.model] ?? SHAPES.dog);
     this.pose.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   }
@@ -114,7 +121,8 @@ export class AnimalBody {
     if (this.mixer) {
       let key = 'idle';
       if (state === 'dead') key = 'death';
-      else if (state === 'attack') key = 'attack';
+      else if (state === 'attack' || state === 'threat') key = this.actions.attack ? 'attack' : 'idle';
+      else if (state === 'circle') key = 'run';
       else if (gallop) key = 'run';
       else if (moving) key = 'walk';
       else if (spec.behavior === 'flee' && Math.sin(this.extraT * 0.5) > 0.3) key = 'eat';
@@ -127,6 +135,7 @@ export class AnimalBody {
       this.mixer.update(dt);
       this.pose.position.y = state === 'stalk' ? -0.08 * size : 0;
       if (state === 'burrow') this.pose.position.y = -stateTime * size * 1.2;
+      if (state === 'threat') this.pose.position.y = Math.abs(Math.sin(this.extraT * 12)) * 0.06 * size; // bate no peito
       return;
     }
 
@@ -143,6 +152,13 @@ export class AnimalBody {
     if (state === 'fly') {
       this.pose.position.y = Math.min(25, stateTime * stateTime * 3 + stateTime * 2);
       this.pose.rotation.z = Math.sin(this.extraT * 22) * 0.12; // bate as asas: o corpo balança
+      return;
+    }
+    if (state === 'threat') {
+      // Gorila batendo no peito (modelo estático): sobe/desce rápido e balança.
+      this.pose.position.y = Math.abs(Math.sin(this.extraT * 12)) * 0.08 * size;
+      this.pose.rotation.z = Math.sin(this.extraT * 12) * 0.06;
+      this.pose.rotation.x = -0.1;
       return;
     }
     const bob = moving ? Math.abs(Math.sin(this.phase)) * size * (gallop ? 0.09 : 0.035) : Math.sin(this.extraT * 2) * size * 0.004;
@@ -248,6 +264,26 @@ export class AnimalBody {
         torso.add(crack);
       }
     }
+    if (spec.hump) { // camelo
+      const hump = new THREE.Mesh(geo('hump', () => new THREE.SphereGeometry(0.26, 12, 8).scale(1, 0.9, 1.3)), coat);
+      hump.position.set(0, rad * 0.95, -0.05);
+      torso.add(hump);
+    }
+    if (spec.model === 'giraffe') { // ossicones
+      for (const sx of [-1, 1]) {
+        const o = new THREE.Mesh(geo('ossicone', () => new THREE.CylinderGeometry(0.018, 0.024, 0.14, 5).translate(0, 0.07, 0)), dark);
+        o.position.set(sx * hw * 0.25, hh * 0.5, hl * 0.12);
+        head.add(o);
+      }
+    }
+    if (spec.model === 'cerberus') { // mais duas cabeças, abertas para os lados
+      for (const yaw of [-0.55, 0.55]) {
+        const extra = neck.clone();
+        extra.rotation.y = yaw;
+        extra.position.x += Math.sign(yaw) * rad * 0.35;
+        torso.add(extra);
+      }
+    }
     if (sh.tail > 0) {
       const tail = new THREE.Group();
       tail.position.set(0, rad * 0.3, -len / 2 + rad * 0.2);
@@ -350,11 +386,15 @@ export class AnimalBody {
     this.head = head;
     head.add(new THREE.Mesh(geo('bdHead', () => new THREE.SphereGeometry(0.09, 8, 6)), c));
     head.add(new THREE.Mesh(geo('bdBeak', () => new THREE.ConeGeometry(0.035, 0.14, 5).rotateX(Math.PI / 2).translate(0, -0.01, 0.13)), mat(0x1a1a1a, { rough: 0.3 })));
-    body.add(new THREE.Mesh(geo('bdTail', () => new THREE.BoxGeometry(0.14, 0.02, 0.22).translate(0, 0.02, -0.3)), c));
+    const tailMat = this.spec.tailColor ? mat(this.spec.tailColor, { rough: 0.5 }) : c;
+    const wingMat = this.spec.wing ? mat(this.spec.wing, { rough: 0.5 }) : c;
+    body.add(new THREE.Mesh(geo(this.spec.tailColor ? 'bdTailLong' : 'bdTail', () => (this.spec.tailColor
+      ? new THREE.BoxGeometry(0.1, 0.02, 0.5).translate(0, 0.02, -0.42) // arara: cauda longa
+      : new THREE.BoxGeometry(0.14, 0.02, 0.22).translate(0, 0.02, -0.3))), tailMat));
     for (const sx of [-1, 1]) {
       const w = new THREE.Group();
       w.position.set(sx * 0.1, 0.06, 0);
-      const wing = new THREE.Mesh(geo('bdWing', () => new THREE.BoxGeometry(0.42, 0.02, 0.24).translate(0.21, 0, 0)), c);
+      const wing = new THREE.Mesh(geo('bdWing', () => new THREE.BoxGeometry(0.42, 0.02, 0.24).translate(0.21, 0, 0)), wingMat);
       wing.scale.x = sx;
       w.add(wing);
       body.add(w);
@@ -364,6 +404,113 @@ export class AnimalBody {
       hip.add(new THREE.Mesh(geo('bdLeg', () => new THREE.CylinderGeometry(0.008, 0.008, 0.14, 4).translate(0, -0.07, 0)), mat(0x2a2a2a)));
       this.pose.add(hip);
       this.legs.push({ hip, front: sx > 0, side: sx });
+    }
+    this.baseTorsoY = body.position.y;
+  }
+
+  /** Víbora: corpo em gomos (padrão alternado) que ondula ao rastejar. */
+  buildSnake() {
+    const spec = this.spec;
+    const c = mat(spec.color, { rough: 0.55 }), d = mat(spec.pattern ?? 0x3a2a1a, { rough: 0.55 });
+    const L = (spec.length ?? 1.4) / spec.size, n = 14, seg = L / n;
+    this.segments = [];
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1);
+      const r = 0.42 * (1 - Math.abs(t - 0.3) * 0.9) + 0.08;
+      const m = new THREE.Mesh(geo(`snSeg-${i}`, () => new THREE.SphereGeometry(r, 8, 6).scale(1, 0.75, seg / r * 0.75)), i % 3 === 1 ? d : c);
+      m.position.set(0, r * 0.75, L * 0.35 - i * seg);
+      this.pose.add(m);
+      this.segments.push(m);
+    }
+    const head = new THREE.Group();
+    head.position.set(0, 0.45, L * 0.35 + seg * 0.7);
+    head.add(new THREE.Mesh(geo('snHead', () => new THREE.SphereGeometry(0.4, 10, 8).scale(1.1, 0.6, 1.5)), c));
+    for (const sx of [-1, 1]) {
+      const eye = new THREE.Mesh(geo('snEye', () => new THREE.SphereGeometry(0.07, 6, 4)), mat(0xd8b020, { rough: 0.2 }));
+      eye.position.set(sx * 0.3, 0.12, 0.25);
+      head.add(eye);
+    }
+    this.pose.add(head);
+    this.head = head;
+    this.baseTorsoY = 0;
+  }
+
+  /** Jacaré: corpo baixo e largo, focinho comprido, patas abertas, cauda que balança. */
+  buildCroc() {
+    const c = mat(this.spec.color, { rough: 0.7 }), belly = mat(0x8a8a5a, { rough: 0.8 });
+    const body = new THREE.Group();
+    body.position.y = 0.55;
+    this.pose.add(body);
+    this.torso = body;
+    body.add(new THREE.Mesh(geo('crBody', () => new THREE.CapsuleGeometry(0.55, 2.4, 6, 12).rotateX(Math.PI / 2).scale(1.25, 0.6, 1)), c));
+    for (let i = 0; i < 7; i++) { // escamas do dorso
+      const sc = new THREE.Mesh(geo('crScute', () => new THREE.ConeGeometry(0.1, 0.22, 4)), c);
+      sc.position.set(0, 0.36, 1.1 - i * 0.38);
+      body.add(sc);
+    }
+    const head = new THREE.Group();
+    head.position.set(0, 0.05, 1.75);
+    body.add(head);
+    this.head = head;
+    head.add(new THREE.Mesh(geo('crSnout', () => new THREE.BoxGeometry(0.75, 0.32, 1.5).translate(0, 0.05, 0.7)), c));
+    const jaw = new THREE.Group();
+    jaw.add(new THREE.Mesh(geo('crJaw', () => new THREE.BoxGeometry(0.7, 0.16, 1.4).translate(0, -0.08, 0.68)), belly));
+    head.add(jaw);
+    this.jaw = jaw;
+    for (const sx of [-1, 1]) {
+      const eye = new THREE.Mesh(geo('crEye', () => new THREE.SphereGeometry(0.1, 6, 4)), mat(0xc8b030, { rough: 0.2 }));
+      eye.position.set(sx * 0.28, 0.27, 0.1);
+      head.add(eye);
+    }
+    const tail = new THREE.Group();
+    tail.position.set(0, 0, -1.6);
+    body.add(tail);
+    tail.add(new THREE.Mesh(geo('crTail', () => new THREE.ConeGeometry(0.5, 2.8, 8).rotateX(-Math.PI / 2).scale(1, 0.55, 1).translate(0, 0, -1.4)), c));
+    this.tail = tail;
+    for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
+      const hip = new THREE.Group();
+      hip.position.set(sx * 0.6, 0.45, sz * 0.9);
+      hip.rotation.z = sx * 0.9;
+      hip.add(new THREE.Mesh(geo('crLeg', () => new THREE.CylinderGeometry(0.12, 0.1, 0.6, 6).translate(0, -0.3, 0)), c));
+      this.pose.add(hip);
+      this.legs.push({ hip, front: sz > 0, side: sx, insect: true });
+    }
+    this.baseTorsoY = body.position.y;
+  }
+
+  /** Avestruz: corpo redondo de penas, pescoço e pernas compridas (bípede). */
+  buildOstrich() {
+    const c = mat(this.spec.color, { rough: 0.95 }), skin = mat(0xc89a8a, { rough: 0.7 }), white = mat(0xe8e2d8);
+    const body = new THREE.Group();
+    body.position.y = 0.95;
+    this.pose.add(body);
+    this.torso = body;
+    body.add(new THREE.Mesh(geo('osBody', () => new THREE.SphereGeometry(0.42, 12, 10).scale(0.85, 0.75, 1.15)), c));
+    body.add(new THREE.Mesh(geo('osTail', () => new THREE.SphereGeometry(0.22, 8, 6).scale(1, 0.7, 0.8).translate(0, 0.12, -0.45)), white));
+    for (const sx of [-1, 1]) {
+      const wing = new THREE.Mesh(geo('osWing', () => new THREE.SphereGeometry(0.25, 8, 6).scale(0.35, 0.7, 1.1)), white);
+      wing.position.set(sx * 0.36, 0.05, -0.05);
+      body.add(wing);
+    }
+    const neck = new THREE.Group();
+    neck.position.set(0, 0.2, 0.32);
+    neck.rotation.x = -0.25;
+    body.add(neck);
+    this.neck = neck;
+    neck.add(new THREE.Mesh(geo('osNeck', () => new THREE.CylinderGeometry(0.05, 0.08, 0.85, 8).translate(0, 0.42, 0)), skin));
+    const head = new THREE.Group();
+    head.position.y = 0.88;
+    neck.add(head);
+    this.head = head;
+    head.add(new THREE.Mesh(geo('osHead', () => new THREE.SphereGeometry(0.09, 8, 6).scale(1, 0.9, 1.3)), skin));
+    head.add(new THREE.Mesh(geo('osBeak', () => new THREE.ConeGeometry(0.04, 0.14, 5).rotateX(Math.PI / 2).translate(0, -0.02, 0.15)), mat(0xd8c0a0, { rough: 0.4 })));
+    for (const sx of [-1, 1]) {
+      const hip = new THREE.Group();
+      hip.position.set(sx * 0.14, 0.9, 0);
+      hip.add(new THREE.Mesh(geo('osThigh', () => new THREE.CylinderGeometry(0.06, 0.04, 0.9, 6).translate(0, -0.45, 0)), skin));
+      hip.add(new THREE.Mesh(geo('osFoot', () => new THREE.BoxGeometry(0.1, 0.04, 0.2).translate(0, -0.9, 0.06)), skin));
+      this.pose.add(hip);
+      this.legs.push({ hip, front: true, side: sx });
     }
     this.baseTorsoY = body.position.y;
   }
@@ -399,6 +546,7 @@ export class AnimalBody {
       return;
     }
     if (spec.model === 'bird') return this.updateBird(dt, state, stateTime, speed);
+    if (spec.model === 'snake') return this.updateSnake(dt, speed, state);
 
     for (const l of this.legs) {
       if (l.insect) {
@@ -432,13 +580,34 @@ export class AnimalBody {
     if (this.tail) this.tail.rotation.z = Math.sin(this.extraT * (moving ? 6 : 1.5)) * 0.25;
     if (this.claws) for (const c of this.claws) c.rotation.x = -lunge * 0.5;
     if (spec.model === 'scorpion' && this.tail) this.tail.rotation.x = -lunge * 0.6;
+    if (this.jaw) this.jaw.rotation.x = lunge * 0.6 + (state === 'chase' ? 0.15 : 0); // jacaré abre a boca
+    if (spec.model === 'croc' && this.tail) this.tail.rotation.y = Math.sin(this.extraT * (moving ? 5 : 1)) * (moving ? 0.35 : 0.1);
+    if (state === 'threat' && this.torso) {
+      // Bate no peito / se ergue: tronco sobe e desce rápido, patas da frente no ar.
+      this.torso.position.y += Math.abs(Math.sin(this.extraT * 12)) * 0.08;
+      for (const l of this.legs) if (l.front) l.hip.rotation.x = -0.6 + Math.sin(this.extraT * 12 + l.side) * 0.5;
+    }
+  }
+
+  /** Víbora: ondulação lateral que corre do pescoço até a cauda; bote ergue a cabeça. */
+  updateSnake(dt, speed, state) {
+    const moving = speed > 0.05;
+    this.phase += dt * (moving ? 6 + speed * 3 : 1.2);
+    const amp = moving ? 0.35 : 0.08;
+    this.segments.forEach((m, i) => { m.position.x = Math.sin(this.phase - i * 0.55) * amp * (0.3 + i / this.segments.length); });
+    const strike = state === 'attack' ? Math.max(0, Math.sin(this.extraT * 8)) : 0;
+    this.head.position.y = 0.45 + strike * 0.9 + (state === 'chase' ? 0.5 : 0);
+    this.head.position.x = this.segments[0].position.x;
   }
 
   updateBird(dt, state, t, speed) {
-    const flying = state === 'fly';
-    for (const { w, side } of this.wings) w.rotation.z = flying ? side * Math.sin(this.extraT * 22) * 0.9 : side * 0.15;
+    const flying = state === 'fly' || state === 'circle';
+    // Em círculo (arara) bate as asas mais devagar e plana de vez em quando.
+    const flap = state === 'circle' ? Math.sin(this.extraT * 9) * (Math.sin(this.extraT * 0.7) > 0.2 ? 0.8 : 0.15) : Math.sin(this.extraT * 22) * 0.9;
+    for (const { w, side } of this.wings) w.rotation.z = flying ? side * flap : side * 0.15;
     for (const l of this.legs) l.hip.visible = !flying;
-    this.pose.position.y = flying ? Math.min(25, t * t * 3 + t * 2) : 0;
+    this.pose.position.y = state === 'fly' ? Math.min(25, t * t * 3 + t * 2) : 0;
+    this.pose.rotation.z = state === 'circle' ? -0.35 : 0; // inclina na curva
     if (this.head && !flying) this.head.rotation.x = speed > 0.1 ? 0 : Math.max(0, Math.sin(this.extraT * 3)) * 0.6; // bica o chão
   }
 }

@@ -18,6 +18,22 @@ const file = (id) => ({ glb: `${base}${id}.glb`, glbJson: `${base}${id}.glb.json
 /** Clipes dos animais animados da Quaternius (mesmo esqueleto "AnimalArmature"). */
 const QUATERNIUS = { idle: 'Idle', walk: 'Walk', run: 'Gallop', attack: 'Attack', death: 'Death', eat: 'Eating' };
 
+/** Carregador: pasta do decodificador Draco (copiado de three/examples/jsm/libs/draco/gltf). */
+export const ANIMAL_LOADER = { dracoPath: `${import.meta.env.BASE_URL}draco/` };
+
+/*
+ * COMO ADICIONAR O MODELO DE UMA ESPÉCIE NOVA (camelo, víbora, girafa, urso,
+ * arara, avestruz, jacaré, cérbero hoje usam o corpo procedural):
+ *   1. ponha `<id>.glb` em `public/assets/models/animals/` (CC0/CC-BY; cite em CREDITS.md);
+ *   2. acrescente aqui: `camelo: { ...file('camelo'), length: 3.0 }`
+ *      (ou `height:` para bichos altos: `girafa: { ...file('girafa'), height: 5.2 }`);
+ *   3. se for animado, mapeie os clipes: `clips: { idle: 'Idle', walk: 'Walk', run: 'Run', attack: 'Attack', death: 'Death' }`
+ *      — o AnimalBody troca o clipe conforme o estado da IA (wander → walk, chase → run, attack → attack…);
+ *   4. se vier deitado/de costas, ajuste `rotation` / `yaw` (ver o topo deste arquivo).
+ * Não precisa mexer em mais nada: espécie com modelo usa o modelo, sem modelo usa o procedural.
+ * O `.glb.json` (cópia em base64) só é necessário se o servidor não entregar `.glb`:
+ *   node -e "const f=require('fs');f.writeFileSync('X.glb.json',JSON.stringify({glb:f.readFileSync('X.glb').toString('base64')}))"
+ */
 export const ANIMAL_MODELS = {
   zebra: { ...file('zebra'), length: 2.4 },
   leao: { ...file('leao'), length: 2.3 },

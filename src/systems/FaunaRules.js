@@ -24,6 +24,20 @@ export function pickWeighted(table, roll) {
   return entries[entries.length - 1][0];
 }
 
+/**
+ * Tabela de sorteio só com quem pode nascer ali: na água só os aquáticos
+ * (jacaré); em terra, todos menos os aquáticos.
+ * @param {Record<string, number>} table BIOME_FAUNA[bioma]
+ * @param {Record<string, object>} species SPECIES
+ * @param {boolean} inWater o ponto é água
+ * @returns {Record<string, number>}
+ */
+export function spawnTable(table, species, inWater) {
+  const out = {};
+  for (const [id, w] of Object.entries(table ?? {})) if (!!species[id]?.aquatic === inWater) out[id] = w;
+  return out;
+}
+
 /** Tamanho do grupo em [min, max] (inteiro). */
 export function groupSize([min, max], roll) {
   return min + Math.min(max - min, Math.floor(roll * (max - min + 1)));

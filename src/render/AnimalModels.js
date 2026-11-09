@@ -1,32 +1,54 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 
 /**
- * Carrega e normaliza os modelos dos animais (`ANIMAL_MODELS`) e entrega
- * cópias prontas para pôr na cena.
+ * Gerenciador de assets da fauna (preloader + cache): carrega, normaliza e
+ * guarda os modelos dos animais (`ANIMAL_MODELS`) e entrega cópias prontas.
  *
- * Os modelos carregam em segundo plano: enquanto um não chega, `instance()`
- * devolve null e o animal usa o corpo procedural.
+ * - GLTFLoader + DRACOLoader (malhas comprimidas com Draco também funcionam;
+ *   o decodificador fica em `public/draco/`).
+ * - Tudo carrega durante a tela de carregamento (`loadAll(onProgress)`): o
+ *   jogo começa com o cache cheio — nenhum animal trava o quadro ao nascer.
+ * - Cópia por instância: `SkeletonUtils.clone` para modelos com esqueleto
+ *   (cada um anima sozinho), `clone()` simples para os estáticos; geometria e
+ *   materiais são compartilhados.
+ * - Escala pela `THREE.Box3` (`normalize`): 1 unidade = 1 metro.
+ * - Espécie sem modelo (ou que falhou) usa o corpo procedural do AnimalBody.
  *
  * @example
- *   const models = new AnimalModels(ANIMAL_MODELS);
- *   models.loadAll();                     // não bloqueia o jogo
- *   const m = models.instance('lobo');    // { object, clips } | null
+ *   const models = new AnimalModels(ANIMAL_MODELS, { dracoPath: ANIMAL_LOADER.dracoPath });
+ *   await models.loadAll((done, total) => ui.setLoading(done / total));
+ *   const m = models.instance('lobo');    // { object, clips, names } | null
  */
 export class AnimalModels {
-  /** @param {Record<string, object>} config `ANIMAL_MODELS` */
-  constructor(config) {
+  /**
+   * @param {Record<string, object>} config `ANIMAL_MODELS`
+   * @param {{ dracoPath?: string }} [o] pasta do decodificador Draco
+   */
+  constructor(config, { dracoPath = null } = {}) {
     this.config = config;
     /** @type {Map<string, { template: THREE.Object3D, clips: THREE.AnimationClip[], skinned: boolean }>} */
     this.ready = new Map();
     this.failed = new Set();
     this.loader = new GLTFLoader();
+    if (dracoPath) {
+      const draco = new DRACOLoader();
+      draco.setDecoderPath(dracoPath);
+      this.loader.setDRACOLoader(draco);
+    }
   }
 
-  /** Começa a carregar todos (em paralelo). Resolve quando todos terminarem. */
-  loadAll() {
-    return Promise.all(Object.keys(this.config).map((id) => this.load(id)));
+  /**
+   * Carrega todos em paralelo. Resolve quando todos terminarem (falhas viram
+   * corpo procedural, nunca travam o jogo).
+   * @param {(done: number, total: number, id: string) => void} [onProgress]
+   */
+  loadAll(onProgress) {
+    const ids = Object.keys(this.config);
+    let done = 0;
+    return Promise.all(ids.map((id) => this.load(id).then(() => onProgress?.(++done, ids.length, id))));
   }
 
   /** Carrega e normaliza um modelo. Falha vira aviso, e a espécie fica procedural. */

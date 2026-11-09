@@ -10,6 +10,9 @@
  *   attack  parado golpeando (pede `strike` quando o intervalo permite)
  *   burrow  (suricato) se enterra                → some (`gone`)
  *   fly     (corvo) levanta voo                  → some (`gone`)
+ *   threat  (gorila) bate no peito / (urso) encara → chase
+ *   circle  (arara) voa em círculos sobre o ninho  → pousa (idle)
+ *   home    (guardião) volta para o lugar que protege → idle
  *   dead    morto
  *
  * O comportamento (`spec.behavior`) decide como o animal reage ao jogador
@@ -44,12 +47,13 @@ export class AnimalBrain {
 
   get aggressive() {
     const b = this.spec.behavior;
-    return b === 'aggressive' || b === 'pack' || b === 'stalker' || (b === 'neutral' && this.angry);
+    return b === 'aggressive' || b === 'pack' || b === 'stalker' || b === 'guardian' || ((b === 'neutral' || b === 'territorial' || b === 'ambush') && this.angry);
   }
 
+  /** Foge quando apanha (passivos também: camelo, girafa; e a arara voa). */
   get fearful() {
     const b = this.spec.behavior;
-    return b === 'flee' || b === 'burrow' || b === 'fly';
+    return b === 'flee' || b === 'burrow' || b === 'fly' || b === 'passive' || b === 'soar';
   }
 
   set(state, timer = 0) {
@@ -65,7 +69,9 @@ export class AnimalBrain {
       return;
     }
     this.angry = true;
-    this.set('chase');
+    // Gorila: bate no peito antes de partir para cima.
+    if (this.spec.threat && this.state !== 'chase' && this.state !== 'attack') this.set('threat', this.spec.threat);
+    else this.set('chase');
   }
 
   /** Alerta do bando (hienas): entra em perseguição junto. */
@@ -82,6 +88,7 @@ export class AnimalBrain {
   startFleeing() {
     const b = this.spec.behavior;
     if (b === 'fly') return this.set('fly', 3);
+    if (b === 'soar') return this.set('circle', 10); // arara: sobe e circula, não some
     this.fleeing = 0;
     this.set('flee', this.fauna.fleeTime);
   }
@@ -90,9 +97,11 @@ export class AnimalBrain {
    * Um passo da IA.
    * @param {number} dt segundos
    * @param {number} dist distância horizontal até o jogador (m); Infinity se não há jogador vivo
+   * @param {{ fromHome?: number, atHome?: boolean }} [ctx] guardião: distância do JOGADOR até a
+   *   casa do guardião; `atHome` = o guardião já voltou
    * @returns {{ state: string, strike: boolean }} `strike` = desferir o golpe agora
    */
-  tick(dt, dist) {
+  tick(dt, dist, ctx = {}) {
     const s = this.spec;
     this.cooldown = Math.max(0, this.cooldown - dt);
     this.timer -= dt;
@@ -104,8 +113,27 @@ export class AnimalBrain {
         break;
       case 'idle':
       case 'wander':
-        if (near) this.react(dist);
-        else if (this.timer <= 0) this.state === 'idle' ? this.set('wander', this.range(this.fauna.wanderTime)) : this.set('idle', this.range(this.fauna.idleTime));
+        if (near) this.react(dist, ctx);
+        else if (this.timer <= 0) {
+          // Arara: de vez em quando sai para voar em círculos.
+          if (s.behavior === 'soar' && this.state === 'idle' && this.rng() < 0.5) this.set('circle', this.range([8, 16]));
+          else if (this.state === 'idle') this.set('wander', this.range(this.fauna.wanderTime));
+          else this.set('idle', this.range(this.fauna.idleTime));
+        }
+        break;
+      case 'circle':
+        if (near) this.timer = Math.max(this.timer, 4); // gente perto: continua no alto
+        else if (this.timer <= 0) this.set('idle', this.range(this.fauna.idleTime));
+        break;
+      case 'threat':
+        // Gorila batendo no peito / urso encarando.
+        if (s.behavior === 'territorial' && !this.angry) {
+          if (dist <= s.territory) { this.angry = true; this.set('chase'); } else if (!near) this.calmDown();
+        } else if (this.timer <= 0) this.set('chase');
+        break;
+      case 'home':
+        if (ctx.atHome) this.set('idle', this.range(this.fauna.idleTime));
+        else if (near && (ctx.fromHome ?? 0) <= s.guardRadius) this.set('chase');
         break;
       case 'flee':
         this.fleeing += dt;
@@ -118,7 +146,8 @@ export class AnimalBrain {
         else if (dist > s.sense * 1.5) this.set('idle', this.range(this.fauna.idleTime));
         break;
       case 'chase':
-        if (dist <= s.attackRange) this.set('attack');
+        if (s.behavior === 'guardian' && (ctx.fromHome ?? 0) > s.guardRadius) this.set('home'); // jogador saiu do território
+        else if (dist <= s.attackRange) this.set('attack');
         else if (dist > (s.giveUp ?? s.sense * 2)) this.calmDown();
         break;
       case 'attack':
@@ -139,8 +168,18 @@ export class AnimalBrain {
   }
 
   /** Jogador entrou no raio de percepção. */
-  react() {
-    const b = this.spec.behavior;
+  react(dist = 0, ctx = {}) {
+    const s = this.spec, b = s.behavior;
+    if (b === 'passive') return; // camelo, girafa: ignoram quem passa
+    if (b === 'ambush') { // víbora, jacaré: só dão o bote bem de perto
+      if (dist <= s.strikeRange) { this.angry = true; this.set('chase'); }
+      return;
+    }
+    if (b === 'territorial') { // urso: encara; ataca se invadirem o território
+      if (dist <= s.territory) { this.angry = true; this.set('chase'); } else this.set('threat', 0);
+      return;
+    }
+    if (b === 'guardian' && (ctx.fromHome ?? 0) > s.guardRadius) return; // fora do território: ignora
     if (this.fearful) this.startFleeing();
     else if (b === 'stalker') this.set('stalk');
     else if (this.aggressive) this.set('chase');
@@ -148,7 +187,8 @@ export class AnimalBrain {
   }
 
   calmDown() {
-    if (this.spec.behavior === 'neutral') this.angry = false;
-    this.set('idle', this.range(this.fauna.idleTime));
+    const b = this.spec.behavior;
+    if (b === 'neutral' || b === 'territorial' || b === 'ambush') this.angry = false;
+    this.set(b === 'guardian' ? 'home' : 'idle', this.range(this.fauna.idleTime));
   }
 }
