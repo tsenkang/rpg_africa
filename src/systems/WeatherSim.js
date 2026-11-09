@@ -15,14 +15,26 @@
 export function createParticleState(spec, capacity, rng) {
   const speed = new Float32Array(capacity);
   const seed = new Float32Array(capacity);
+  const size = new Float32Array(capacity);
+  const alpha = new Float32Array(capacity);
+  const classes = spec.sizes ?? [[1, 1, 1]];
+  const total = classes.reduce((t, c) => t + c[1], 0);
   for (let i = 0; i < capacity; i++) {
     seed[i] = rng();
-    speed[i] = spec.fall + spec.jitter * (rng() * 2 - 1);
+    // Classe de tamanho sorteada pela fração (ex.: neve pequena/média/grande).
+    let r = rng() * total, k = 0;
+    while (k < classes.length - 1 && (r -= classes[k][1]) > 0) k++;
+    const [sizeMul, , fallMul = 1] = classes[k];
+    size[i] = sizeMul;
+    speed[i] = spec.fall * fallMul + spec.jitter * (rng() * 2 - 1);
+    alpha[i] = 1 - (spec.alphaVar ?? 0) * rng();
   }
   return {
     pos: new Float32Array(capacity * 3),
     speed,
     seed,
+    size,
+    alpha,
     capacity,
     active: capacity,
     box: spec.box,
@@ -99,21 +111,6 @@ export function stepParticles(s, dt, center, windX, windZ, time, rng) {
 }
 
 /**
- * Intensidade do evento ao longo do tempo (vai e volta entre `min` e 1).
- * Duas senoides fora de fase para não parecer um relógio.
- * @param {number} time s
- * @param {{period:number, min:number}} cycle
- * @param {number} [phase] deslocamento por bioma
- * @returns {number} min..1
- */
-export function cycleIntensity(time, cycle, phase = 0) {
-  if (!cycle || cycle.min >= 1) return 1;
-  const t = (time / cycle.period + phase) * Math.PI * 2;
-  const wave = 0.5 + 0.35 * Math.sin(t) + 0.15 * Math.sin(t * 2.7 + 1.3);
-  return cycle.min + (1 - cycle.min) * Math.min(1, Math.max(0, wave));
-}
-
-/**
  * Distância (no chão, x/z) até a criatura paranormal mais próxima.
  * Aceita `{ position: {x,z} }` (Object3D, entidades) ou `{x,z}` direto.
  * `reach` (m, opcional) aumenta o alcance de uma criatura/presença: conta
@@ -155,4 +152,29 @@ export function lightningEnvelope(t) {
   if (t < 0) return 0;
   const second = t > 0.16 ? 0.7 * Math.exp(-(t - 0.16) * 11) : 0;
   return Math.exp(-t * 14) + second;
+}
+
+/**
+ * Respingos de chuva: pool fixo; cada respingo nasce no chão perto da câmera,
+ * vive `life` segundos (o anel abre e some) e renasce em outro lugar.
+ * @param {{pos: Float32Array, age: Float32Array, count: number}} s estado
+ * @param {number} dt
+ * @param {{x:number, z:number}} center câmera
+ * @param {{radius:number, life:number}} cfg
+ * @param {number} active quantos respingos podem estar vivos (0..count)
+ * @param {(x:number, z:number) => number} groundAt altura do chão
+ * @param {() => number} rng
+ */
+export function stepSplashes(s, dt, center, cfg, active, groundAt, rng) {
+  for (let i = 0; i < s.count; i++) {
+    let a = s.age[i] + dt / cfg.life;
+    if (a >= 1 || s.age[i] < 0) {
+      if (i >= active) { s.age[i] = -1; continue; } // fora do limite atual: fica apagado
+      const ang = rng() * Math.PI * 2, r = Math.sqrt(rng()) * cfg.radius;
+      const x = center.x + Math.cos(ang) * r, z = center.z + Math.sin(ang) * r;
+      s.pos[i * 3] = x; s.pos[i * 3 + 1] = groundAt(x, z) + 0.03; s.pos[i * 3 + 2] = z;
+      a = rng() * 0.3; // nascem em fases diferentes
+    }
+    s.age[i] = a;
+  }
 }

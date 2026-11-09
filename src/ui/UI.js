@@ -40,7 +40,9 @@ export class UI {
       <div class="row"><span class="label">Exposição</span><div class="meter"><div class="fill exp"></div></div><span class="val exp-val"></span></div>
       <div class="row small"><span>Moedas <b class="coins"></b></span><span>Relíquias <b class="relic"></b></span><span>Confiança Bússola <b class="trust"></b></span></div>
       <div class="inventory"></div>
-      <div class="effects"></div>`);
+      <div class="effects"></div>
+      <div class="weather-debuffs"></div>`);
+    this.debuffBox = this.vitals.querySelector('.weather-debuffs');
 
     this.biome = el('div', 'biome-banner', this.root);
     this.village = el('div', 'panel village hidden', this.root);
@@ -75,6 +77,13 @@ export class UI {
     this.minimap = el('canvas', '', mm);
     this.minimap.width = this.minimap.height = 200;
     this.coords = el('div', 'coords', mm);
+    this.clockTag = el('div', 'clock-tag', mm);
+
+    // Clima na tela: vinhetas (areia, gelo, chuva, calor, cinzas) e clarão do raio.
+    this.weatherFx = el('div', 'weather-fx', this.root);
+    this.fx = Object.fromEntries(['sand', 'frost', 'rain', 'heat', 'ash', 'flash'].map((k) => [k, el('div', `ov ov-${k}`, this.weatherFx)]));
+    this._fx = {};
+    this._debuffKey = '';
 
     // Mapa-múndi
     this.worldMap = el('div', 'worldmap hidden', this.root);
@@ -334,6 +343,36 @@ export class UI {
   /** @returns {boolean} menu de gráficos aberto */
   get graphicsOpen() {
     return !this.graphicsBox.classList.contains('hidden');
+  }
+
+  /**
+   * Relógio, clima atual, vinhetas e debuffs (a cada quadro; só mexe no DOM
+   * quando algo muda de verdade).
+   * @param {string} clock "Dia 2 · 14:35"
+   * @param {{name: string, state: string}} status clima dominante
+   * @param {Record<string, number>} overlays 0..1 por vinheta
+   * @param {number} flash 0..1 clarão do relâmpago
+   * @param {ReturnType<import('../systems/WeatherDebuffs.js').computeDebuffs>|null} debuffs
+   */
+  setWeather(clock, status, overlays, flash, debuffs) {
+    const label = `${clock} · ${status.name}`;
+    if (label !== this._clockLabel) {
+      this._clockLabel = label;
+      this.clockTag.innerHTML = `<b>${clock}</b> · <span class="wx-${status.state}">${status.name}</span>`;
+    }
+    for (const [k, v] of Object.entries({ ...overlays, flash: flash * 0.55 })) {
+      const o = Math.round(v * 100) / 100;
+      if (this._fx[k] !== o) { this._fx[k] = o; this.fx[k].style.opacity = o; }
+    }
+    const key = debuffs ? debuffs.active.map((d) => `${d.id}${Math.round(d.strength * 10)}`).join() + (debuffs.warmed ? '+w' : '') : '';
+    if (key === this._debuffKey) return;
+    this._debuffKey = key;
+    const chips = (debuffs?.active ?? []).map((d) => `
+      <div class="debuff" title="${d.description}">
+        <span class="icon">${d.icon}</span>${d.name}<span class="pct">${Math.round(d.strength * 100)}%</span>
+      </div>`);
+    if (debuffs?.warmed) chips.push('<div class="debuff warm" title="Perto do fogo o frio não pega."><span class="icon">🔥</span>Aquecido</div>');
+    this.debuffBox.innerHTML = chips.join('');
   }
 
   /** Abre/fecha o menu de gráficos (G). */

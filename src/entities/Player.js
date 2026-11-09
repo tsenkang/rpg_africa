@@ -104,7 +104,7 @@ export class Player {
       this.grounded = false;
     } else {
       if (this.grounded && input.pressed('Space')) {
-        this.velocity.y = PLAYER.jumpSpeed;
+        this.velocity.y = PLAYER.jumpSpeed * this.state.modifier('jump'); // lama/frio: pulo fraco
         this.grounded = false;
       }
       this.velocity.y += PLAYER.gravity * dt;

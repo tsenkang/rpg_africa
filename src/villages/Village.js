@@ -139,7 +139,7 @@ export class Village {
    * @param {{intensity?: number, range?: number}} [o]
    */
   addFire(fire, { intensity = 40, range = 24 } = {}) {
-    this.fires.push({ ...fire.light, color: 0xff8a3a, intensity, range, flames: fire.flames });
+    this.fires.push({ ...fire.light, color: 0xff8a3a, intensity, range, flames: fire.flames, warm: true }); // warm: aquece (cancela o frio)
   }
 
   /** Luz errante roxa (ruínas): flutua e ganha luz real quando perto. */

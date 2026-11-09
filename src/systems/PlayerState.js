@@ -118,9 +118,18 @@ export class PlayerState {
     return true;
   }
 
-  /** Multiplica os modificadores ativos (ex.: 'speed', 'relicPower'). */
+  /**
+   * Modificadores do ambiente (debuffs climáticos), trocados a cada quadro
+   * pelo jogo: { speed, jump }. Entram junto com os dos efeitos.
+   * @param {Record<string, number>} mods
+   */
+  setEnvironmentModifiers(mods) {
+    this.envModifiers = mods;
+  }
+
+  /** Multiplica os modificadores ativos (ex.: 'speed', 'relicPower') e os do ambiente. */
   modifier(name) {
-    let m = 1;
+    let m = this.envModifiers?.[name] ?? 1;
     for (const e of this.effects) if (e.def.modifiers?.[name]) m *= e.def.modifiers[name];
     return m;
   }

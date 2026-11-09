@@ -51,7 +51,9 @@ import { Thunder } from '../audio/Thunder.js';
 import { Minimap } from '../render/Minimap.js';
 import { MINIMAP } from '../config/minimap.js';
 import { Clouds } from '../world/Clouds.js';
-import { VILLAGE_SHELTER } from '../config/weather.js';
+import { VILLAGE_SHELTER, WEATHER_CYCLE, DEBUFFS, DEBUFF_RULES } from '../config/weather.js';
+import { GameClock } from '../systems/WeatherClock.js';
+import { computeDebuffs } from '../systems/WeatherDebuffs.js';
 import { GRAPHICS_PRESETS, LOW_FPS_HINT } from '../config/graphics.js';
 import { GraphicsStore, FpsMeter, presetById, stepPreset, applyGraphics } from '../render/GraphicsSettings.js';
 
@@ -98,6 +100,9 @@ export class Game {
     this.dummies = [];
     this.random = Math.random; // trocável em testes (sorteios do jogo)
     this.oxygen = new Oxygen(GAMEPLAY.swimming);
+    /** Relógio do jogo (dias/horas): move o sol e sorteia o clima a cada hora. */
+    this.gameClock = new GameClock(WEATHER_CYCLE);
+    this._weatherDamage = 0;
     this.dead = false;
     this.respawnAt = 0;
     this.lastVillage = null; // vila onde o jogador renasce
@@ -188,6 +193,7 @@ export class Game {
     // Clima por bioma + névoa paranormal (roda depois do Environment no loop).
     this.weather = new WeatherManager({
       scene: this.scene, environment: this.environment, renderer: this.renderer, rng: this.random, audio: new Thunder(),
+      groundAt: (x, z) => this.groundHeight(x, z),
     });
     /** Criaturas paranormais: empurre aqui (`game.paranormalCreatures.push(obj)`) — a névoa engrossa perto delas. */
     this.paranormalCreatures = this.weather.creatures;
@@ -488,6 +494,31 @@ export class Game {
   }
 
   /**
+   * Debuffs do clima no personagem (config/weather.js → DEBUFFS):
+   * velocidade/pulo via PlayerState, dano por segundo (nunca abaixo de
+   * DEBUFF_RULES.minHealth) e exposição paranormal. Perto de uma fogueira o
+   * frio some ("Aquecido").
+   */
+  applyWeatherDebuffs(dt) {
+    const pos = this.player.position, r2 = DEBUFF_RULES.fireRadius ** 2;
+    const nearFire = this.fireLights.sources.some((f) => f.warm && (f.x - pos.x) ** 2 + (f.z - pos.z) ** 2 < r2);
+    const d = this.dead || this.player.flying ? null : computeDebuffs(this.weather.climates, DEBUFFS, DEBUFF_RULES, { nearFire });
+    this.debuffs = d;
+    this.state.setEnvironmentModifiers(d ? { speed: d.speed, jump: d.jump } : null);
+    if (!d) return;
+    this._weatherDamage += d.dps * dt;
+    if (this._weatherDamage >= 1) {
+      const n = Math.floor(this._weatherDamage);
+      this._weatherDamage -= n;
+      if (this.state.health > DEBUFF_RULES.minHealth) this.state.damage(n, DEBUFF_RULES.minHealth);
+    }
+    if (d.exposure > 0) {
+      this._weatherExposure = (this._weatherExposure ?? 0) + d.exposure * dt;
+      if (this._weatherExposure >= 1) { this.state.addParanormalExposure(1); this._weatherExposure -= 1; }
+    }
+  }
+
+  /**
    * 0..1: quanto o ponto está dentro de uma vila (1 dentro, cai a 0 em
    * `VILLAGE_SHELTER.fade` metros fora da borda). O clima fica mais fraco.
    */
@@ -585,10 +616,13 @@ export class Game {
     ui.setPrompt(item);
 
     const pos = this.player.position;
+    this.gameClock.update(dt);
+    this.environment.setHour(this.gameClock.hour);
+    const hourIndex = this.gameClock.hourIndex;
     if (this.areaId === 'overworld') {
       const w = this.terrain.weightsAt(pos.x, pos.z, this._w);
       this.environment.update(dt, pos, this.camera, w, false);
-      this.weather.update(dt, { time: this.time, camera: this.camera, player: pos, weights: w, underground: false, shelter: this.villageShelter(pos) });
+      this.weather.update(dt, { time: this.time, camera: this.camera, player: pos, weights: w, underground: false, shelter: this.villageShelter(pos), hourIndex });
       this.clouds.update(dt, this.environment, this.weather.overcast);
       let best = 0;
       for (let i = 1; i < w.length; i++) if (w[i] > w[best]) best = i;
@@ -618,9 +652,11 @@ export class Game {
       }
     } else {
       this.environment.update(dt, pos, this.camera, this._w, true);
-      this.weather.update(dt, { time: this.time, camera: this.camera, player: pos, weights: this._w, underground: true });
+      this.weather.update(dt, { time: this.time, camera: this.camera, player: pos, weights: this._w, underground: true, hourIndex });
       if (this._villageKey !== 'under') { this._villageKey = 'under'; ui.setVillage(null); }
     }
+    this.applyWeatherDebuffs(dt);
+    ui.setWeather(this.gameClock.label(), this.weather.status, this.weather.overlays, this.weather.flash, this.debuffs);
     this.dungeons.update(dt, this.time, this.areaId);
     this.fireLights.update(this.time, this.areaId === 'overworld' ? pos : Game.NOWHERE);
     for (const d of this.dummies) d.update(dt);

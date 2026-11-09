@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { BIOMES, UNDERGROUND_AMBIENCE } from '../config/biomes.js';
 import { RENDER } from '../config/worldConfig.js';
-import { SUN_CYCLE } from '../config/sky.js';
-import { sunDirection } from './SunPath.js';
+import { DAY_NIGHT } from '../config/sky.js';
+import { celestial, horizonFade } from './SunPath.js';
 
 const KEYS_COLOR = ['fogColor', 'skyTop', 'skyHorizon', 'sunColor', 'hemiSky', 'hemiGround'];
 const KEYS_NUM = ['fogDensity', 'sunIntensity', 'hemiIntensity', 'exposure'];
@@ -28,9 +28,20 @@ export class Environment {
     this.state = parseAmbience(BIOMES[0].ambience);
     this.target = parseAmbience(BIOMES[0].ambience);
 
-    // Sol dinâmico: passeia devagar pelo céu (config/sky.js → SUN_CYCLE).
-    this.sunTime = SUN_CYCLE.period * 0.85; // começa no fim da tarde, como antes
-    this.sunDir = sunDirection(this.sunTime, SUN_CYCLE, new THREE.Vector3());
+    // Sol e lua seguem o relógio do jogo (setHour). `sunDir` = de onde vem a
+    // luz direcional agora (sol de dia, lua à noite).
+    this.hour = 15;
+    this.sunDir = new THREE.Vector3();
+    this.sunPos = new THREE.Vector3();
+    this.moonPos = new THREE.Vector3();
+    /** 0 = dia, 1 = noite (com o crepúsculo no meio). */
+    this.night = 0;
+    this.night_ = {
+      moon: new THREE.Color(DAY_NIGHT.night.moonColor), top: new THREE.Color(DAY_NIGHT.night.skyTop),
+      horizon: new THREE.Color(DAY_NIGHT.night.skyHorizon), fog: new THREE.Color(DAY_NIGHT.night.fogColor),
+      sunset: new THREE.Color(DAY_NIGHT.sunsetTint.color),
+    };
+    this.updateCelestial();
 
     scene.fog = new THREE.FogExp2(this.state.fogColor.clone(), this.state.fogDensity);
 
@@ -65,6 +76,26 @@ export class Environment {
     const r = shadowRange;
     Object.assign(sh.camera, { left: -r, right: r, top: r, bottom: -r, near: 1, far: 600 });
     sh.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Hora do dia (do GameClock): move sol e lua.
+   * @param {number} hour 0..24
+   */
+  setHour(hour) {
+    this.hour = hour;
+  }
+
+  /** Calcula sol/lua, quem ilumina agora e o quanto é noite. */
+  updateCelestial() {
+    const { sunElevation, moonElevation } = celestial(this.hour, DAY_NIGHT, this.sunPos, this.moonPos);
+    this.sunElevation = sunElevation;
+    this.night = 1 - horizonFade(sunElevation + DAY_NIGHT.twilight * 0.5, DAY_NIGHT.twilight);
+    const sunUp = sunElevation > 0;
+    this.sunDir.copy(sunUp ? this.sunPos : this.moonPos);
+    // Luz no horizonte é zero dos dois lados: a troca sol↔lua não "pula".
+    this.lightFade = horizonFade(sunUp ? sunElevation : moonElevation, DAY_NIGHT.twilight);
+    this.isMoon = !sunUp;
   }
 
   createSkyDome() {
@@ -116,8 +147,7 @@ export class Environment {
    * @param {boolean} underground true dentro das masmorras
    */
   update(dt, focus, camera, weights, underground) {
-    this.sunTime += dt;
-    sunDirection(this.sunTime, SUN_CYCLE, this.sunDir);
+    this.updateCelestial();
     this.skyUniforms.uSunDir.value.copy(this.sunDir);
     const t = this.target;
     if (underground) {
@@ -141,19 +171,32 @@ export class Environment {
     for (const key of KEYS_COLOR) s[key].lerp(t[key], k);
     for (const key of KEYS_NUM) s[key] += (t[key] - s[key]) * k;
 
-    this.scene.fog.color.copy(s.fogColor);
+    // Dia/noite por cima da ambientação do bioma (no subsolo não há céu).
+    const N = DAY_NIGHT.night, n = underground ? 0 : this.night, nn = this.night_;
+    this.scene.fog.color.copy(s.fogColor).lerp(nn.fog, n * N.fogMix);
     this.scene.fog.density = s.fogDensity;
     this.hemi.color.copy(s.hemiSky);
     this.hemi.groundColor.copy(s.hemiGround);
-    this.hemi.intensity = s.hemiIntensity;
-    this.sun.color.copy(s.sunColor);
-    this.sun.intensity = s.sunIntensity;
-    this.renderer.toneMappingExposure = s.exposure;
+    this.hemi.intensity = s.hemiIntensity * (1 + (N.hemiMul - 1) * n);
+    if (underground) {
+      this.sun.color.copy(s.sunColor);
+      this.sun.intensity = s.sunIntensity;
+    } else if (this.isMoon) {
+      this.sun.color.copy(nn.moon);
+      this.sun.intensity = s.sunIntensity * N.moonMul * this.lightFade;
+    } else {
+      // Sol baixo fica alaranjado (nascer / pôr do sol).
+      const low = 1 - Math.min(1, Math.max(0, this.sunElevation / DAY_NIGHT.sunsetTint.until));
+      this.sun.color.copy(s.sunColor).lerp(nn.sunset, low * 0.7);
+      this.sun.intensity = s.sunIntensity * this.lightFade;
+    }
+    this.renderer.toneMappingExposure = s.exposure * (1 + (N.exposureMul - 1) * n);
 
-    this.skyUniforms.uTop.value.copy(s.skyTop);
-    this.skyUniforms.uHorizon.value.copy(s.skyHorizon);
-    this.skyUniforms.uSunColor.value.copy(s.sunColor);
-    this.skyUniforms.uSunStrength.value = Math.min(1, s.sunIntensity / 2);
+    this.skyUniforms.uTop.value.copy(s.skyTop).lerp(nn.top, n * N.skyMix);
+    this.skyUniforms.uHorizon.value.copy(s.skyHorizon).lerp(nn.horizon, n * N.skyMix);
+    if (!this.isMoon) this.skyUniforms.uHorizon.value.lerp(nn.sunset, (1 - Math.min(1, Math.max(0, this.sunElevation / 0.25))) * 0.35 * (1 - n));
+    this.skyUniforms.uSunColor.value.copy(this.sun.color);
+    this.skyUniforms.uSunStrength.value = this.isMoon ? 0.35 : Math.min(1, s.sunIntensity / 2) * this.lightFade;
     this.sky.position.copy(camera.position);
     this.sky.visible = !underground;
 

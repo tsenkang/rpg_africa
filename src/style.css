@@ -247,3 +247,71 @@ kbd {
 .village.ruins { border-color: rgba(154, 90, 255, 0.45); background: rgba(20, 12, 26, 0.82); box-shadow: 0 8px 28px rgba(60, 20, 90, 0.45); }
 .village.ruins h3 { color: #b48cff; text-shadow: 0 0 12px rgba(154, 90, 255, 0.55); }
 .village.ruins .faction { border-left-color: #9a5aff; background: rgba(154, 90, 255, 0.14); }
+
+/* ===== Relógio e clima (abaixo do minimapa) ===== */
+.clock-tag { margin-top: 3px; font-size: 11.5px; color: var(--ink-dim); text-shadow: 0 1px 3px #000; }
+.clock-tag b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.clock-tag .wx-tempestade { color: #ff9a6a; font-weight: 600; }
+
+/* ===== Debuffs climáticos (painel de status) ===== */
+.weather-debuffs { display: grid; gap: 4px; margin-top: 4px; }
+.debuff {
+  display: flex; align-items: center; gap: 7px; padding: 4px 8px; border-radius: 6px; font-size: 12px;
+  background: rgba(200, 90, 50, 0.16); border: 1px solid rgba(255, 150, 100, 0.25); animation: debuffIn 0.4s ease;
+}
+.debuff .icon { font-size: 14px; }
+.debuff .pct { margin-left: auto; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.debuff.warm { background: rgba(255, 150, 60, 0.18); border-color: rgba(255, 180, 90, 0.4); }
+@keyframes debuffIn { from { opacity: 0; transform: translateX(-6px); } }
+
+/* ===== Clima na tela: vinhetas por cima do 3D, por baixo do HUD ===== */
+.weather-fx { position: absolute; inset: 0; pointer-events: none; z-index: -1; overflow: hidden; }
+.weather-fx .ov { position: absolute; inset: 0; opacity: 0; will-change: opacity; }
+
+/* Tempestade de areia: bordas alaranjadas e grãos correndo de lado. */
+.ov-sand { background: radial-gradient(ellipse at center, transparent 30%, rgba(196, 128, 58, 0.45) 68%, rgba(150, 92, 36, 0.88) 100%); }
+.ov-sand::after {
+  content: ''; position: absolute; inset: -20%;
+  background: repeating-linear-gradient(4deg, transparent 0 22px, rgba(222, 170, 100, 0.10) 22px 24px, transparent 24px 61px);
+  animation: sandRush 0.6s linear infinite;
+}
+@keyframes sandRush { to { transform: translateX(8%); } }
+
+/* Nevasca: gelo congelando as bordas. */
+.ov-frost {
+  background:
+    radial-gradient(ellipse at center, transparent 42%, rgba(205, 225, 245, 0.35) 70%, rgba(240, 248, 255, 0.92) 100%),
+    radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.55), transparent 22%),
+    radial-gradient(circle at 100% 0, rgba(255, 255, 255, 0.5), transparent 20%),
+    radial-gradient(circle at 0 100%, rgba(255, 255, 255, 0.55), transparent 24%),
+    radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.5), transparent 22%);
+  box-shadow: inset 0 0 140px 30px rgba(230, 242, 255, 0.55);
+}
+.ov-frost::after {
+  content: ''; position: absolute; inset: 0;
+  background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(255, 255, 255, 0.05) 0 2deg, transparent 2deg 9deg);
+  -webkit-mask: radial-gradient(ellipse at center, transparent 55%, #000 95%); mask: radial-gradient(ellipse at center, transparent 55%, #000 95%);
+}
+
+/* Chuva torrencial: bordas escuras e riscos d'água descendo na "lente". */
+.ov-rain { background: radial-gradient(ellipse at center, transparent 45%, rgba(20, 30, 38, 0.5) 100%); }
+.ov-rain::after {
+  content: ''; position: absolute; inset: -30%;
+  background: repeating-linear-gradient(102deg, transparent 0 34px, rgba(210, 228, 240, 0.09) 34px 35px, transparent 35px 77px);
+  animation: rainLens 0.35s linear infinite;
+}
+@keyframes rainLens { to { transform: translate(-2%, 9%); } }
+
+/* Onda de calor: brilho ofuscante vindo do alto e bordas quentes. */
+.ov-heat {
+  background: radial-gradient(circle at 70% 0%, rgba(255, 244, 210, 0.42), transparent 55%),
+    radial-gradient(ellipse at center, transparent 55%, rgba(220, 140, 70, 0.28) 100%);
+  animation: heatShimmer 2.2s ease-in-out infinite alternate;
+}
+@keyframes heatShimmer { to { filter: brightness(1.15); transform: scale(1.01); } }
+
+/* Cinzas corrompidas: vinheta roxa escura. */
+.ov-ash { background: radial-gradient(ellipse at center, transparent 35%, rgba(40, 12, 44, 0.55) 75%, rgba(16, 4, 20, 0.9) 100%); }
+
+/* Clarão do relâmpago. */
+.ov-flash { background: rgb(232, 240, 255); mix-blend-mode: screen; }

@@ -1,23 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sunDirection } from '../../../src/world/SunPath.js';
-import { SUN_CYCLE } from '../../../src/config/sky.js';
+import { celestial, horizonFade } from '../../../src/world/SunPath.js';
+import { DAY_NIGHT } from '../../../src/config/sky.js';
 
-test('sunDirection: vetor unitário, sempre acima do horizonte, dentro da faixa', () => {
-  const o = {};
-  for (let t = 0; t < SUN_CYCLE.period * 2; t += 17) {
-    sunDirection(t, SUN_CYCLE, o);
-    assert.ok(Math.abs(Math.hypot(o.x, o.y, o.z) - 1) < 1e-9);
-    const el = Math.asin(o.y);
-    assert.ok(el >= SUN_CYCLE.elevationMin - 1e-9 && el <= SUN_CYCLE.elevationMax + 1e-9);
-  }
+const at = (h) => { const s = {}, m = {}; return { ...celestial(h, DAY_NIGHT, s, m), s, m }; };
+
+test('sol: nasce no leste, alto ao meio-dia, se põe no oeste; abaixo do horizonte à noite', () => {
+  const rise = at(DAY_NIGHT.sunrise + 0.2), noon = at((DAY_NIGHT.sunrise + DAY_NIGHT.sunset) / 2), set = at(DAY_NIGHT.sunset - 0.2);
+  assert.ok(rise.s.x > 0.9 && rise.sunElevation > 0, 'leste ao nascer');
+  assert.ok(set.s.x < -0.9 && set.sunElevation > 0, 'oeste ao pôr');
+  assert.ok(Math.abs(noon.sunElevation - DAY_NIGHT.maxElevation) < 1e-9, 'meio-dia no alto');
+  assert.ok(at(2).sunElevation < 0 && at(23).sunElevation < 0);
 });
 
-test('sunDirection: o sol anda (devagar) e volta ao mesmo lugar após um período', () => {
-  const a = sunDirection(100, SUN_CYCLE, {});
-  const b = sunDirection(160, SUN_CYCLE, {});
-  const c = sunDirection(100 + SUN_CYCLE.period, SUN_CYCLE, {});
-  const ang = Math.acos(a.x * b.x + a.y * b.y + a.z * b.z);
-  assert.ok(ang > 0.005 && ang < 0.3, `move ${ang} rad/min`);
-  assert.ok(Math.abs(a.x - c.x) < 1e-9 && Math.abs(a.z - c.z) < 1e-9);
+test('lua: no céu durante a noite, abaixo durante o dia', () => {
+  for (const h of [21, 0, 3]) assert.ok(at(h).moonElevation > 0, `lua às ${h}h`);
+  for (const h of [9, 12, 16]) assert.ok(at(h).moonElevation < 0, `sem lua às ${h}h`);
+});
+
+test('horizonFade: 0 no horizonte, 1 acima do crepúsculo (troca sol↔lua sem salto)', () => {
+  assert.equal(horizonFade(-0.1, 0.14), 0);
+  assert.equal(horizonFade(0, 0.14), 0);
+  assert.equal(horizonFade(0.2, 0.14), 1);
 });

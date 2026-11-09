@@ -1,17 +1,27 @@
 /**
- * Céu dinâmico: trajetória lenta do sol e camada de nuvens.
- *
- * O sol não faz o dia inteiro (o jogo ainda não tem noite): ele passeia
- * devagar num arco entre fim de manhã e fim de tarde, ida e volta, com
- * período `period` (s). As sombras, o brilho na água e o disco do sol no céu
- * acompanham. Ângulos em radianos.
+ * Dia e noite (seguem o relógio do jogo — WEATHER_CYCLE em config/weather.js).
+ * O sol nasce no leste (+X) às `sunrise`, passa alto pelo sul ao meio-dia e
+ * se põe no oeste às `sunset`. À noite a lua assume a luz direcional: azul,
+ * fraca, mas dá para enxergar. Ângulos em radianos.
+ * - maxElevation: altura do sol ao meio-dia (e da lua à meia-noite: moonElevation)
+ * - twilight: faixa de elevação (rad) em que a luz some/acende no horizonte
+ * - sunsetTint: cor do sol baixo (nascer/pôr) e até que elevação ela vale
+ * - night: quanto a noite muda a cena (× luz ambiente, cores, exposição)
  */
-export const SUN_CYCLE = {
-  period: 1500, // s para ir e voltar (25 min)
-  azimuthCenter: 2.36, // direção média (sudoeste, ~135°)
-  azimuthSwing: 0.75, // ± quanto ele anda para os lados
-  elevationMin: 0.42, // ~24° — sombras longas
-  elevationMax: 0.98, // ~56° — sol alto
+export const DAY_NIGHT = {
+  sunrise: 5.5,
+  sunset: 19.5,
+  maxElevation: 1.15,
+  moonElevation: 0.9,
+  twilight: 0.14,
+  sunsetTint: { color: 0xff8a4a, until: 0.35 },
+  night: {
+    moonColor: 0x9fb4e8, moonMul: 0.16,
+    hemiMul: 0.32,
+    skyTop: 0x0c1428, skyHorizon: 0x1e2a44, skyMix: 0.92,
+    fogColor: 0x1a2232, fogMix: 0.85,
+    exposureMul: 1.2,
+  },
 };
 
 /**

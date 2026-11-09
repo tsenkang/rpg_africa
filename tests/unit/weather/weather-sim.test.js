@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WEATHER, PARANORMAL_FOG } from '../../../src/config/weather.js';
 import {
-  createParticleState, seedParticles, stepParticles, cycleIntensity,
+  createParticleState, seedParticles, stepParticles, stepSplashes,
   nearestCreatureDistance, paranormalTarget, lightningEnvelope,
 } from '../../../src/systems/WeatherSim.js';
 import { mulberry32 } from '../../../src/world/Noise.js';
@@ -85,15 +85,6 @@ test('stepParticles: só mexe nas ativas (nível gráfico)', () => {
   const before = s.pos[50 * 3 + 1];
   stepParticles(s, 0.1, { x: 0, y: 0, z: 0 }, 0, 0, 0, rng);
   assert.equal(s.pos[50 * 3 + 1], before);
-});
-
-test('cycleIntensity: fica entre min e 1; min=1 é constante', () => {
-  const cycle = { period: 60, min: 0.4 };
-  for (let t = 0; t < 200; t += 0.7) {
-    const v = cycleIntensity(t, cycle);
-    assert.ok(v >= 0.4 - 1e-9 && v <= 1 + 1e-9, `t=${t} v=${v}`);
-  }
-  assert.equal(cycleIntensity(12, { period: 10, min: 1 }), 1);
 });
 
 test('névoa paranormal: 0 fora do raio, 1 perto, cresce ao se aproximar', () => {
