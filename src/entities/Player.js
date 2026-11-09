@@ -1,0 +1,210 @@
+import * as THREE from 'three';
+import { Humanoid } from './Humanoid.js';
+import { PLAYER, WORLD } from '../config/worldConfig.js';
+import { wantsSprint, resolveMoveSpeed } from './Locomotion.js';
+import { GAMEPLAY } from '../config/gameplay.js';
+import { swimVerticalSpeed } from './Swimming.js';
+
+/**
+ * Personagem do jogador (1,80 m). Anda relativo à câmera, corre (Shift →
+ * `sprinting`, velocidade × `PLAYER.sprintMultiplier`),
+ * pula (Espaço), nada em água funda e colide com prédios/muros.
+ * F = viagem rápida (multiplica a velocidade, para testar o mapa grande).
+ *
+ * Dependências injetadas: groundAt(x,z), collisions, state (PlayerState).
+ */
+export class Player {
+  constructor({ groundAt, collisions, state, isUnderground }) {
+    this.groundAt = groundAt;
+    this.collisions = collisions;
+    this.state = state;
+    this.isUnderground = isUnderground;
+    this.model = new Humanoid({ height: PLAYER.height, skin: 0x6b4430, shirt: 0xc8a050, pants: 0x3a3a44, hat: null, build: 1.05 });
+    this.root = this.model.root;
+    this.position = this.root.position;
+    this.velocity = new THREE.Vector3();
+    this.facing = new THREE.Vector3(0, 0, -1);
+    this.grounded = true;
+    this.swimming = false;
+    this.fastTravel = false;
+    this.flying = false;
+    this.speed = 0;
+    /** true enquanto corre (Shift + movendo). Lido pela câmera (FOV, balanço). */
+    this.sprinting = false;
+    /** Na água (nadando). A física de nado fica toda em `updateSwimming`. */
+    this.swimming = false;
+    /** Cabeça debaixo d'água (fôlego cai; tela azulada). */
+    this.submerged = false;
+    this._move = new THREE.Vector3();
+    this._fwd = new THREE.Vector3();
+    this._right = new THREE.Vector3();
+  }
+
+  teleport(x, z, facing = 0, y) {
+    this.position.set(x, y ?? this.groundAt(x, z), z);
+    this.velocity.set(0, 0, 0);
+    this.root.rotation.y = facing;
+    this.facing.set(Math.sin(facing), 0, Math.cos(facing));
+  }
+
+  /**
+   * Um quadro de controle do jogador.
+   * @param {number} dt
+   * @param {import('../core/Input.js').Input} input
+   * @param {import('../core/CameraRig.js').CameraRig} camera direção do movimento (e inclinação, nadando em 1ª pessoa)
+   */
+  update(dt, input, camera) {
+    const fwd = camera.forward(this._fwd);
+    const right = this._right.set(-fwd.z, 0, fwd.x);
+    const move = this._move.set(0, 0, 0);
+    if (input.isDown('KeyW') || input.isDown('ArrowUp')) move.add(fwd);
+    if (input.isDown('KeyS') || input.isDown('ArrowDown')) move.sub(fwd);
+    if (input.isDown('KeyD')) move.add(right);
+    if (input.isDown('KeyA')) move.sub(right);
+    if (input.pressed('KeyF')) this.fastTravel = !this.fastTravel;
+    if (input.pressed('KeyV') && !this.isUnderground()) {
+      this.flying = !this.flying;
+      this.velocity.set(0, 0, 0);
+    }
+    if (this.flying && this.isUnderground()) this.flying = false;
+    if (this.flying) return this.updateFlying(dt, input, move);
+
+    const ground = this.groundAt(this.position.x, this.position.z);
+    const underground = this.isUnderground();
+    const surfaceY = WORLD.waterLevel - GAMEPLAY.swimming.surfaceDepth; // pés boiando na superfície
+    // Entra na água quando o fundo fica mais baixo que a altura de boiar.
+    this.swimming = !underground && ground < surfaceY - 0.05 && this.position.y <= surfaceY + 0.3;
+    if (this.swimming) return this.updateSwimming(dt, input, move, camera, surfaceY);
+    this.submerged = false;
+
+    const moving = move.lengthSq() > 0;
+    this.sprinting = wantsSprint(input, moving, { swimming: this.swimming });
+    const speed = resolveMoveSpeed(PLAYER, {
+      sprinting: this.sprinting,
+      swimming: this.swimming,
+      modifier: this.state.modifier('speed'),
+      fastTravel: this.fastTravel && !underground,
+    });
+
+    if (moving) {
+      move.normalize(); // diagonal não é mais rápida
+      this.facing.lerp(move, 1 - Math.exp(-12 * dt)).normalize();
+      this.root.rotation.y = Math.atan2(this.facing.x, this.facing.z);
+    }
+    this.position.x += move.x * speed * dt;
+    this.position.z += move.z * speed * dt;
+    this.collisions.resolve(this.position, PLAYER.radius);
+
+    // Vertical
+    const g = this.groundAt(this.position.x, this.position.z);
+    if (this.swimming) {
+      this.velocity.y = 0;
+      this.position.y += (swimLevel - this.position.y) * Math.min(1, dt * 4);
+      if (g > this.position.y) this.position.y = g;
+      this.grounded = false;
+    } else {
+      if (this.grounded && input.pressed('Space')) {
+        this.velocity.y = PLAYER.jumpSpeed;
+        this.grounded = false;
+      }
+      this.velocity.y += PLAYER.gravity * dt;
+      this.position.y += this.velocity.y * dt;
+      // Desce degraus/encostas sem "voar" (snap até 0,6 m).
+      if (this.grounded && this.position.y - g < 0.6 && this.velocity.y <= 0) this.position.y = g;
+      if (this.position.y <= g) {
+        this.position.y = g;
+        this.velocity.y = 0;
+        this.grounded = true;
+      } else if (this.position.y - g > 0.6) {
+        this.grounded = false;
+      }
+    }
+
+    this.speed = moving ? speed : 0;
+    this.model.update(dt, Math.min(this.speed, PLAYER.runSpeed), { swimming: this.swimming, sprinting: this.sprinting, grounded: this.grounded });
+  }
+
+  /**
+   * Vira o personagem para `dir` (no chão) e anima o soco.
+   * @param {THREE.Vector3} dir direção do golpe
+   */
+  startPunch(dir, duration) {
+    this.facing.set(dir.x, 0, dir.z).normalize();
+    this.root.rotation.y = Math.atan2(this.facing.x, this.facing.z);
+    this.model.punch(duration);
+  }
+
+  /**
+   * 1ª pessoa: o corpo olha sempre para onde a câmera olha.
+   * @param {THREE.Vector3} dir direção no chão
+   */
+  faceDirection(dir) {
+    this.facing.set(dir.x, 0, dir.z).normalize();
+    this.root.rotation.y = Math.atan2(this.facing.x, this.facing.z);
+  }
+
+  /** Ponto de onde sai o soco: altura do ombro, um pouco à frente. */
+  punchOrigin(out = new THREE.Vector3()) {
+    return out.copy(this.position).addScaledVector(this.facing, 0.15).setY(this.position.y + 1.35);
+  }
+
+  /**
+   * Física de nado (isolada do andar): sem pulo, metade da velocidade, sem
+   * gravidade. Espaço sobe, Ctrl desce; em 1ª pessoa, andar para a frente
+   * segue a inclinação da câmera (olhar para baixo = mergulhar). Sem comando
+   * vertical, a flutuação traz o corpo de volta à superfície.
+   */
+  updateSwimming(dt, input, move, camera, surfaceY) {
+    const cfg = GAMEPLAY.swimming;
+    const speed = PLAYER.walkSpeed * cfg.speedMultiplier * this.state.modifier('speed');
+    const moving = move.lengthSq() > 0;
+    if (moving) {
+      move.normalize();
+      this.facing.lerp(move, 1 - Math.exp(-8 * dt)).normalize();
+      this.root.rotation.y = Math.atan2(this.facing.x, this.facing.z);
+    }
+    const forward = (input.isDown('KeyW') || input.isDown('ArrowUp') ? 1 : 0) - (input.isDown('KeyS') || input.isDown('ArrowDown') ? 1 : 0);
+    const vy = swimVerticalSpeed(cfg, {
+      up: input.isDown('Space'),
+      down: input.isDown('ControlLeft') || input.isDown('ControlRight'),
+      forward,
+      pitch: camera.isFirstPerson ? camera.firstPitch : 0,
+      speed,
+    });
+    this.position.x += move.x * speed * dt;
+    this.position.z += move.z * speed * dt;
+    this.collisions.resolve(this.position, PLAYER.radius);
+    const floor = this.groundAt(this.position.x, this.position.z);
+    this.position.y = Math.min(surfaceY, Math.max(floor, this.position.y + vy * dt));
+    this.velocity.set(0, 0, 0);
+    this.grounded = false;
+    this.sprinting = false;
+    this.submerged = this.position.y < WORLD.waterLevel - cfg.submergedDepth;
+    this.speed = moving ? speed : 0;
+    this.model.update(dt, this.speed, { swimming: true });
+  }
+
+  /** Modo voo (V): sem gravidade/colisão. Espaço sobe, Ctrl desce, Shift acelera. */
+  updateFlying(dt, input, move) {
+    let speed = PLAYER.flySpeed;
+    if (input.isDown('ShiftLeft') || input.isDown('ShiftRight')) speed *= PLAYER.flyBoost;
+    if (move.lengthSq() > 0) {
+      move.normalize();
+      this.facing.lerp(move, 1 - Math.exp(-8 * dt)).normalize();
+      this.root.rotation.y = Math.atan2(this.facing.x, this.facing.z);
+    }
+    let up = 0;
+    if (input.isDown('Space')) up += 1;
+    if (input.isDown('ControlLeft') || input.isDown('ControlRight')) up -= 1;
+    this.position.x += move.x * speed * dt;
+    this.position.z += move.z * speed * dt;
+    this.position.y += up * speed * 0.6 * dt;
+    const g = this.groundAt(this.position.x, this.position.z);
+    this.position.y = Math.min(PLAYER.flyMaxHeight, Math.max(this.position.y, Math.max(g, WORLD.waterLevel) + 0.3));
+    this.swimming = false;
+    this.grounded = false;
+    this.speed = 0;
+    this.sprinting = false;
+    this.model.update(dt, 0, { swimming: true }); // pose "deitada" de nado = voo
+  }
+}

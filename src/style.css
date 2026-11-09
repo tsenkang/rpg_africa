@@ -1,0 +1,217 @@
+/* ===== Base ===== */
+:root {
+  --ink: #f4ead6;
+  --ink-dim: #c9bba0;
+  --panel: rgba(18, 14, 10, 0.72);
+  --edge: rgba(255, 228, 170, 0.18);
+  --gold: #e8b85a;
+  --hp: #c8432f;
+  --exp: #8a5ad8;
+  --buff: #6fcf8a;
+  --disease: #d8b23a;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; color: var(--ink); }
+canvas { display: block; }
+.hidden { display: none !important; }
+kbd {
+  display: inline-block; min-width: 1.5em; padding: 0 0.35em; margin-right: 0.45em;
+  border: 1px solid var(--edge); border-bottom-width: 2px; border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08); font: 600 0.8em/1.5 system-ui; text-align: center;
+}
+.ui { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+.ui .panel, .ui .dialogue, .ui .worldmap, .ui .loading { pointer-events: auto; }
+.panel {
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 10px;
+  backdrop-filter: blur(6px); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* ===== Status ===== */
+.vitals { position: absolute; top: 14px; left: 14px; width: 330px; padding: 12px 14px; font-size: 13px; }
+.vitals .row { display: grid; grid-template-columns: 74px 1fr 56px; align-items: center; gap: 8px; margin-bottom: 6px; }
+.vitals .row.small { display: flex; justify-content: space-between; margin: 8px 0 4px; color: var(--ink-dim); font-size: 12px; }
+.vitals .row.small b { color: var(--gold); }
+.vitals .label { color: var(--ink-dim); }
+.vitals .val { text-align: right; font-variant-numeric: tabular-nums; }
+.meter { height: 9px; border-radius: 6px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.meter .fill { height: 100%; border-radius: 6px; transition: width 0.35s ease; }
+.fill.hp { background: linear-gradient(90deg, #8e2a1e, var(--hp)); }
+.fill.exp { background: linear-gradient(90deg, #4a2a8a, var(--exp)); }
+.inventory { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.item { padding: 2px 8px; border-radius: 10px; background: rgba(232, 184, 90, 0.15); border: 1px solid rgba(232, 184, 90, 0.35); font-size: 11.5px; }
+.effects { margin-top: 6px; display: grid; gap: 4px; }
+.effect { display: flex; align-items: center; gap: 7px; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
+.effect .dot { width: 8px; height: 8px; border-radius: 50%; }
+.effect .time { margin-left: auto; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.effect.buff { background: rgba(111, 207, 138, 0.12); }
+.effect.buff .dot { background: var(--buff); box-shadow: 0 0 6px var(--buff); }
+.effect.disease { background: rgba(216, 178, 58, 0.14); }
+.effect.disease .dot { background: var(--disease); box-shadow: 0 0 6px var(--disease); animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+
+/* ===== Bioma ===== */
+.biome-banner {
+  position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+  text-align: center; opacity: 0; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+}
+.biome-banner span { display: block; font: 300 30px/1.1 Georgia, serif; letter-spacing: 0.08em; }
+.biome-banner small { color: var(--ink-dim); font-size: 13px; }
+.biome-banner.show { animation: banner 4.5s ease forwards; }
+@keyframes banner { 0% { opacity: 0; transform: translate(-50%, -8px); } 12%, 75% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
+
+/* ===== Vila ===== */
+.village { position: absolute; top: 14px; right: 228px; width: 310px; padding: 14px 16px; font-size: 12.5px; }
+.village h3 { font: 600 19px Georgia, serif; color: var(--gold); }
+.village .region { color: var(--ink-dim); margin-bottom: 8px; }
+.village .pop b { font-size: 16px; }
+.village .demo { display: flex; gap: 10px; margin: 6px 0; color: var(--ink-dim); }
+.village .demo b { color: var(--ink); }
+.village .faction { margin: 6px 0; padding: 4px 8px; border-left: 3px solid var(--hp); background: rgba(200, 67, 47, 0.12); }
+.village p { margin: 8px 0; line-height: 1.45; color: var(--ink-dim); }
+.village ul { columns: 2; padding-left: 16px; color: var(--ink-dim); }
+.village .gate { margin-top: 8px; padding: 5px 8px; border-radius: 6px; background: rgba(200, 67, 47, 0.18); }
+.village .gate.open { background: rgba(111, 207, 138, 0.18); }
+
+/* ===== Minimapa ===== */
+.minimap { position: absolute; top: 14px; right: 14px; width: 200px; text-align: center; }
+.minimap canvas { width: 200px; height: 200px; border-radius: 50%; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5); }
+.coords { margin-top: 4px; font-size: 11px; color: var(--ink-dim); text-shadow: 0 1px 3px #000; }
+
+/* ===== Interação, avisos, ajuda ===== */
+.prompt {
+  position: absolute; left: 50%; bottom: 186px; transform: translateX(-50%);
+  padding: 8px 16px; border-radius: 22px; background: var(--panel); border: 1px solid var(--edge); font-size: 15px;
+}
+.toasts { position: absolute; left: 50%; top: 90px; transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; }
+.toast {
+  padding: 8px 16px; border-radius: 8px; background: var(--panel); border: 1px solid var(--edge);
+  font-size: 14px; max-width: 560px; text-align: center; animation: toastIn 0.3s ease; transition: opacity 0.5s, transform 0.5s;
+}
+.toast.out { opacity: 0; transform: translateY(-6px); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(6px); } }
+.help { position: absolute; left: 14px; bottom: 12px; font-size: 12px; color: var(--ink-dim); text-shadow: 0 1px 3px #000; }
+.help b { color: var(--ink); }
+.speed-tag { position: absolute; right: 14px; bottom: 12px; padding: 4px 10px; border-radius: 6px; background: var(--gold); color: #1a1208; font: 700 12px system-ui; letter-spacing: 0.1em; }
+.sick-overlay {
+  position: absolute; inset: 0; opacity: 0; transition: opacity 2s;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(150, 130, 20, 0.35) 100%);
+}
+.sick-overlay.on { opacity: 1; animation: fever 5s ease-in-out infinite; }
+@keyframes fever { 50% { opacity: 0.55; } }
+
+/* ===== Hotbar (8 slots) ===== */
+.hotbar-wrap { position: absolute; left: 50%; bottom: 48px; transform: translateX(-50%); display: grid; justify-items: center; gap: 6px; pointer-events: none; }
+.equip-label { padding: 3px 12px; border-radius: 12px; background: var(--panel); border: 1px solid var(--edge); font-size: 13px; color: var(--ink-dim); }
+.equip-label b { color: var(--gold); font-weight: 600; }
+.hotbar { display: flex; gap: 4px; padding: 4px; border-radius: 8px; background: rgba(10, 8, 6, 0.55); border: 1px solid var(--edge); }
+.slot {
+  position: relative; width: 52px; height: 52px; border-radius: 5px;
+  background: rgba(40, 32, 22, 0.75); border: 2px solid rgba(255, 228, 170, 0.12);
+  display: grid; place-items: center; transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+}
+.slot .key { position: absolute; left: 4px; top: 2px; font-size: 11px; color: var(--ink-dim); }
+.slot .icon { font-size: 20px; color: var(--ink); text-transform: uppercase; }
+.slot .name { position: absolute; bottom: 2px; left: 2px; right: 2px; font-size: 9px; text-align: center; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slot.active {
+  border-color: var(--gold); transform: translateY(-3px);
+  box-shadow: 0 0 10px 2px rgba(232, 184, 90, 0.75), inset 0 0 8px rgba(232, 184, 90, 0.35);
+}
+.slot.active .key { color: var(--gold); }
+.hotbar-wrap.dim { opacity: 0.25; }
+.hit-mark {
+  position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none;
+  font: 700 18px 'Segoe UI', system-ui; color: #ffd27a; text-shadow: 0 2px 6px #000;
+}
+.hit-mark.miss { color: var(--ink-dim); font-size: 15px; }
+.hit-mark.show { animation: hitPop 0.7s ease-out; }
+@keyframes hitPop { 0% { opacity: 1; transform: translate(-50%, -50%) scale(1.25); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -80%) scale(1); } }
+
+/* ===== Diálogo ===== */
+.dialogue {
+  position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); width: min(720px, 92vw);
+  padding: 18px 22px; border-radius: 12px; background: rgba(16, 12, 8, 0.9); border: 1px solid var(--edge);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+.dlg-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.speaker { font: 600 19px Georgia, serif; color: var(--gold); }
+.dlg-title { color: var(--ink-dim); font-size: 12.5px; }
+.dlg-text { line-height: 1.55; font-size: 15px; margin-bottom: 12px; }
+.dlg-options { display: grid; gap: 6px; }
+.dlg-opt {
+  text-align: left; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--edge);
+  background: rgba(255, 255, 255, 0.05); color: var(--ink); font: 14px system-ui; cursor: pointer;
+}
+.dlg-opt:hover:not(:disabled) { background: rgba(232, 184, 90, 0.16); border-color: rgba(232, 184, 90, 0.5); }
+.dlg-opt:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ===== Mapa-múndi ===== */
+.worldmap { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.6); }
+.worldmap-card { padding: 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--edge); }
+.worldmap-title { margin-bottom: 8px; font: 600 18px Georgia, serif; color: var(--gold); }
+.worldmap-title span { margin-left: 12px; font: 12px system-ui; color: var(--ink-dim); }
+.worldmap canvas { width: min(1024px, 90vw); aspect-ratio: 16 / 9; border-radius: 8px; cursor: crosshair; }
+
+/* ===== Carregamento ===== */
+.loading {
+  position: absolute; inset: 0; display: grid; place-items: center; z-index: 50;
+  background: radial-gradient(ellipse at center, #2a1c10 0%, #0c0805 75%); transition: opacity 0.9s;
+}
+.loading.fade { opacity: 0; pointer-events: none; }
+.loading-card { width: min(520px, 88vw); text-align: center; }
+.loading h1 { font: 300 46px Georgia, serif; letter-spacing: 0.18em; color: var(--gold); }
+.loading-sub { margin: 8px 0 22px; color: var(--ink-dim); }
+.bar { height: 6px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.bar-fill { width: 0; height: 100%; background: linear-gradient(90deg, #8a5a2a, var(--gold)); transition: width 0.25s; }
+.loading-step { margin-top: 12px; font-size: 13px; color: var(--ink-dim); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .biome-banner.show { opacity: 1; }
+}
+
+/* Aviso da trava do cursor (ALT) e mira de 1ª pessoa */
+.lock-hint {
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 14px;
+  padding: 3px 14px; font-size: 12.5px; color: var(--ink-dim); white-space: nowrap;
+}
+.lock-hint b { color: var(--gold); }
+.lock-hint.locked { opacity: 0.55; }
+.crosshair {
+  position: absolute; top: 50%; left: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%);
+}
+.crosshair::before, .crosshair::after {
+  content: ''; position: absolute; background: #fff8e8e0; box-shadow: 0 0 2px #000c;
+}
+.crosshair::before { left: 8px; top: 2px; width: 2px; height: 14px; }
+.crosshair::after { top: 8px; left: 2px; height: 2px; width: 14px; }
+
+/* Água: tinta debaixo d'água e barra de fôlego */
+.underwater {
+  position: absolute; inset: 0; opacity: 0; transition: opacity .25s;
+  background: radial-gradient(ellipse at center, #1a5a7a55 0%, #06263acc 100%);
+}
+.underwater.on { opacity: 1; }
+.oxygen {
+  position: absolute; left: 50%; bottom: 232px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 12px; padding: 5px 12px;
+  font-size: 12.5px; color: var(--ink-dim);
+}
+.oxygen-bar { width: 220px; height: 9px; border-radius: 6px; background: #ffffff1a; overflow: hidden; }
+.oxygen-fill { height: 100%; width: 100%; border-radius: 6px; background: linear-gradient(90deg, #2a7ab0, #7ad0f0); transition: width .2s linear; }
+.oxygen-time { font-variant-numeric: tabular-nums; color: var(--ink); min-width: 2.6em; text-align: right; }
+.oxygen.low .oxygen-fill { background: linear-gradient(90deg, #8e2a1e, var(--hp)); }
+.oxygen.low { animation: pulse 0.8s infinite; }
+
+/* Dano e morte */
+.damage-flash { position: absolute; inset: 0; opacity: 0; pointer-events: none; box-shadow: inset 0 0 120px 30px #c8201ab0; }
+.damage-flash.show { animation: dmgFlash .45s ease-out; }
+@keyframes dmgFlash { 0% { opacity: 1; } 100% { opacity: 0; } }
+.death-screen {
+  position: absolute; inset: 0; z-index: 40; display: grid; place-content: center; text-align: center;
+  background: #000; opacity: 0; transition: opacity 1.2s ease-in; pointer-events: auto;
+}
+.death-screen.show { opacity: .92; }
+.death-screen h2 { font: 300 44px Georgia, serif; color: #d8402e; letter-spacing: .06em; text-shadow: 0 0 24px #000; }
+.death-screen p { color: var(--ink-dim); margin-top: 10px; font-size: 14px; }
