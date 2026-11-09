@@ -37,9 +37,10 @@ export function buildZambaRios(game) {
   let spots = poissonAnnulus({ cx, cz, inner: 34, outer: 105, spacing: 14, rng: v.rnd, accept: water });
   spots = spots.sort((a, b) => Math.hypot(a.x - cx, a.z - cz) - Math.hypot(b.x - cx, b.z - cz)).slice(0, 10);
   const shoreFrom = (x, z) => {
-    // Anda da casa em direção ao centro até achar terra (≥ 0,8 m).
+    // Anda da casa em direção ao centro até sair da água (margem ≥ 0,25 m):
+    // a beira do rio é um brejo baixo e largo, então não dá para esperar terra alta.
     const d = Math.hypot(cx - x, cz - z), ux = (cx - x) / d, uz = (cz - z) / d;
-    for (let t = 0; t < d; t += 1) if (T.heightAt(x + ux * t, z + uz * t) >= 0.8) return { x: x + ux * t, z: z + uz * t };
+    for (let t = 0; t < d; t += 1) if (T.heightAt(x + ux * t, z + uz * t) >= 0.25) return { x: x + ux * t, z: z + uz * t };
     return { x: cx, z: cz };
   };
   let dirX = 0, dirZ = 0; // direção média das casas mais próximas (soma de vetores)
