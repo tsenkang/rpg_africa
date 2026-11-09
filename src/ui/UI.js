@@ -2,6 +2,7 @@ import { ITEMS } from '../systems/PlayerState.js';
 import { VILLAGES } from '../config/villages.js';
 import { BIOMES } from '../config/biomes.js';
 import { WORLD, REFERENCE_MAP, worldToUv, uvToWorld } from '../config/worldConfig.js';
+import { GRAPHICS_PRESETS } from '../config/graphics.js';
 
 const el = (tag, cls, parent, html) => {
   const e = document.createElement(tag);
@@ -48,7 +49,7 @@ export class UI {
     this.help = el('div', 'help', this.root,
       '<b>WASD</b> mover · <b>Shift</b> correr · <b>Espaço</b> pular · <b>ALT</b> trava câmera · <b>C</b> 1ª/3ª pessoa · <b>Roda</b> zoom · '
       + '<b>E</b> interagir · <b>H</b> poção · <b>M</b> mapa · <b>F</b> viagem rápida · <b>V</b> voar · '
-      + '<b>1–8</b> slot · <b>Clique</b> bater');
+      + '<b>1–8</b> slot · <b>Clique</b> bater · <b>G</b> gráficos');
     this.speedTag = el('div', 'speed-tag hidden', this.root, 'VIAGEM RÁPIDA');
     this.sickOverlay = el('div', 'sick-overlay', this.root);
     // Água: tinta azul debaixo d'água + barra de fôlego (só aparece na água).
@@ -89,6 +90,24 @@ export class UI {
       this.toggleWorldMap(false);
       game.travelTo(p.x, p.z);
     });
+
+    // Menu de gráficos (tecla G)
+    this.graphicsBox = el('div', 'graphics hidden', this.root, `
+      <div class="graphics-card">
+        <div class="graphics-title">Gráficos <span class="graphics-fps"></span></div>
+        <p class="graphics-sub">Escolha com o mouse, <kbd>1</kbd>–<kbd>5</kbd> ou <kbd>←</kbd><kbd>→</kbd>. Muda na hora · <kbd>G</kbd> ou <kbd>Esc</kbd> fecha.</p>
+        <div class="graphics-options"></div>
+        <p class="graphics-note hidden">A suavização de bordas deste nível só muda ao recarregar a página.</p>
+      </div>`);
+    this.graphicsFps = this.graphicsBox.querySelector('.graphics-fps');
+    this.graphicsOptions = this.graphicsBox.querySelector('.graphics-options');
+    this.graphicsNote = this.graphicsBox.querySelector('.graphics-note');
+    this.graphicsBox.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-id]');
+      if (b) game.setGraphics(b.dataset.id);
+      else if (e.target === this.graphicsBox) this.toggleGraphics(false);
+    });
+    this._fpsShown = -1;
 
     // Diálogo
     this.dialogueBox = el('div', 'dialogue hidden', this.root);
@@ -310,6 +329,49 @@ export class UI {
   }
 
   // ---------- mapas ----------
+  // ---------- gráficos ----------
+  /** @returns {boolean} menu de gráficos aberto */
+  get graphicsOpen() {
+    return !this.graphicsBox.classList.contains('hidden');
+  }
+
+  /** Abre/fecha o menu de gráficos (G). */
+  toggleGraphics(force) {
+    const show = force ?? !this.graphicsOpen;
+    this.graphicsBox.classList.toggle('hidden', !show);
+    if (show) {
+      this.game.input.unlock();
+      this.toggleWorldMap(false);
+      this.refreshGraphics(this.game.graphics, this._needsReload ?? false);
+    }
+  }
+
+  /**
+   * Redesenha os botões do menu de gráficos.
+   * @param {object} current preset ativo
+   * @param {boolean} needsReload mostra o aviso do antialias
+   */
+  refreshGraphics(current, needsReload) {
+    this._needsReload = needsReload;
+    const list = GRAPHICS_PRESETS;
+    this.graphicsOptions.innerHTML = list.map((p, i) => `
+      <button data-id="${p.id}" class="${p.id === current.id ? 'active' : ''}">
+        <span class="g-key">${i + 1}</span>
+        <span class="g-name">${p.name}</span>
+        <span class="g-hint">${p.hint}</span>
+        <span class="g-bars">${'▮'.repeat(i + 1)}${'▯'.repeat(list.length - i - 1)}</span>
+      </button>`).join('');
+    this.graphicsNote.classList.toggle('hidden', !needsReload);
+  }
+
+  /** FPS atual no título do menu (só redesenha quando muda). */
+  setFps(fps) {
+    const v = Math.round(fps);
+    if (v === this._fpsShown || !this.graphicsOpen) return;
+    this._fpsShown = v;
+    this.graphicsFps.textContent = `${v} FPS`;
+  }
+
   toggleWorldMap(force) {
     const show = force ?? this.worldMap.classList.contains('hidden');
     this.worldMap.classList.toggle('hidden', !show);

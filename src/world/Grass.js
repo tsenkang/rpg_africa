@@ -67,11 +67,22 @@ export class Grass {
     this.w = new Float32Array(BIOMES.length);
   }
 
+  /**
+   * Raio do capim (nível gráfico, tecla G). Refaz o campo no próximo update.
+   * @param {number} radius metros; a quantidade de tufos cai com o quadrado
+   * @example grass.setRadius(45)
+   */
+  setRadius(radius) {
+    if (radius === this.radius) return;
+    this.radius = radius;
+    this.center.set(Infinity, Infinity);
+  }
+
   /** Recalcula as instâncias quando o jogador se afasta alguns metros. */
   update(playerPos, enabled = true) {
     this.mesh.visible = enabled;
     if (!enabled) return;
-    if (this.center.distanceTo(new THREE.Vector2(playerPos.x, playerPos.z)) < 5) return;
+    if (Math.hypot(this.center.x - playerPos.x, this.center.y - playerPos.z) < 5) return;
     this.center.set(playerPos.x, playerPos.z);
     this.rebuild();
   }

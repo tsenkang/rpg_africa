@@ -32,6 +32,19 @@ export class Vegetation {
     this.geos = createTreeGeometries(oaks);
     this.chunks = [];
     this.count = 0;
+    this.viewDistance = RENDER.treeViewDistance;
+    this.highDetailDistance = RENDER.treeHighDetailDistance;
+  }
+
+  /**
+   * Alcance das árvores (nível gráfico, tecla G).
+   * @param {number} view até onde aparecem (m)
+   * @param {number} highDetail até onde usam o modelo detalhado (m)
+   * @example vegetation.setDistances(820, 110)
+   */
+  setDistances(view, highDetail) {
+    this.viewDistance = view;
+    this.highDetailDistance = highDetail;
   }
 
   async build(onProgress) {
@@ -171,8 +184,8 @@ export class Vegetation {
     const half = RENDER.treeChunkSize * 0.7;
     for (const c of this.chunks) {
       const d = Math.hypot(c.x - viewPos.x, c.z - viewPos.z) - half;
-      const visible = enabled && d < RENDER.treeViewDistance;
-      const near = d < RENDER.treeHighDetailDistance;
+      const visible = enabled && d < this.viewDistance;
+      const near = d < this.highDetailDistance;
       c.hi.visible = visible && near;
       c.lo.visible = visible && !near;
     }

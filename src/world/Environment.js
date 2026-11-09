@@ -35,16 +35,33 @@ export class Environment {
     scene.add(this.hemi);
 
     this.sun = new THREE.DirectionalLight(this.state.sunColor, this.state.sunIntensity);
-    this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(RENDER.shadowMapSize, RENDER.shadowMapSize);
-    const r = RENDER.shadowRange;
-    Object.assign(this.sun.shadow.camera, { left: -r, right: r, top: r, bottom: -r, near: 1, far: 600 });
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.04;
+    this.setShadows({ shadows: true, shadowMapSize: RENDER.shadowMapSize, shadowRange: RENDER.shadowRange });
     scene.add(this.sun, this.sun.target);
 
     this.sky = this.createSkyDome();
     scene.add(this.sky);
+  }
+
+  /**
+   * Qualidade das sombras do sol (nível gráfico, tecla G).
+   * @param {{ shadows: boolean, shadowMapSize: number, shadowRange: number }} q
+   * @example environment.setShadows({ shadows: true, shadowMapSize: 2048, shadowRange: 80 })
+   */
+  setShadows({ shadows, shadowMapSize, shadowRange }) {
+    const sh = this.sun.shadow;
+    this.sun.castShadow = shadows;
+    this.shadowMapSize = shadowMapSize;
+    this.shadowRange = shadowRange;
+    if (sh.mapSize.x !== shadowMapSize) {
+      sh.mapSize.set(shadowMapSize, shadowMapSize);
+      sh.map?.dispose(); // recriado no próximo quadro com o tamanho novo
+      sh.map = null;
+    }
+    const r = shadowRange;
+    Object.assign(sh.camera, { left: -r, right: r, top: r, bottom: -r, near: 1, far: 600 });
+    sh.camera.updateProjectionMatrix();
   }
 
   createSkyDome() {
@@ -135,7 +152,7 @@ export class Environment {
     this.sky.visible = !underground;
 
     // Sombra acompanha o jogador, alinhada à grade de texels (sem tremor).
-    const texel = (RENDER.shadowRange * 2) / RENDER.shadowMapSize;
+    const texel = (this.shadowRange * 2) / this.shadowMapSize;
     const fx = Math.round(focus.x / texel) * texel;
     const fz = Math.round(focus.z / texel) * texel;
     this.sun.target.position.set(fx, focus.y, fz);

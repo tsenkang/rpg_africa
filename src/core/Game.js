@@ -38,6 +38,8 @@ import { Dungeons } from '../villages/Dungeons.js';
 import { Landmarks } from '../world/Landmarks.js';
 import { LANDMARKS } from '../config/landmarks.js';
 import { UI } from '../ui/UI.js';
+import { GRAPHICS_PRESETS, LOW_FPS_HINT } from '../config/graphics.js';
+import { GraphicsStore, FpsMeter, presetById, stepPreset, applyGraphics } from '../render/GraphicsSettings.js';
 
 import { yieldToBrowser as nextFrame } from './yieldToBrowser.js';
 
@@ -56,8 +58,12 @@ import { yieldToBrowser as nextFrame } from './yieldToBrowser.js';
 export class Game {
   constructor(container) {
     this.container = container;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    // Nível gráfico salvo (tecla G). O antialias só pode ser escolhido aqui.
+    this.graphicsStore = new GraphicsStore();
+    this.graphics = presetById(this.graphicsStore.load());
+    this.fpsMeter = new FpsMeter(LOW_FPS_HINT);
+    this.renderer = new THREE.WebGLRenderer({ antialias: this.graphics.antialias, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.graphics.pixelRatio));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -201,6 +207,7 @@ export class Game {
     this.animalModels.loadAll();
     this.fauna = new Fauna(this, { rng: this.random, models: this.animalModels });
 
+    applyGraphics(this, this.graphics);
     this.ready = true;
     ui.setLoading(1, 'Pronto! Pressione ALT para travar a câmera no mouse.');
     ui.hideLoading();
@@ -424,6 +431,20 @@ export class Game {
     this.cameraRig.snap();
   }
 
+  /**
+   * Troca o nível gráfico na hora e salva a escolha.
+   * @param {string} id um dos ids de GRAPHICS_PRESETS (ex.: 'medio')
+   * @example game.setGraphics('baixo')
+   */
+  setGraphics(id) {
+    this.graphics = presetById(id);
+    this.graphicsStore.save(this.graphics.id);
+    const { needsReload } = applyGraphics(this, this.graphics);
+    this.fpsMeter.reset();
+    this.ui.refreshGraphics(this.graphics, needsReload);
+    this.ui.toast(`Gráficos: ${this.graphics.name}${needsReload ? ' · a suavização de bordas muda ao recarregar a página' : ''}`);
+  }
+
   onResize() {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
@@ -435,13 +456,27 @@ export class Game {
   }
 
   update() {
-    const dt = Math.min(this.clock.getDelta(), 0.1);
+    const rawDt = this.clock.getDelta();
+    const dt = Math.min(rawDt, 0.1);
     if (!this.ready) return;
+    if (this.fpsMeter.tick(rawDt) && this.graphics.id !== GRAPHICS_PRESETS[0].id && !this._fpsHinted) {
+      this._fpsHinted = true;
+      this.ui.toast(`O jogo está lento (${Math.round(this.fpsMeter.fps)} FPS). Aperte <b>G</b> para baixar os gráficos.`);
+    }
+    this.ui.setFps(this.fpsMeter.fps);
     this.time += dt;
     this.timeUniform.value = this.time;
     const input = this.input;
     const ui = this.ui;
-    const busy = this.dead || ui.dialogue.isOpen || !ui.worldMap.classList.contains('hidden');
+    if (input.pressed('KeyG') && !ui.dialogue.isOpen) ui.toggleGraphics();
+    if (ui.graphicsOpen) {
+      // Com o menu aberto: 1–5 escolhem, ←/→ descem/sobem um degrau, Esc fecha.
+      GRAPHICS_PRESETS.forEach((p, i) => { if (input.pressed(`Digit${i + 1}`) || input.pressed(`Numpad${i + 1}`)) this.setGraphics(p.id); });
+      if (input.pressed('ArrowLeft')) this.setGraphics(stepPreset(this.graphics.id, -1).id);
+      if (input.pressed('ArrowRight')) this.setGraphics(stepPreset(this.graphics.id, 1).id);
+      if (input.pressed('Escape')) ui.toggleGraphics(false);
+    }
+    const busy = this.dead || ui.dialogue.isOpen || ui.graphicsOpen || !ui.worldMap.classList.contains('hidden');
     if (this.dead && this.time >= this.respawnAt) this.respawn();
 
     if (input.pressed('KeyM')) ui.toggleWorldMap();
