@@ -95,6 +95,8 @@ export function createMaterials(timeUniform = { value: 0 }) {
     rope: mat({ color: 0x9c8257, roughness: 1 }, 1),
     charred: mat({ map: T.bark(), color: 0x2a2420, roughness: 1 }, 1.5),
     snowCap: mat({ color: 0xf2f6fa, roughness: 0.6 }, 2),
+    frozenLog: mat({ map: T.bark(), color: 0x7f8c96 }, 1.5), // madeira congelada (taiga)
+    blackMoss: mat({ map: T.stone(0x35392f, 81) }, 3), // pedra com musgo negro (ruínas)
     flame: mat({ color: 0xffb04a, emissive: 0xff6a10, emissiveIntensity: 2.4, roughness: 1 }, 1),
     eerie: mat({ color: 0x6b4a8a, emissive: 0x2a1240, roughness: 0.4 }, 1),
   };

@@ -96,15 +96,15 @@ export const VILLAGES = {
     biome: 'taiga',
     region: 'Norte — montanhas da Taiga',
     u: 0.4355, v: 0.0868,
-    radius: 70,
-    flatten: { radius: 82, blend: 40 },
-    population: 140,
+    radius: 118,
+    flatten: { radius: 130, blend: 45 },
+    population: 520,
     demographics: { adultos: 80, criancas: 5, idosos: 15 },
     founded: 'Fundado por mineiros que seguiram um veio de ferro até a neve.',
     description:
-      'Povoado rústico de caçadores e mineiros. Poucas casas de tora e pedra, ' +
-      'todas viradas para as grandes fogueiras que nunca se apagam.',
-    structures: ['Cabanas de tora', 'Torres de vigia', 'Varais de peles', 'Fogueiras centrais', 'Entrada da mina'],
+      'Fortaleza rústica de caçadores e mineiros: paliçada de troncos congelados, dezenas de ' +
+      'cabanas de tora e pedra viradas para as grandes fogueiras que nunca se apagam.',
+    structures: ['Paliçada com portões', 'Dezenas de cabanas de tora', 'Torres de vigia altas', 'Varais de caça', 'Fogueiras centrais', 'Ruas de pedra com lanternas', 'Entrada da mina'],
     lore: {
       speaker: 'Ulmar, o Caçador-Chefe', title: 'Acampamento Presa de Gelo',
       look: { shirt: 0x5a4632, pants: 0x2e2a26, hat: 'wrap', height: 1.86, build: 1.15 },
@@ -121,16 +121,16 @@ export const VILLAGES = {
     biome: 'deserto',
     region: 'Centro do Deserto',
     u: 0.645, v: 0.28,
-    radius: 78,
-    flatten: { radius: 90, blend: 35 },
-    population: 620,
+    radius: 150,
+    flatten: { radius: 162, blend: 40 },
+    population: 2400,
     demographics: { adultos: 60, criancas: 25, idosos: 15 },
     faction: 'Território neutro: nenhuma arma é sacada perto da água',
     founded: 'Erguido em volta do único lago que não seca no deserto.',
     description:
-      'Entreposto comercial em volta de um pequeno lago com palmeiras — a única área ' +
-      'segura do deserto. Caravanas trocam sal, tecidos e especiarias no mercado.',
-    structures: ['Lago com palmeiras', 'Casas de adobe de teto reto', 'Tendas coloridas', 'Mercado de especiarias', 'Poço das caravanas'],
+      'Cidade-oásis em volta do lago com palmeiras — a única área segura do deserto. ' +
+      'Quarteirões de adobe de dois andares, ruas cobertas por tecidos e feiras de especiarias lotadas.',
+    structures: ['Lago com palmeiras', 'Quarteirões de adobe (1–2 andares)', 'Ruas cobertas por toldos', 'Feiras densas de especiarias', 'Tendas das caravanas', 'Poço das caravanas'],
     lore: {
       speaker: 'Mestra Nadira', title: 'Guardiã da Água · Al-Zahir',
       look: { shirt: 0x2f5d8a, robe: true, hat: 'wrap', height: 1.7 },
@@ -147,15 +147,15 @@ export const VILLAGES = {
     biome: 'tropical',
     region: 'Oeste — coração da Floresta Tropical',
     u: 0.0723, v: 0.6701,
-    radius: 72,
-    flatten: { radius: 80, blend: 35 },
-    population: 380,
+    radius: 120,
+    flatten: { radius: 128, blend: 40 },
+    population: 1300,
     demographics: { adultos: 55, criancas: 30, idosos: 15 },
     founded: 'Subiram para as árvores depois da "Noite das Garras".',
     description:
-      'Uma vila inteira no alto das árvores gigantes, ligada por pontes de corda. ' +
-      'No chão ficam só as raízes, as escadas em caracol e os predadores.',
-    structures: ['Casas nas árvores', 'Pontes suspensas de corda', 'Escadas em caracol nos troncos', 'Árvores gigantes'],
+      'Uma rede vertical de casas no alto das árvores gigantes, ligadas por uma teia de pontes ' +
+      'de corda (dá para andar nelas). No chão ficam só as raízes, as escadas em caracol e os predadores.',
+    structures: ['Dezenas de casas nas árvores', 'Teia de pontes suspensas', 'Escadas em caracol nos troncos', 'Árvores gigantes', 'Lanternas nas plataformas'],
     lore: {
       speaker: 'Avó Imani', title: 'Contadora de Histórias · Copa Alta',
       look: { shirt: 0x4a7a3a, robe: true, hair: 0xd0d0d0, hunch: 0.2, height: 1.6 },
@@ -172,16 +172,16 @@ export const VILLAGES = {
     biome: 'kalahari',
     region: 'Sul — onde a savana vira Kalahari',
     u: 0.5176, v: 0.8993,
-    radius: 58,
-    flatten: { radius: 70, blend: 30 },
-    population: 85,
+    radius: 100,
+    flatten: { radius: 112, blend: 35 },
+    population: 340,
     populationNote: 'Nômades: o acampamento muda de lugar a cada estação.',
     demographics: { adultos: 50, criancas: 35, idosos: 15 },
     founded: 'Nunca foi fundado — só montado e desmontado, há gerações.',
     description:
-      'Acampamento temporário de caçadores e coletores. Tendas de couro, cercados ' +
-      'para os animais de carga e tótens de osso marcando onde começa o território.',
-    structures: ['Tendas de couro', 'Cercado de animais de carga', 'Tótens de osso nos limites', 'Fogueira comunal'],
+      'Grande acampamento nômade de caçadores e coletores: dezenas de tendas de couro, áreas de ' +
+      'suprimentos, cercados para os animais de carga e tótens gigantes de osso nos limites.',
+    structures: ['Dezenas de tendas de couro', 'Áreas de suprimentos', 'Cercados de animais de carga', 'Tótens gigantes de osso', 'Fogueiras comunais'],
     lore: {
       speaker: 'Kxao, o Rastreador', title: 'Acampamento das Areias Vivas',
       look: { shirt: 0x8a5a2a, pants: 0x5a4a3a, height: 1.68, build: 0.95 },
@@ -198,15 +198,15 @@ export const VILLAGES = {
     biome: 'equatorial',
     region: 'Leste — margens da Floresta Equatorial',
     u: 0.7168, v: 0.5243,
-    radius: 70,
-    flatten: { radius: 40, blend: 26, height: 2.2 },
-    population: 450,
+    radius: 125,
+    flatten: { radius: 48, blend: 28, height: 2.2 },
+    population: 1500,
     demographics: { adultos: 58, criancas: 27, idosos: 15 },
     founded: 'Pescadores que seguiram os peixes rio abaixo e nunca voltaram.',
     description:
-      'Vila de pescadores e barqueiros. As casas ficam sobre palafitas na água, ' +
-      'ligadas por trapiches de madeira, com canoas amarradas nas pilastras.',
-    structures: ['Casas de palafita', 'Trapiches e ancoradouros', 'Canoas amarradas', 'Defumadouro de peixe'],
+      'Vila fluvial extensa: dezenas de casas de palafita sobre a água, ligadas por uma rede de ' +
+      'trapiches, com uma feira flutuante de jangadas e canoas amarradas nas pilastras.',
+    structures: ['Dezenas de palafitas', 'Rede de trapiches', 'Feira flutuante', 'Canoas amarradas', 'Defumadouro de peixe'],
     lore: {
       speaker: 'Mestre Bakary', title: 'Barqueiro-Mor · Zamba dos Rios',
       look: { shirt: 0x1f6a6a, pants: 0x2a2a30, hat: 'straw', height: 1.78 },
@@ -223,8 +223,8 @@ export const VILLAGES = {
     biome: 'preta',
     region: 'Coração da Floresta Preta',
     u: 0.7168, v: 0.8576,
-    radius: 80,
-    flatten: { radius: 88, blend: 40 },
+    radius: 150,
+    flatten: { radius: 160, blend: 45 },
     abandoned: true,
     population: 0,
     populationNote: 'Ninguém sabe para onde foram.',
@@ -232,9 +232,9 @@ export const VILLAGES = {
     faction: 'Zona corrompida: a névoa engrossa perto do centro',
     founded: 'Conhecida como Vila das Sombras.',
     description:
-      'Kaelen foi uma vila próspera até a noite em que todos sumiram. ' +
-      'Hoje restam paredes queimadas, torres partidas e luzes que flutuam sem dono.',
-    structures: ['Casas desabadas e queimadas', 'Torre de vigia partida', 'Árvores mortas', 'Luzes errantes', 'Pedra de Kaelen'],
+      'Kaelen foi um reino próspero até a noite em que todos sumiram. Hoje restam dezenas de casas ' +
+      'desmoronadas, muros cobertos de musgo negro, uma catedral partida e luzes que flutuam sem dono.',
+    structures: ['Dezenas de casas desmoronadas', 'Muros com musgo negro', 'Catedral arruinada', 'Torres partidas', 'Árvores mortas', 'Luzes errantes', 'Pedra de Kaelen'],
     lore: {
       speaker: 'Pedra de Kaelen', title: 'Inscrição gasta',
       pages: [

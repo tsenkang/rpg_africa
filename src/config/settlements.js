@@ -32,7 +32,10 @@ export const VILLAGE_LAYOUT = {
   perseguicao: { inner: 22, outer: -8, spacing: 10, jitter: 0.6, streetReach: 25, pathMax: 18 },
   abstracao: { inner: 25, outer: -7, spacing: 9.5, jitter: 0.8, streetReach: 25, pathMax: 18 },
   bussola: { inner: 28, outer: -8, spacing: 12.5, jitter: 0.25, streetReach: 30, pathMax: 22 },
-  alZahir: { inner: 34, outer: -6, spacing: 12, jitter: 0.3, streetReach: 25, pathMax: 18 },
+  // Vilas regionais (densas): espaçamento menor → 3–4× mais construções.
+  alZahir: { inner: 40, outer: -8, spacing: 10.5, jitter: 0.25, streetReach: 22, pathMax: 16 },
+  presaDeGelo: { inner: 22, outer: -14, spacing: 11.5, jitter: 0.35, streetReach: 22, pathMax: 16 },
+  ruinasKaelen: { inner: 24, outer: -10, spacing: 13, jitter: 1.0, streetReach: 25, pathMax: 0 },
 };
 
 /**
