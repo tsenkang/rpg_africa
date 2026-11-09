@@ -7,6 +7,7 @@ import { uvToWorld } from '../config/worldConfig.js';
 import { VILLAGE_LAYOUT, CLUTTER } from '../config/settlements.js';
 import { poissonAnnulus, faceStreet, randInt } from './Layout.js';
 import * as B from './Builders.js';
+import { Mechanics } from '../systems/Mechanics.js';
 
 const SHIRTS = [0xb5382a, 0x2f5d8a, 0xd9a02a, 0x4a7a3a, 0x7a3a6a, 0xe0d8c8, 0x8a5a2a, 0x1f6a6a, 0xc0602a];
 const PANTS = [0x3a3028, 0x2a2a30, 0x5a4a3a, 0x4a3a2a, 0x2e3a4a];
@@ -32,6 +33,14 @@ export class Village {
     this.shapes = []; // pinturas no terreno
     this.streets = []; // segmentos [{ax,az,bx,bz}] para transeuntes
     this.reserved = [];
+    /** Árvores fixas (palmeiras do oásis…) — a Vegetation planta depois. */
+    this.plants = [];
+    /** Fontes de luz viva (fogueiras, luzes errantes) — viram FireLights. */
+    this.fires = [];
+    /** Luzes errantes (malhas) animadas no update. */
+    this.wisps = [];
+    /** "Presenças" paranormais fixas: a névoa engrossa perto ({x, z, reach}). */
+    this.presences = [];
     this.rnd = mulberry32(seed);
     this.ctx = {
       batch: new StaticBatcher(),
@@ -40,6 +49,7 @@ export class Village {
       terrain: game.terrain,
       M: game.materials,
       rnd: this.rnd,
+      plants: this.plants,
     };
   }
 
@@ -109,6 +119,35 @@ export class Village {
       npc.interactive = true;
     }
     return npc;
+  }
+
+  /**
+   * Ancião que conta a história da vila (lore de VILLAGES[id].lore).
+   * @example v.addElder(cx + 3, cz, Math.PI)
+   */
+  addElder(x, z, facing = 0) {
+    const lore = this.config.lore;
+    return this.addNPC({
+      id: `${this.config.id}-anciao`, name: lore.speaker, title: lore.title, look: lore.look ?? {},
+      x, z, facing, onInteract: (g) => Mechanics.lore(g, lore),
+    });
+  }
+
+  /**
+   * Fogueira com luz dinâmica laranja (FireLights) e chamas tremulando.
+   * @param {{flames: THREE.Mesh[], light: {x,y,z}}} fire retorno de bonfire()
+   * @param {{intensity?: number, range?: number}} [o]
+   */
+  addFire(fire, { intensity = 40, range = 24 } = {}) {
+    this.fires.push({ ...fire.light, color: 0xff8a3a, intensity, range, flames: fire.flames });
+  }
+
+  /** Luz errante roxa (ruínas): flutua e ganha luz real quando perto. */
+  addWisp(mesh) {
+    const light = { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z, color: 0x9a5aff, intensity: 8, range: 14 };
+    mesh.userData.light = light;
+    this.wisps.push(mesh);
+    this.fires.push(light);
   }
 
   /** Transeuntes andando pelas ruas. */
@@ -261,6 +300,17 @@ export class Village {
       const breath = Math.sin(u.phase * u.breathRate);
       u.body.scale.y = u.bodyScale.y * (1 + breath * 0.035);
       u.body.scale.x = u.bodyScale.x * (1 + breath * 0.02);
+    }
+    for (const m of this.wisps) {
+      const u = m.userData;
+      u.phase += dt;
+      m.position.set(
+        u.home.x + Math.cos(u.phase * 0.31) * 1.8,
+        u.home.y + Math.sin(u.phase * 0.9) * 0.45,
+        u.home.z + Math.sin(u.phase * 0.27) * 1.8,
+      );
+      m.scale.setScalar(u.base.x * (0.85 + 0.15 * Math.sin(u.phase * 3.1)));
+      u.light.x = m.position.x; u.light.y = m.position.y; u.light.z = m.position.z;
     }
     this.gate?.update(dt);
   }

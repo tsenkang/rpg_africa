@@ -13,6 +13,30 @@ import { GAMEPLAY } from '../config/gameplay.js';
  */
 export const Mechanics = {
   // ------------------------------------------------------------------
+  // LORE REGIONAL — ancião de cada vila / inscrição das ruínas.
+  // `lore` vem de config/villages.js: { speaker, title, pages[], exposure? }
+  // ------------------------------------------------------------------
+  lore(game, lore, page = 0) {
+    const last = page >= lore.pages.length - 1;
+    game.ui.dialogue.open({
+      speaker: lore.speaker,
+      title: lore.title,
+      text: lore.pages[page],
+      options: last
+        ? [{
+          label: 'Agradecer e sair',
+          onSelect: () => {
+            if (lore.exposure) {
+              game.state.addParanormalExposure(lore.exposure);
+              game.ui.toast(`Algo te observa enquanto você lê… exposição paranormal +${lore.exposure}%`);
+            }
+          },
+        }]
+        : [{ label: 'Continuar', onSelect: () => Mechanics.lore(game, lore, page + 1) }, { label: 'Sair' }],
+    });
+  },
+
+  // ------------------------------------------------------------------
   // VILA PERSEGUIÇÃO — Mendigo: conversa e dá a Injeção Suspeita
   // (ao usar: 50% cura total / 50% Febre do Mendigo — ver Items.js)
   // ------------------------------------------------------------------

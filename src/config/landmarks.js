@@ -47,11 +47,7 @@ export const LANDMARKS = [
     flatten: { radius: 58, blend: 35 }, clear: 62,
     description: 'Cidadela de barro aos pés das mesas do deserto.',
   },
-  {
-    id: 'povoado-deserto', type: 'desertSettlement', name: 'Povoado do Oásis', u: 0.645, v: 0.28, rot: 0,
-    flatten: { radius: 52, blend: 30 }, clear: 56,
-    description: 'Casas de barro de teto plano em volta de um poço.',
-  },
+  // (O antigo 'Povoado do Oásis' virou a vila Oásis de Al-Zahir — config/villages.js.)
   {
     id: 'ruinas-pedra', type: 'stoneEnclosure', name: 'Muralhas de Pedra', u: 0.32, v: 0.625, rot: 0.3,
     flatten: { radius: 46, blend: 30 }, clear: 50,

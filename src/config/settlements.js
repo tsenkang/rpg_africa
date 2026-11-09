@@ -32,6 +32,7 @@ export const VILLAGE_LAYOUT = {
   perseguicao: { inner: 22, outer: -8, spacing: 10, jitter: 0.6, streetReach: 25, pathMax: 18 },
   abstracao: { inner: 25, outer: -7, spacing: 9.5, jitter: 0.8, streetReach: 25, pathMax: 18 },
   bussola: { inner: 28, outer: -8, spacing: 12.5, jitter: 0.25, streetReach: 30, pathMax: 22 },
+  alZahir: { inner: 34, outer: -6, spacing: 12, jitter: 0.3, streetReach: 25, pathMax: 18 },
 };
 
 /**
@@ -52,3 +53,11 @@ export const CLUTTER = {
   /** Trilhas da porta até a rua. */
   path: { width: 1.8, strength: 0.65, color: 0x6e5840 },
 };
+
+/**
+ * Luzes de fogo (fogueiras, tochas, luzes errantes das ruínas).
+ * - pool: quantas PointLights reais existem (cada uma pesa em toda a cena)
+ * - maxDistance: só fontes até esta distância do jogador ganham luz real (m)
+ * - flicker: força do tremor (0 = luz parada)
+ */
+export const FIRE_LIGHTS = { pool: 2, maxDistance: 80, flicker: 0.22 };

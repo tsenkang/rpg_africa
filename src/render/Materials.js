@@ -86,6 +86,15 @@ export function createMaterials(timeUniform = { value: 0 }) {
     soilRows: mat({ map: T.plaster(0x5a4230, 35) }, 2),
     runeGlow: mat({ color: 0xff7a2a, emissive: 0xff5a10, emissiveIntensity: 1.6, roughness: 0.6 }, 1),
     vine: mat({ color: 0x3e5a2a, roughness: 0.9 }, 1),
+    // Novos assentamentos
+    leather: mat({ map: T.plaster(0x9a6e48, 71), roughness: 0.85 }, 2),
+    hide: mat({ map: T.plaster(0x7a5434, 72), side: THREE.DoubleSide }, 1.5),
+    hideLight: mat({ map: T.plaster(0xc8a882, 73), side: THREE.DoubleSide }, 1.5),
+    bone: mat({ color: 0xe6dcc6, roughness: 0.7 }, 1),
+    rope: mat({ color: 0x9c8257, roughness: 1 }, 1),
+    charred: mat({ map: T.bark(), color: 0x2a2420, roughness: 1 }, 1.5),
+    snowCap: mat({ color: 0xf2f6fa, roughness: 0.6 }, 2),
+    flame: mat({ color: 0xffb04a, emissive: 0xff6a10, emissiveIntensity: 2.4, roughness: 1 }, 1),
     eerie: mat({ color: 0x6b4a8a, emissive: 0x2a1240, roughness: 0.4 }, 1),
   };
   return M;

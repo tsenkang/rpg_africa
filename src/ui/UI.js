@@ -320,11 +320,12 @@ export class UI {
     this.village.innerHTML = `
       <h3>${cfg.name}</h3>
       <div class="region">${cfg.region}</div>
-      <div class="pop"><b>${cfg.population.toLocaleString('pt-BR')}</b> habitantes${cfg.populationNote ? ` · ${cfg.populationNote}` : ''}</div>
+      <div class="pop">${cfg.abandoned ? `<b>Abandonada</b> · ${cfg.populationNote ?? ''}` : `<b>${cfg.population.toLocaleString('pt-BR')}</b> habitantes${cfg.populationNote ? ` · ${cfg.populationNote}` : ''}`}</div>
       ${demo}
       ${cfg.faction ? `<div class="faction">${cfg.faction}</div>` : ''}
       <p>${cfg.description}</p>
       <ul>${cfg.structures.map((s) => `<li>${s}</li>`).join('')}</ul>${extra}`;
+    this.village.classList.toggle('ruins', !!cfg.abandoned);
     this.village.classList.remove('hidden');
   }
 
@@ -388,7 +389,7 @@ export class UI {
     c.textAlign = 'center';
     for (const v of Object.values(VILLAGES)) {
       const x = v.u * W, y = v.v * H;
-      c.fillStyle = '#ffe9a8';
+      c.fillStyle = v.abandoned ? '#c8a8ff' : '#ffe9a8'; // ruínas em roxo
       c.strokeStyle = '#000';
       c.lineWidth = 3;
       c.beginPath(); c.arc(x, y, 6, 0, Math.PI * 2); c.fill(); c.stroke();
@@ -449,7 +450,7 @@ export class UI {
       const w = uvToWorld(v.u, v.v);
       const x = S / 2 + (w.x - p.x) * k, y = S / 2 + (w.z - p.z) * k;
       if (x < -20 || y < -20 || x > S + 20 || y > S + 20) continue;
-      c.strokeStyle = 'rgba(255,233,168,0.9)';
+      c.strokeStyle = v.abandoned ? 'rgba(180,140,255,0.9)' : 'rgba(255,233,168,0.9)';
       c.lineWidth = 1.5;
       c.beginPath(); c.arc(x, y, v.radius * k, 0, Math.PI * 2); c.stroke();
       c.fillStyle = '#fff';

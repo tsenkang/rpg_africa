@@ -81,7 +81,7 @@ export function groundUnder(ctx, x, z, rot, hw, hd) {
 }
 
 /** Atalho: peça em coordenadas locais do prédio. */
-function part(ctx, geo, mat, x, z, rot, y0, { lx = 0, ly = 0, lz = 0, w = 1, h = 1, d = 1, rx = 0, ry = 0, rz = 0 }) {
+export function part(ctx, geo, mat, x, z, rot, y0, { lx = 0, ly = 0, lz = 0, w = 1, h = 1, d = 1, rx = 0, ry = 0, rz = 0 }) {
   const p = local(x, z, rot, lx, lz);
   ctx.batch.add(geo, mat, { x: p.x, y: y0 + ly, z: p.z, rx, ry: rot + ry, rz, sx: w, sy: h, sz: d });
 }
@@ -305,10 +305,10 @@ export function rondavel(ctx, { x, z, r = 2.6, h = 2.4, wall, rot }) {
 }
 
 /** Casa muito destruída: paredes quebradas, sem telhado, entulho. */
-export function ruinedHouse(ctx, { x, z, rot = 0, w = 8, d = 6.5, h = 3.2 }) {
+export function ruinedHouse(ctx, { x, z, rot = 0, w = 8, d = 6.5, h = 3.2, seed = 99 }) {
   const { M } = ctx;
   h = wallHeight(h);
-  const rnd = mulberry32(99);
+  const rnd = mulberry32(seed); // seed muda o jeito que a casa desabou
   const y0 = groundUnder(ctx, x, z, rot, w / 2, d / 2) - 0.2;
   const P = (geo, mat, o) => part(ctx, geo, mat, x, z, rot, y0, o);
   const wallT = 0.35;
@@ -875,10 +875,13 @@ export function corral(ctx, { x, z, rot = 0, w = 30, d = 20, gateSide = 1 }) {
 export function animal(ctx, { x, z, kind = 'cow' }) {
   const g = new THREE.Group();
   const big = kind === 'cow';
-  const coat = big ? [0x5a3a26, 0xe8e0d0, 0x2a2420, 0x8a5a36][Math.floor(ctx.rnd() * 4)] : [0xd8cfc0, 0x4a3a2e, 0x8a7a66][Math.floor(ctx.rnd() * 3)];
+  const donkey = kind === 'donkey'; // animal de carga dos nômades
+  const coat = big ? [0x5a3a26, 0xe8e0d0, 0x2a2420, 0x8a5a36][Math.floor(ctx.rnd() * 4)]
+    : donkey ? [0x7a7068, 0x9a8a78, 0x5a5048][Math.floor(ctx.rnd() * 3)]
+      : [0xd8cfc0, 0x4a3a2e, 0x8a7a66][Math.floor(ctx.rnd() * 3)];
   const mat = new THREE.MeshStandardMaterial({ color: coat, roughness: 0.95 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x1e1814, roughness: 0.9 });
-  const L = big ? 1 : 0.45;
+  const L = big ? 1 : donkey ? 0.75 : 0.45;
   const body = new THREE.Mesh(G.box, mat);
   body.scale.set(0.7 * L, 0.7 * L, 1.7 * L);
   body.position.y = 1.0 * L;

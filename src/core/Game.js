@@ -35,6 +35,13 @@ import { buildPerseguicao } from '../villages/Perseguicao.js';
 import { buildAbstracao } from '../villages/Abstracao.js';
 import { buildBussola } from '../villages/Bussola.js';
 import { Dungeons } from '../villages/Dungeons.js';
+import { buildPresaDeGelo } from '../villages/PresaDeGelo.js';
+import { buildAlZahir } from '../villages/AlZahir.js';
+import { buildCopaAlta } from '../villages/CopaAlta.js';
+import { buildAreiasVivas } from '../villages/AreiasVivas.js';
+import { buildZambaRios } from '../villages/ZambaRios.js';
+import { buildRuinasKaelen } from '../villages/RuinasKaelen.js';
+import { FireLights } from '../render/FireLights.js';
 import { Landmarks } from '../world/Landmarks.js';
 import { LANDMARKS } from '../config/landmarks.js';
 import { UI } from '../ui/UI.js';
@@ -63,6 +70,9 @@ import { yieldToBrowser as nextFrame } from './yieldToBrowser.js';
  *   damagePlayer(n, origem), killPlayer(msg), random() (injetável)
  */
 export class Game {
+  /** Posição longe de tudo (subsolo): nenhuma fogueira ganha luz. */
+  static NOWHERE = { x: Infinity, z: Infinity };
+
   constructor(container) {
     this.container = container;
     // Nível gráfico salvo (tecla G). O antialias só pode ser escolhido aqui.
@@ -151,10 +161,15 @@ export class Game {
     this.pierDecks = [];
 
     this.villages = {};
-    const builders = { renascimento: buildRenascimento, perseguicao: buildPerseguicao, abstracao: buildAbstracao, bussola: buildBussola };
+    // Uma vila por bioma (+ as quatro originais) e as ruínas da Floresta Preta.
+    const builders = {
+      renascimento: buildRenascimento, perseguicao: buildPerseguicao, abstracao: buildAbstracao, bussola: buildBussola,
+      presaDeGelo: buildPresaDeGelo, alZahir: buildAlZahir, copaAlta: buildCopaAlta,
+      areiasVivas: buildAreiasVivas, zambaRios: buildZambaRios, ruinasKaelen: buildRuinasKaelen,
+    };
     let k = 0;
     for (const [id, build] of Object.entries(builders)) {
-      await step(0.48 + k * 0.05, `Construindo ${VILLAGES[id].name}…`);
+      await step(0.48 + k * 0.02, `Construindo ${VILLAGES[id].name}…`);
       this.villages[id] = build(this);
       k++;
     }
@@ -176,6 +191,11 @@ export class Game {
     });
     /** Criaturas paranormais: empurre aqui (`game.paranormalCreatures.push(obj)`) — a névoa engrossa perto delas. */
     this.paranormalCreatures = this.weather.creatures;
+    // Presenças fixas (Ruínas de Kaelen): a névoa paranormal engrossa perto.
+    for (const v of Object.values(this.villages)) this.paranormalCreatures.push(...v.presences);
+    // Fogueiras e luzes errantes: poucas PointLights reais vão para as mais próximas.
+    this.fireLights = new FireLights(this.scene);
+    for (const v of Object.values(this.villages)) for (const f of v.fires) this.fireLights.add(f);
     this.postfx = new PostFX(this.renderer);
     this.clouds = new Clouds({ seed: WORLD.seed });
     this.scene.add(this.clouds.mesh);
@@ -189,7 +209,7 @@ export class Game {
       isBlocked: (x, z, pad = 0) => inVillage(x, z, pad) || this.landmarks.isClear(x, z, pad) || this.bridges.distanceTo(x, z) < 8 + pad || this.collisions.overlaps(x, z, pad),
     });
     await this.vegetation.build((p) => ui.setLoading(0.72 + p * 0.22, `Plantando a vegetação de cada bioma… ${Math.round(p * 100)}%`));
-    this.vegetation.plant(this.landmarks.plants);
+    this.vegetation.plant([...this.landmarks.plants, ...Object.values(this.villages).flatMap((v) => v.plants)]);
     this.scene.add(this.vegetation.group);
 
     this.grass = new Grass({
@@ -473,6 +493,7 @@ export class Game {
   villageShelter(pos) {
     let best = 0;
     for (const v of Object.values(this.villages)) {
+      if (v.config.abandoned) continue; // ruínas não abrigam ninguém
       const out = Math.hypot(pos.x - v.x, pos.z - v.z) - v.radius;
       best = Math.max(best, THREE.MathUtils.clamp(1 - out / VILLAGE_SHELTER.fade, 0, 1));
     }
@@ -578,7 +599,7 @@ export class Game {
       for (const v of Object.values(this.villages)) {
         v.update(dt, pos);
         if (Math.hypot(pos.x - v.x, pos.z - v.z) < v.radius + 25) near = v;
-        if (Math.hypot(pos.x - v.x, pos.z - v.z) < v.radius) this.lastVillage = v;
+        if (!v.config.abandoned && Math.hypot(pos.x - v.x, pos.z - v.z) < v.radius) this.lastVillage = v;
       }
       const key = near ? `${near.config.id}-${near.gate?.open ?? ''}-${this.state.trust.bussola}` : null;
       if (key !== this._villageKey) {
@@ -600,6 +621,7 @@ export class Game {
       if (this._villageKey !== 'under') { this._villageKey = 'under'; ui.setVillage(null); }
     }
     this.dungeons.update(dt, this.time, this.areaId);
+    this.fireLights.update(this.time, this.areaId === 'overworld' ? pos : Game.NOWHERE);
     for (const d of this.dummies) d.update(dt);
     this.fauna.update(dt, this.player.position, { active: this.areaId === 'overworld', playerAlive: !this.dead });
     if (this.cameraRig.isFirstPerson) this.fpArm.update(dt, busy ? 0 : this.player.speed, this.player.sprinting);

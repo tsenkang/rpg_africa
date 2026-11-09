@@ -22,5 +22,11 @@ export const MINIMAP = {
     mansion: 0xe8d8b8,
     clock: 0xe8d8b8,
     well: 0x5aa8d8,
+    tower: 0x8a6a4a,
+    tent: 0xc0603a,
+    pond: 0x3a8ad0,
+    fire: 0xff8a3a,
+    mine: 0x3a3632,
+    tree: 0x2f5a2a,
   },
 };

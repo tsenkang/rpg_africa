@@ -19,7 +19,7 @@ const LG = {
 
 /**
  * Constrói os marcos do mapa (`LANDMARKS` em `src/config/landmarks.js`):
- * Torre Negra, Templo dos Degraus, Fortaleza das Areias, Povoado do Oásis,
+ * Torre Negra, Templo dos Degraus, Fortaleza das Areias,
  * Muralhas de Pedra, Pináculos Pretos e as árvores anciãs.
  *
  * As áreas aplainadas são registradas antes do terreno (`flatZones`); depois
@@ -313,45 +313,6 @@ const BUILDERS = {
     for (let i = 0; i < 5; i++) {
       const p = local(x, z, rot, -6 + i * 3, 30);
       if (i % 2) crate(ctx, { x: p.x, z: p.z, rot }); else barrel(ctx, { x: p.x, z: p.z });
-    }
-  },
-
-  /** Povoado do Oásis: anel de casas de teto plano em volta de poço e feira. */
-  desertSettlement(ctx, { x, z, rot }) {
-    const { M } = ctx;
-    const rnd = ctx.rnd;
-    const walls = [M.adobeOchre, M.adobePastel, M.adobeWhite, M.adobeRed];
-    const n = 11;
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2 + 0.2;
-      const r = 30 + rnd() * 8;
-      house(ctx, {
-        x: x + Math.cos(a) * r, z: z + Math.sin(a) * r, rot: Math.atan2(-Math.cos(a), -Math.sin(a)),
-        w: 6 + rnd() * 3, d: 5 + rnd() * 2, h: 3 + rnd() * 1.4, wall: walls[i % walls.length], roof: 'flat',
-      });
-    }
-    well(ctx, { x, z });
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2 + 0.6;
-      marketStall(ctx, { x: x + Math.cos(a) * 12, z: z + Math.sin(a) * 12, rot: Math.atan2(-Math.cos(a), -Math.sin(a)) });
-    }
-    // Palmeiras do oásis em volta do poço e entre as casas.
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2 + rnd() * 0.3, r = 6 + rnd() * 3;
-      ctx.plants.push({ type: 'palm', x: x + Math.cos(a) * r, z: z + Math.sin(a) * r, s: 0.9 + rnd() * 0.4, ry: rnd() * 6 });
-    }
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2 + 0.5, r = 22 + rnd() * 4;
-      ctx.plants.push({ type: 'palm', x: x + Math.cos(a) * r, z: z + Math.sin(a) * r, s: 0.8 + rnd() * 0.4, ry: rnd() * 6 });
-    }
-    dryingRack(ctx, { x: x + 18, z: z - 4, rot: 0.4 });
-    firePit(ctx, { x: x - 17, z: z + 6 });
-    // Muro baixo de barro com duas entradas.
-    const P = placer(ctx, x, z, rot, ctx.terrain.heightAt(x, z) - 0.3);
-    for (let k = 0; k < 28; k++) {
-      if (k === 0 || k === 14) continue;
-      const a0 = (k / 28) * Math.PI * 2, a1 = ((k + 1) / 28) * Math.PI * 2, R = 47;
-      wallSeg(ctx, P, x, z, rot, Math.cos(a0) * R, Math.sin(a0) * R, Math.cos(a1) * R, Math.sin(a1) * R, { h: 1.8, t: 0.7, mat: M.mudBrick });
     }
   },
 

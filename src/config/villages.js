@@ -1,9 +1,14 @@
 /**
- * Dados das 4 vilas (lore, estatísticas e posição no mapa).
+ * Dados das vilas (lore, estatísticas e posição no mapa).
  * A geometria de cada vila fica em src/villages/<Vila>.js.
  *
  * u, v = posição na imagem de referência (0..1).
  * radius = raio útil da vila (m). flatten = área de terreno aplainada.
+ * biome = bioma onde fica (um assentamento por bioma).
+ * abandoned = ruína: sem abrigo do clima, não vira ponto de renascer.
+ * lore = conversa do ancião (E): { speaker, title, look, pages: [texto…] }.
+ *   Cada página é uma tela do diálogo; "Continuar" passa para a próxima.
+ *   `exposure` (opcional) soma exposição paranormal ao terminar de ler.
  */
 export const VILLAGES = {
   renascimento: {
@@ -82,6 +87,163 @@ export const VILLAGES = {
       'Casas menores', 'Duas feiras', 'Área comercial', 'Grandes plantações',
       'Fazenda de animais', 'Porto de pesca no rio', 'Grande relógio (cofre embaixo)',
     ],
+  },
+
+  // ===================== Novos assentamentos (um por bioma) =====================
+  presaDeGelo: {
+    id: 'presaDeGelo',
+    name: 'Acampamento Presa de Gelo',
+    biome: 'taiga',
+    region: 'Norte — montanhas da Taiga',
+    u: 0.4355, v: 0.0868,
+    radius: 70,
+    flatten: { radius: 82, blend: 40 },
+    population: 140,
+    demographics: { adultos: 80, criancas: 5, idosos: 15 },
+    founded: 'Fundado por mineiros que seguiram um veio de ferro até a neve.',
+    description:
+      'Povoado rústico de caçadores e mineiros. Poucas casas de tora e pedra, ' +
+      'todas viradas para as grandes fogueiras que nunca se apagam.',
+    structures: ['Cabanas de tora', 'Torres de vigia', 'Varais de peles', 'Fogueiras centrais', 'Entrada da mina'],
+    lore: {
+      speaker: 'Ulmar, o Caçador-Chefe', title: 'Acampamento Presa de Gelo',
+      look: { shirt: 0x5a4632, pants: 0x2e2a26, hat: 'wrap', height: 1.86, build: 1.15 },
+      pages: [
+        '"Chegue perto do fogo, estrangeiro. Aqui em cima o frio mata mais rápido que lobo."',
+        '"Meu avô veio atrás do ferro que brilha nas pedras. Achou ferro… e achou a fome. As fogueiras são a nossa lei: quem deixa uma apagar, dorme do lado de fora."',
+        '"As peles nos varais pagam o sal que vem do sul. As torres? Para ver a nevasca chegando — e as coisas que andam dentro dela."',
+      ],
+    },
+  },
+  alZahir: {
+    id: 'alZahir',
+    name: 'Oásis de Al-Zahir',
+    biome: 'deserto',
+    region: 'Centro do Deserto',
+    u: 0.645, v: 0.28,
+    radius: 78,
+    flatten: { radius: 90, blend: 35 },
+    population: 620,
+    demographics: { adultos: 60, criancas: 25, idosos: 15 },
+    faction: 'Território neutro: nenhuma arma é sacada perto da água',
+    founded: 'Erguido em volta do único lago que não seca no deserto.',
+    description:
+      'Entreposto comercial em volta de um pequeno lago com palmeiras — a única área ' +
+      'segura do deserto. Caravanas trocam sal, tecidos e especiarias no mercado.',
+    structures: ['Lago com palmeiras', 'Casas de adobe de teto reto', 'Tendas coloridas', 'Mercado de especiarias', 'Poço das caravanas'],
+    lore: {
+      speaker: 'Mestra Nadira', title: 'Guardiã da Água · Al-Zahir',
+      look: { shirt: 0x2f5d8a, robe: true, hat: 'wrap', height: 1.7 },
+      pages: [
+        '"Bem-vindo à sombra de Al-Zahir. Beba primeiro, pergunte depois."',
+        '"Zahir era um cameleiro que se perdeu na tempestade. Quando a areia baixou, ele estava de joelhos na beira deste lago. Ele jurou que ninguém morreria de sede aqui — e nós ainda cumprimos o juramento."',
+        '"Por isso a regra: perto da água ninguém briga. Lá fora a areia decide quem vive."',
+      ],
+    },
+  },
+  copaAlta: {
+    id: 'copaAlta',
+    name: 'Povoado da Copa Alta',
+    biome: 'tropical',
+    region: 'Oeste — coração da Floresta Tropical',
+    u: 0.0723, v: 0.6701,
+    radius: 72,
+    flatten: { radius: 80, blend: 35 },
+    population: 380,
+    demographics: { adultos: 55, criancas: 30, idosos: 15 },
+    founded: 'Subiram para as árvores depois da "Noite das Garras".',
+    description:
+      'Uma vila inteira no alto das árvores gigantes, ligada por pontes de corda. ' +
+      'No chão ficam só as raízes, as escadas em caracol e os predadores.',
+    structures: ['Casas nas árvores', 'Pontes suspensas de corda', 'Escadas em caracol nos troncos', 'Árvores gigantes'],
+    lore: {
+      speaker: 'Avó Imani', title: 'Contadora de Histórias · Copa Alta',
+      look: { shirt: 0x4a7a3a, robe: true, hair: 0xd0d0d0, hunch: 0.2, height: 1.6 },
+      pages: [
+        '"Shh… fale baixo, as onças escutam lá de baixo."',
+        '"Antes vivíamos no chão. Até a Noite das Garras: em uma noite, metade das casas ficou vazia. Na manhã seguinte meu pai amarrou a primeira corda nesta árvore."',
+        '"Hoje nenhuma criança daqui pisa no chão antes dos doze anos. A floresta dá tudo — fruta, água da chuva, remédio — desde que você fique em cima dela."',
+      ],
+    },
+  },
+  areiasVivas: {
+    id: 'areiasVivas',
+    name: 'Acampamento das Areias Vivas',
+    biome: 'kalahari',
+    region: 'Sul — onde a savana vira Kalahari',
+    u: 0.5176, v: 0.8993,
+    radius: 58,
+    flatten: { radius: 70, blend: 30 },
+    population: 85,
+    populationNote: 'Nômades: o acampamento muda de lugar a cada estação.',
+    demographics: { adultos: 50, criancas: 35, idosos: 15 },
+    founded: 'Nunca foi fundado — só montado e desmontado, há gerações.',
+    description:
+      'Acampamento temporário de caçadores e coletores. Tendas de couro, cercados ' +
+      'para os animais de carga e tótens de osso marcando onde começa o território.',
+    structures: ['Tendas de couro', 'Cercado de animais de carga', 'Tótens de osso nos limites', 'Fogueira comunal'],
+    lore: {
+      speaker: 'Kxao, o Rastreador', title: 'Acampamento das Areias Vivas',
+      look: { shirt: 0x8a5a2a, pants: 0x5a4a3a, height: 1.68, build: 0.95 },
+      pages: [
+        '"Você anda alto demais, estrangeiro. A areia ouve seus pés de longe."',
+        '"Chamam de Areias Vivas porque o chão aqui se mexe: as dunas andam, a água some e volta. Quem fica parado, morre. Por isso nada aqui é de pedra."',
+        '"Os tótens de osso avisam: daqui para dentro, a caça é nossa. Os ossos são de quem esqueceu disso."',
+      ],
+    },
+  },
+  zambaRios: {
+    id: 'zambaRios',
+    name: 'Zamba dos Rios',
+    biome: 'equatorial',
+    region: 'Leste — margens da Floresta Equatorial',
+    u: 0.7168, v: 0.5243,
+    radius: 70,
+    flatten: { radius: 40, blend: 26, height: 2.2 },
+    population: 450,
+    demographics: { adultos: 58, criancas: 27, idosos: 15 },
+    founded: 'Pescadores que seguiram os peixes rio abaixo e nunca voltaram.',
+    description:
+      'Vila de pescadores e barqueiros. As casas ficam sobre palafitas na água, ' +
+      'ligadas por trapiches de madeira, com canoas amarradas nas pilastras.',
+    structures: ['Casas de palafita', 'Trapiches e ancoradouros', 'Canoas amarradas', 'Defumadouro de peixe'],
+    lore: {
+      speaker: 'Mestre Bakary', title: 'Barqueiro-Mor · Zamba dos Rios',
+      look: { shirt: 0x1f6a6a, pants: 0x2a2a30, hat: 'straw', height: 1.78 },
+      pages: [
+        '"Cuidado onde pisa — metade desta vila é água, a outra metade é madeira molhada."',
+        '"O rio é estrada, despensa e cemitério. Levamos peixe defumado até a Bússola do Sul e voltamos com ferro e notícias."',
+        '"Na cheia, a água sobe até o assoalho. Por isso as casas ficam em palafitas: o rio é visita, não dono."',
+      ],
+    },
+  },
+  ruinasKaelen: {
+    id: 'ruinasKaelen',
+    name: 'Ruínas de Kaelen',
+    biome: 'preta',
+    region: 'Coração da Floresta Preta',
+    u: 0.7168, v: 0.8576,
+    radius: 80,
+    flatten: { radius: 88, blend: 40 },
+    abandoned: true,
+    population: 0,
+    populationNote: 'Abandonada. Ninguém sabe para onde foram.',
+    demographics: null,
+    faction: 'Zona corrompida: a névoa engrossa perto do centro',
+    founded: 'Conhecida como Vila das Sombras.',
+    description:
+      'Kaelen foi uma vila próspera até a noite em que todos sumiram. ' +
+      'Hoje restam paredes queimadas, torres partidas e luzes que flutuam sem dono.',
+    structures: ['Casas desabadas e queimadas', 'Torre de vigia partida', 'Árvores mortas', 'Luzes errantes', 'Pedra de Kaelen'],
+    lore: {
+      speaker: 'Pedra de Kaelen', title: 'Inscrição gasta',
+      pages: [
+        'As letras estão meio apagadas, como se alguém tivesse tentado raspá-las.',
+        '"…no sétimo dia a névoa não foi embora. Os cães pararam de latir. As crianças falavam com alguém no poço…"',
+        '"…quem ler isto: não siga as luzes. Elas sabem o seu nome."',
+      ],
+      exposure: 5,
+    },
   },
 };
 

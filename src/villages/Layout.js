@@ -134,3 +134,74 @@ export function faceStreet(x, z, { streets, cx, cz, reach, jitter, rng }) {
 export function randInt([min, max], rng) {
   return min + Math.floor(rng() * (max - min + 1));
 }
+
+/**
+ * Degraus de uma escada em caracol em volta de um tronco.
+ * @param {object} o
+ * @param {number} o.x centro do tronco
+ * @param {number} o.z
+ * @param {number} o.y0 altura do primeiro degrau (m)
+ * @param {number} o.y1 altura do último (plataforma)
+ * @param {number} o.radius distância do centro do tronco ao meio do degrau (m)
+ * @param {number} [o.rise] subida por degrau (m) — escada confortável ≈ 0,2
+ * @param {number} [o.turn] ângulo entre degraus (rad)
+ * @param {number} [o.start] ângulo do primeiro degrau
+ * @returns {{x:number, y:number, z:number, angle:number}[]} angle = direção radial do degrau
+ * @example helixSteps({ x: 0, z: 0, y0: 0.2, y1: 12, radius: 2.4 })
+ */
+export function helixSteps({ x, z, y0, y1, radius, rise = 0.21, turn = 0.3, start = 0 }) {
+  const n = Math.max(1, Math.ceil((y1 - y0) / rise));
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const a = start + i * turn;
+    out.push({ x: x + Math.cos(a) * radius, y: y0 + ((y1 - y0) * i) / n, z: z + Math.sin(a) * radius, angle: a });
+  }
+  return out;
+}
+
+/**
+ * Pontos de uma ponte de corda entre dois apoios: reta em x/z e parábola
+ * para baixo em y (afunda `sag` metros no meio, como corda de verdade).
+ * @param {{x:number,y:number,z:number}} a
+ * @param {{x:number,y:number,z:number}} b
+ * @param {number} sag quanto afunda no meio (m)
+ * @param {number} n segmentos
+ * @returns {{x:number,y:number,z:number}[]} n + 1 pontos de a até b
+ */
+export function bridgeCurve(a, b, sag, n) {
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    out.push({
+      x: a.x + (b.x - a.x) * t,
+      y: a.y + (b.y - a.y) * t - sag * 4 * t * (1 - t),
+      z: a.z + (b.z - a.z) * t,
+    });
+  }
+  return out;
+}
+
+/**
+ * Escolhe as `k` fontes mais próximas de `pos` dentro de `maxDist` (para
+ * dar as poucas luzes reais às fogueiras perto do jogador). Sem alocação:
+ * escreve os índices em `out` e devolve quantas achou.
+ * @param {{x:number,z:number}[]} sources
+ * @param {{x:number,z:number}} pos
+ * @param {number} k
+ * @param {number} maxDist
+ * @param {Int32Array} out tamanho ≥ k
+ * @returns {number}
+ */
+export function pickNearest(sources, pos, k, maxDist, out) {
+  let n = 0;
+  const d2 = (i) => (sources[i].x - pos.x) ** 2 + (sources[i].z - pos.z) ** 2;
+  const max2 = maxDist * maxDist;
+  for (let i = 0; i < sources.length; i++) {
+    const di = d2(i);
+    if (di > max2) continue;
+    if (n < k) { out[n++] = i; } else if (di < d2(out[n - 1])) { out[n - 1] = i; } else continue;
+    // mantém `out` ordenado do mais perto ao mais longe (k é pequeno)
+    for (let j = n - 1; j > 0 && d2(out[j]) < d2(out[j - 1]); j--) { const t = out[j]; out[j] = out[j - 1]; out[j - 1] = t; }
+  }
+  return n;
+}

@@ -116,6 +116,8 @@ export function cycleIntensity(time, cycle, phase = 0) {
 /**
  * Distância (no chão, x/z) até a criatura paranormal mais próxima.
  * Aceita `{ position: {x,z} }` (Object3D, entidades) ou `{x,z}` direto.
+ * `reach` (m, opcional) aumenta o alcance de uma criatura/presença: conta
+ * como se o jogador estivesse `reach` metros mais perto (ruínas inteiras).
  * @param {{x:number,z:number}} pos jogador
  * @param {Array<object>} creatures lista (pode estar vazia)
  * @returns {number} Infinity se não há criaturas
@@ -125,7 +127,7 @@ export function nearestCreatureDistance(pos, creatures) {
   for (const c of creatures) {
     if (c.active === false || c.alive === false) continue;
     const p = c.position ?? c;
-    const dist = Math.hypot(p.x - pos.x, p.z - pos.z);
+    const dist = Math.max(0, Math.hypot(p.x - pos.x, p.z - pos.z) - (c.reach ?? 0));
     if (dist < best) best = dist;
   }
   return best;

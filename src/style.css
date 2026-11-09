@@ -242,3 +242,8 @@ kbd {
 .g-bars { letter-spacing: 1px; color: var(--ink-dim); font-size: 12px; }
 .graphics-note { margin-top: 10px; font-size: 12px; color: var(--disease); }
 @media (max-width: 520px) { .graphics-options button { grid-template-columns: 18px 1fr auto; } .g-hint { display: none; } }
+
+/* ===== Ruínas (Vila das Sombras) ===== */
+.village.ruins { border-color: rgba(154, 90, 255, 0.45); background: rgba(20, 12, 26, 0.82); box-shadow: 0 8px 28px rgba(60, 20, 90, 0.45); }
+.village.ruins h3 { color: #b48cff; text-shadow: 0 0 12px rgba(154, 90, 255, 0.55); }
+.village.ruins .faction { border-left-color: #9a5aff; background: rgba(154, 90, 255, 0.14); }
