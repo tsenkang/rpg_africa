@@ -293,12 +293,15 @@ const VERT = /* glsl */ `
   uniform float uScale;
   attribute float aSeed;
   varying float vSeed;
+  varying float vNear;
   #include <fog_pars_vertex>
   void main() {
     vSeed = aSeed;
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
     gl_PointSize = clamp(uSize * uScale * (0.7 + 0.6 * aSeed) / -mvPosition.z, 0.0, 72.0);
     gl_Position = projectionMatrix * mvPosition;
+    // Partícula colada na câmera vira um borrão enorme: some suavemente.
+    vNear = smoothstep(0.8, 3.0, -mvPosition.z);
     #include <fog_vertex>
   }
 `;
@@ -309,6 +312,7 @@ const FRAG = /* glsl */ `
   uniform float uTime;
   uniform int uShape;
   varying float vSeed;
+  varying float vNear;
   #include <fog_pars_fragment>
   void main() {
     vec2 p = gl_PointCoord * 2.0 - 1.0;
@@ -326,7 +330,7 @@ const FRAG = /* glsl */ `
     } else {                    // grão de areia (risco horizontal)
       a = (1.0 - smoothstep(0.08, 0.24, abs(p.y))) * (1.0 - smoothstep(0.3, 1.0, abs(p.x)));
     }
-    a *= uOpacity;
+    a *= uOpacity * vNear;
     if (a < 0.01) discard;
     gl_FragColor = vec4(uColor * (0.8 + 0.4 * vSeed), a);
     #include <tonemapping_fragment>
