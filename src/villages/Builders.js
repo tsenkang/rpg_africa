@@ -1029,6 +1029,7 @@ export function fenceRun(ctx, { ax, az, bx, bz }) {
       ctx.batch.add(G.box, M.wood, { x: mx, y: my + hy + (ctx.rnd() - 0.5) * 0.08, z: mz, ry, rx: -tilt, sx: 0.05, sy: 0.08, sz: seg + 0.1 });
     }
   }
+  ctx.collisions.addWall(ax, az, bx, bz, 0.2, 'fence'); // cerca é sólida
 }
 
 /** Arbusto: 3-4 esferas verdes achatadas, tamanho e tom variados. */

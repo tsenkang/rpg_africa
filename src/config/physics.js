@@ -75,3 +75,18 @@ export const PROP_TYPES = {
     parts: [{ geo: 'cyl6', mat: 'charred', rot: [Math.PI / 2, 0, 0.2], scale: [0.06, 1.6, 0.06] }],
   },
 };
+
+/**
+ * Colisão sólida da vegetação: raio do tronco (m) de cada espécie no tamanho
+ * 1 (multiplicado pela escala de cada árvore). 0 = atravessável (capim,
+ * arbusto baixo). Rochas: raio = escala × `rock`, só a partir de `rockMin`
+ * de escala (pedrinhas continuam passáveis).
+ */
+export const TREE_COLLIDERS = {
+  acacia: 0.35, baobab: 1.5, banana: 0.16, broadleaf: 0.45, camelthorn: 0.28,
+  kapok: 1.1, palm: 0.24, pine: 0.3, spruce: 0.3, bush: 0, shrub: 0,
+  rock: 0.8, rockMin: 0.8,
+};
+
+/** Escadas de mão: velocidade de subida (m/s) e alcance para agarrar (m). */
+export const CLIMB = { speed: 2.4, reach: 0.95, facing: 0.35, detachPush: 0.6 };

@@ -34,7 +34,15 @@ export class FireLights {
    * @param {{x:number, y:number, z:number, color:number, intensity:number, range:number, flames?: THREE.Object3D[], seed?: number}} src
    */
   add(src) {
-    this.sources.push({ seed: Math.random() * 100, flames: [], ...src, colorObj: new THREE.Color(src.color) });
+    const s = { seed: Math.random() * 100, flames: [], ...src, colorObj: new THREE.Color(src.color) };
+    this.sources.push(s);
+    return s;
+  }
+
+  /** Tira uma fonte (lareira de um interior que foi descarregado). */
+  remove(src) {
+    const i = this.sources.indexOf(src);
+    if (i >= 0) this.sources.splice(i, 1);
   }
 
   /** Tremor da chama: soma de senóides fora de fase (sem ruído aleatório). */

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Humanoid } from './Humanoid.js';
 import { PLAYER, WORLD } from '../config/worldConfig.js';
+import { CLIMB } from '../config/physics.js';
 import { wantsSprint, resolveMoveSpeed } from './Locomotion.js';
 import { GAMEPLAY } from '../config/gameplay.js';
 import { swimVerticalSpeed } from './Swimming.js';
@@ -15,8 +16,11 @@ import { swimVerticalSpeed } from './Swimming.js';
  * `pésY` deixa o chão ter vários andares (plataformas, pontes, escadas).
  */
 export class Player {
-  constructor({ groundAt, collisions, state, isUnderground }) {
+  constructor({ groundAt, collisions, state, isUnderground, ladders = null }) {
     this.groundAt = groundAt;
+    /** Escadas de mão (Ladders): W anda contra ela → sobe. */
+    this.ladders = ladders;
+    this.climbing = null;
     this.collisions = collisions;
     this.state = state;
     this.isUnderground = isUnderground;
@@ -69,6 +73,14 @@ export class Player {
     }
     if (this.flying && this.isUnderground()) this.flying = false;
     if (this.flying) return this.updateFlying(dt, input, move);
+    if (this.climbing) return this.updateClimbing(dt, input);
+    // Agarra a escada: W (para frente) andando contra ela.
+    if (this.ladders && (input.isDown('KeyW') || input.isDown('ArrowUp')) && move.lengthSq() > 0) {
+      const dir = { x: move.x, z: move.z }, len = Math.hypot(dir.x, dir.z) || 1;
+      dir.x /= len; dir.z /= len;
+      const l = this.ladders.find(this.position, dir, CLIMB);
+      if (l) return this.startClimbing(l);
+    }
 
     const ground = this.groundAt(this.position.x, this.position.z, this.position.y);
     const underground = this.isUnderground();
@@ -186,6 +198,48 @@ export class Player {
   }
 
   /** Modo voo (V): sem gravidade/colisão. Espaço sobe, Ctrl desce, Shift acelera. */
+  /** Entra no modo escada: sem gravidade, preso ao plano da escada. */
+  startClimbing(l) {
+    this.climbing = l;
+    this.velocity.set(0, 0, 0);
+    this.sprinting = false;
+    // Vindo de cima, começa um pouco abaixo do topo (descendo).
+    if (this.position.y > l.y1 - 0.5) this.position.y = l.y1 - 1.1;
+    this.root.rotation.y = Math.atan2(-l.nx, -l.nz); // de frente para a escada
+    this.facing.set(-l.nx, 0, -l.nz);
+  }
+
+  /**
+   * Na escada: W sobe, S desce, Espaço solta. No topo sai para a plataforma
+   * (`exit`); no pé, solta no chão. A gravidade volta ao sair.
+   */
+  updateClimbing(dt, input) {
+    const l = this.climbing;
+    const up = (input.isDown('KeyW') || input.isDown('ArrowUp') ? 1 : 0) - (input.isDown('KeyS') || input.isDown('ArrowDown') ? 1 : 0);
+    // Fica colado na frente da escada (sem atravessar a estrutura).
+    const px = l.x + l.nx * 0.38, pz = l.z + l.nz * 0.38;
+    this.position.x += (px - this.position.x) * Math.min(1, dt * 12);
+    this.position.z += (pz - this.position.z) * Math.min(1, dt * 12);
+    this.position.y += up * CLIMB.speed * dt;
+    this.grounded = false;
+    if (input.pressed('Space')) {
+      this.climbing = null;
+      this.position.x += l.nx * CLIMB.detachPush;
+      this.position.z += l.nz * CLIMB.detachPush;
+      this.velocity.y = 1.5;
+    } else if (this.position.y >= l.y1 - 0.05) {
+      this.climbing = null; // chegou: sai para a plataforma
+      this.position.set(l.exit.x, l.exit.y, l.exit.z);
+      this.grounded = true;
+    } else if (this.position.y <= l.y0 && up < 0) {
+      this.climbing = null;
+      this.position.y = Math.max(l.y0, this.groundAt(this.position.x, this.position.z, this.position.y));
+      this.grounded = true;
+    }
+    this.speed = up ? 1.2 : 0;
+    this.model.update(dt, Math.abs(up) * 1.2, { swimming: false, sprinting: false, grounded: true });
+  }
+
   updateFlying(dt, input, move) {
     let speed = PLAYER.flySpeed;
     if (input.isDown('ShiftLeft') || input.isDown('ShiftRight')) speed *= PLAYER.flyBoost;

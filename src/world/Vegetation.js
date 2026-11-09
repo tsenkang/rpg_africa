@@ -4,6 +4,7 @@ import { WORLD, RENDER } from '../config/worldConfig.js';
 import { BIOMES } from '../config/biomes.js';
 import { mulberry32 } from './Noise.js';
 import { createTreeGeometries, createVegetationMaterials } from './TreeFactory.js';
+import { TREE_COLLIDERS } from '../config/physics.js';
 
 const CANDIDATE_SPACING = 10; // 1 candidato a cada 100 m² → densidades até 100/ha
 const SNOW_LINE = 150;
@@ -22,8 +23,11 @@ const ROCK_TINT = {
  * draw calls.
  */
 export class Vegetation {
-  constructor({ terrain, generator, isBlocked, timeUniform, photos, oaks = null }) {
+  constructor({ terrain, generator, isBlocked, timeUniform, photos, oaks = null, collisions = null }) {
     this.terrain = terrain;
+    /** Troncos e rochas grandes viram colisão sólida (o jogador não atravessa). */
+    this.collisions = collisions;
+    this.colliders = 0;
     this.gen = generator;
     this.isBlocked = isBlocked;
     this.group = new THREE.Group();
@@ -114,6 +118,7 @@ export class Vegetation {
               col.setRGB(v * (0.95 + rnd() * 0.1), v, v * (0.9 + rnd() * 0.12));
             }
             // Espécies com modelos 3D têm várias variantes: sorteia uma.
+            this.addCollider(spec.type, x, z, s);
             const variants = this.geos[spec.type];
             const key = Array.isArray(variants) ? `${spec.type}#${Math.floor(rnd() * variants.length)}` : spec.type;
             if (!byType.has(key)) byType.set(key, { matrices: [], colors: [] });
@@ -158,6 +163,7 @@ export class Vegetation {
     for (const p of list) {
       if (!this.geos[p.type]) continue;
       const s = p.s ?? 1;
+      this.addCollider(p.type, p.x, p.z, s);
       e.set(0, p.ry ?? 0, 0, 'YXZ');
       q.setFromEuler(e);
       m.compose(new THREE.Vector3(p.x, this.terrain.heightAt(p.x, p.z) - 0.15, p.z), q, new THREE.Vector3(s, s, s));
@@ -169,6 +175,25 @@ export class Vegetation {
       sx += p.x; sz += p.z; n++;
     }
     if (byType.size) this.chunks.push(this.createChunk(sx / n, sz / n, byType));
+  }
+
+  /**
+   * Colisão do tronco (ou da rocha) de uma árvore plantada.
+   * @param {string} type espécie
+   * @param {number} s escala da instância
+   */
+  addCollider(type, x, z, s) {
+    if (!this.collisions) return;
+    const C = TREE_COLLIDERS;
+    if (type === 'rock') {
+      if (s < C.rockMin) return;
+      this.collisions.addCircle(x, z, C.rock * s, 'boulder');
+    } else {
+      const r = (C[type] ?? 0) * s;
+      if (r <= 0.05) return;
+      this.collisions.addCircle(x, z, r, 'trunk');
+    }
+    this.colliders++;
   }
 
   createChunk(cx, cz, byType) {

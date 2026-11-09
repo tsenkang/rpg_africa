@@ -98,10 +98,19 @@ export function watchTower(ctx, { x, z, rot = 0, h = 9 }) {
     P(G.box, M.woodDark, { lx: sd * (s + 0.35), ly: h + 0.55, w: 0.08, h: 0.9, d: s * 2 + 0.8 });
   }
   P(G.pyramid, M.thatch, { ly: h + 3.6 + 0.9, w: s * 2 + 1.6, h: 1.8, d: s * 2 + 1.6 });
-  // Escada de mão na frente.
+  // Escada de mão na frente (subível: W contra ela).
   for (const sd of [-0.3, 0.3]) P(G.cyl6, M.wood, { lx: sd, lz: s + 0.45, ly: h / 2, w: 0.05, h, d: 0.05 });
   for (let yy = 0.4; yy < h; yy += 0.4) P(G.cyl6, M.wood, { lz: s + 0.45, ly: yy, w: 0.035, h: 0.6, d: 0.035, rz: Math.PI / 2 });
-  ctx.collisions.addCircle(x, z, s + 0.4, 'tower');
+  const top = y0 + h + 0.1;
+  // A torre só é parede abaixo da plataforma; lá em cima o piso é chão e o guarda-corpo é parede.
+  ctx.collisions.setHeightRange(ctx.collisions.addCircle(x, z, s + 0.4, 'tower'), y0 - 1, top - 0.25);
+  ctx.surfaces?.addBox({ x, z, hw: s + 0.4, hd: s + 0.4, rot, y: top });
+  for (const [lx0, lz0, lx1, lz1] of [[-1, -1, 1, -1], [-1, -1, -1, 1], [1, -1, 1, 1], [-1, 1, -0.35, 1], [0.35, 1, 1, 1]]) {
+    const a = local(x, z, rot, lx0 * (s + 0.35), lz0 * (s + 0.35)), b = local(x, z, rot, lx1 * (s + 0.35), lz1 * (s + 0.35));
+    ctx.collisions.setHeightRange(ctx.collisions.addWall(a.x, a.z, b.x, b.z, 0.15, 'rail'), top - 0.1, top + 1.1);
+  }
+  const foot = local(x, z, rot, 0, s + 0.45), exit = local(x, z, rot, 0, s - 0.4);
+  ctx.ladders?.add({ x: foot.x, z: foot.z, rot, y0: y0 + 0.3, y1: top, exit: { x: exit.x, y: top, z: exit.z } });
 }
 
 /** Varal de peles: dois postes, corda e peles de tamanhos e tons diferentes. */
@@ -388,7 +397,11 @@ export function stiltHouse(ctx, { x, z, rot = 0, w = 5.5, d = 4.5, floorY = 1.6 
   P(G.box, M.darkOpening, { lx: w / 2 + 0.02, ly: floorY + 1.5, w: 0.04, h: 0.7, d: 1.0 });
   for (const s of [-1, 1]) P(G.cyl6, M.woodDark, { lx: s * (W / 2 - 0.1), lz: D / 2 - 0.1, ly: floorY + 0.5, w: 0.04, h: 1, d: 0.04 });
   // Escadinha da varanda até a água (de frente).
-  for (let k = 0; k < 6; k++) P(G.box, M.wood, { lz: D / 2 + 0.25 + k * 0.28, ly: floorY - 0.25 - k * 0.3, w: 1.0, h: 0.06, d: 0.26 });
+  for (let k = 0; k < 6; k++) {
+    P(G.box, M.wood, { lz: D / 2 + 0.25 + k * 0.28, ly: floorY - 0.25 - k * 0.3, w: 1.0, h: 0.06, d: 0.26 });
+    const st = local(x, z, rot, 0, D / 2 + 0.25 + k * 0.28);
+    ctx.surfaces?.addBox({ x: st.x, z: st.z, hw: 0.5, hd: 0.14, rot, y: floorY - 0.22 - k * 0.3 }); // degrau andável
+  }
   ctx.collisions.addBox(x, z, w / 2, d / 2, rot, 'house');
   const a = local(x, z, rot, 0, -D / 2), b = local(x, z, rot, 0, D / 2);
   return { deck: { ax: a.x, az: a.z, bx: b.x, bz: b.z, width: W, y: floorY + 0.09 }, door: local(x, z, rot, 0, D / 2) };
@@ -513,7 +526,10 @@ export function lampPost(ctx, { x, z, rot = 0, h = 3.6, y0 }) {
 export function clothesLine(ctx, { ax, az, bx, bz }) {
   const { M } = ctx;
   const ya = ctx.terrain.heightAt(ax, az), yb = ctx.terrain.heightAt(bx, bz);
-  for (const [px, pz, py] of [[ax, az, ya], [bx, bz, yb]]) ctx.batch.add(G.cyl6, M.wood, { x: px, y: py + 1.1, z: pz, sx: 0.05, sy: 2.2, sz: 0.05 });
+  for (const [px, pz, py] of [[ax, az, ya], [bx, bz, yb]]) {
+    ctx.batch.add(G.cyl6, M.wood, { x: px, y: py + 1.1, z: pz, sx: 0.05, sy: 2.2, sz: 0.05 });
+    ctx.collisions.addCircle(px, pz, 0.1, 'post');
+  }
   const pts = bridgeCurve({ x: ax, y: ya + 2.1, z: az }, { x: bx, y: yb + 2.1, z: bz }, 0.25, 6);
   for (let i = 0; i < 6; i++) beam(ctx, M.rope, pts[i], pts[i + 1], 0.012);
   const cloths = [M.clothRed, M.clothBlue, M.clothYellow, M.clothGreen, M.whitePaint];
@@ -617,7 +633,10 @@ export function boardwalk(ctx, { ax, az, bx, bz, width = 2, y }) {
 export function awning(ctx, { ax, az, bx, bz, y = 4.4, width = 3, cloth }) {
   const { M } = ctx;
   const ya = ctx.terrain.heightAt(ax, az), yb = ctx.terrain.heightAt(bx, bz);
-  for (const [px, pz, py] of [[ax, az, ya], [bx, bz, yb]]) ctx.batch.add(G.cyl6, M.woodDark, { x: px, y: py + y / 2, z: pz, sx: 0.06, sy: y, sz: 0.06 });
+  for (const [px, pz, py] of [[ax, az, ya], [bx, bz, yb]]) {
+    ctx.batch.add(G.cyl6, M.woodDark, { x: px, y: py + y / 2, z: pz, sx: 0.06, sy: y, sz: 0.06 });
+    ctx.collisions.addCircle(px, pz, 0.1, 'post');
+  }
   const pts = bridgeCurve({ x: ax, y: ya + y, z: az }, { x: bx, y: yb + y, z: bz }, 0.5, 6);
   const ry = Math.atan2(bx - ax, bz - az);
   for (let i = 0; i < 6; i++) {
@@ -713,4 +732,23 @@ export function raftStall(ctx, { x, z, rot = 0, y = 0.35 }) {
   P(G.box, M.wood, { lz: 0.6, ly: 0.7, w: 2.4, h: 0.08, d: 0.8 });
   for (let i = 0; i < 4; i++) P(G.box, [M.produceRed, M.produceOrange, M.produceGreen, M.basket][i], { lx: -0.9 + i * 0.6, lz: 0.6, ly: 0.85, w: 0.4, h: 0.2, d: 0.4 });
   ctx.surfaces?.addBox({ x, z, hw: 1.7, hd: 2.1, rot, y: y + 0.24 });
+}
+
+/**
+ * Escada de corda pendurada na borda de uma plataforma (casa na árvore sem
+ * escada em caracol) — subível com W.
+ * @param {{x:number, z:number, y:number, R:number, a:number, y0:number}} o
+ *   centro e altura da plataforma, raio, ângulo onde a escada fica, chão
+ */
+export function ropeLadder(ctx, { x, z, y, R, a, y0 }) {
+  const { M } = ctx;
+  const bx = x + Math.cos(a) * (R + 0.12), bz = z + Math.sin(a) * (R + 0.12);
+  const rot = Math.atan2(Math.cos(a), Math.sin(a)); // frente (+Z local) para fora da plataforma
+  const sx = Math.cos(rot), sz = -Math.sin(rot);
+  for (const s of [-0.28, 0.28]) beam(ctx, M.rope, { x: bx + sx * s, y: y + 0.1, z: bz + sz * s }, { x: bx + sx * s, y: y0, z: bz + sz * s }, 0.02);
+  for (let yy = y0 + 0.35; yy < y; yy += 0.38) {
+    ctx.batch.add(G.cyl6, M.wood, { x: bx, y: yy, z: bz, ry: rot, rz: Math.PI / 2, sx: 0.03, sy: 0.6, sz: 0.03 });
+  }
+  const exit = { x: x + Math.cos(a) * (R - 0.9), y: y + 0.13, z: z + Math.sin(a) * (R - 0.9) };
+  ctx.ladders?.add({ x: bx, z: bz, rot, y0, y1: y + 0.13, exit });
 }

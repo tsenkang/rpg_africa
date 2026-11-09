@@ -140,5 +140,12 @@ function adobeUpperFloor(ctx, { x, z, rot, w, d, wall, y0, h }) {
   P(B.G.box, wall, { lx: -w * 0.12, lz: -d * 0.1, ly: uh + 0.3, w: uw + 0.2, h: 0.6, d: ud + 0.2 });
   for (let k = -1; k <= 1; k++) P(B.G.box, wall, { lx: -w * 0.12 + k * uw * 0.33, lz: -d * 0.1 + ud / 2 + 0.05, ly: uh + 0.85, w: 0.4, h: 0.5, d: 0.25 });
   P(B.G.box, M.darkOpening, { lx: -w * 0.12, lz: -d * 0.1 + ud / 2 + 0.03, ly: 1.5, w: 0.9, h: 1.1, d: 0.04 });
-  P(B.G.box, M.woodDark, { lx: w / 2 - 0.5, lz: d * 0.15, ly: -0.6, w: 0.9, h: 0.1, d: 2.6, rx: 0.5 });
+  // Escada de mão na lateral até o terraço (subível) + terraço andável.
+  for (const sd of [-0.28, 0.28]) P(B.G.cyl6, M.woodDark, { lx: w / 2 + 0.12, lz: d * 0.15 + sd, ly: -(top - y0) / 2 + 0.3, w: 0.05, h: top - y0 + 0.6, d: 0.05 });
+  for (let yy = y0 + 0.4; yy < top; yy += 0.4) P(B.G.cyl6, M.wood, { lx: w / 2 + 0.12, lz: d * 0.15, ly: yy - top, w: 0.03, h: 0.6, d: 0.03, rx: Math.PI / 2 });
+  ctx.surfaces?.addBox({ x, z, hw: w / 2 - 0.25, hd: d / 2 - 0.25, rot, y: top + 0.02 });
+  const up = B.local(x, z, rot, -w * 0.12, -d * 0.1);
+  ctx.collisions.setHeightRange(ctx.collisions.addBox(up.x, up.z, uw / 2, ud / 2, rot, 'upper'), top, top + uh + 0.6);
+  const foot = B.local(x, z, rot, w / 2 + 0.12, d * 0.15), exit = B.local(x, z, rot, w / 2 - 0.7, d * 0.15);
+  ctx.ladders?.add({ x: foot.x, z: foot.z, rot: rot + Math.PI / 2, y0: y0 + 0.25, y1: top + 0.02, exit: { x: exit.x, y: top + 0.02, z: exit.z } });
 }

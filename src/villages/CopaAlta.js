@@ -58,10 +58,15 @@ export function buildCopaAlta(game) {
     near.slice(0, i === 0 ? 4 : 2).forEach((n) => edge(i, n.j));
   });
 
-  // Escadas em caracol: árvore-mãe e uma a cada quatro.
+  // Escadas em caracol (árvore-mãe e uma a cada quatro); as outras ganham
+  // escada de corda — toda casa é alcançável do chão.
   houses.forEach((h, i) => {
-    if (i !== 0 && i % 4 !== 1) return;
-    X.spiralStair(ctx, { x: h.x, z: h.z, trunkR: h.trunkR + 0.25, y0: h.y0 + 0.6, y1: h.y - 0.2, start: i });
+    if (i === 0 || i % 4 === 1) {
+      X.spiralStair(ctx, { x: h.x, z: h.z, trunkR: h.trunkR + 0.25, y0: h.y0 + 0.6, y1: h.y - 0.2, start: i });
+    } else {
+      const a = Math.atan2(cz - h.z, cx - h.x) + 0.9; // de lado para o centro (longe das pontes)
+      X.ropeLadder(ctx, { x: h.x, z: h.z, y: h.y, R: h.R, a, y0: ctx.terrain.heightAt(h.x + Math.cos(a) * h.R, h.z + Math.sin(a) * h.R) });
+    }
   });
 
   // Chão: solo escuro de folhas, bananeiras, arbustos, cestos e galhos.

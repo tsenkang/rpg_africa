@@ -54,6 +54,7 @@ export class Village {
       plants: this.plants,
       props: this.props,
       surfaces: game.surfaces, // chão com andares (plataformas, pontes, palafitas)
+      ladders: game.ladders, // escadas de mão (torres, cordas, terraços)
     };
   }
 
@@ -280,8 +281,7 @@ export class Village {
       const a = B.local(h.x, h.z, h.rot, side * off, h.d / 2 - 0.5);
       const b = B.local(h.x, h.z, h.rot, side * (off + (rnd() - 0.5) * 0.8), -h.d / 2 - 2 - rnd() * 3);
       if (this.isFree((a.x + b.x) / 2, (a.z + b.z) / 2, 0.8) && this.isFree(a.x, a.z, 0.3) && this.isFree(b.x, b.z, 0.3)) {
-        B.fenceRun(ctx, { ax: a.x, az: a.z, bx: b.x, bz: b.z });
-        ctx.collisions.addWall(a.x, a.z, b.x, b.z, 0.2, 'fence');
+        B.fenceRun(ctx, { ax: a.x, az: a.z, bx: b.x, bz: b.z }); // (a cerca registra a própria colisão)
       }
     }
   }

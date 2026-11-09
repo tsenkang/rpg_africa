@@ -43,6 +43,7 @@ import { buildZambaRios } from '../villages/ZambaRios.js';
 import { buildRuinasKaelen } from '../villages/RuinasKaelen.js';
 import { FireLights } from '../render/FireLights.js';
 import { Surfaces } from '../world/Surfaces.js';
+import { Ladders } from '../world/Ladders.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { PropMeshes } from '../physics/PropMeshes.js';
 import { Landmarks } from '../world/Landmarks.js';
@@ -123,6 +124,8 @@ export class Game {
     this.player = { position: new THREE.Vector3(), facing: new THREE.Vector3(0, 0, -1), fastTravel: false };
     /** Chão com andares: plataformas, pontes de corda, escadas, palafitas (as vilas registram). */
     this.surfaces = new Surfaces();
+    /** Escadas de mão subíveis (torres, cordas, terraços). */
+    this.ladders = new Ladders();
     this.ui = new UI(this, container);
     this.inventory.onChange((inv) => {
       this.ui.refreshHotbar(inv);
@@ -223,6 +226,7 @@ export class Game {
       || extraFlat.some((f) => Math.hypot(x - f.x, z - f.z) < f.r);
     this.vegetation = new Vegetation({
       terrain: this.terrain, generator: this.generator, timeUniform: this.timeUniform, photos: this.photos, oaks: this.oaks,
+      collisions: this.collisions, // troncos e rochas: colisão sólida
       isBlocked: (x, z, pad = 0) => inVillage(x, z, pad) || this.landmarks.isClear(x, z, pad) || this.bridges.distanceTo(x, z) < 8 + pad || this.collisions.overlaps(x, z, pad),
     });
     await this.vegetation.build((p) => ui.setLoading(0.72 + p * 0.22, `Plantando a vegetação de cada bioma… ${Math.round(p * 100)}%`));
@@ -266,6 +270,7 @@ export class Game {
       collisions: this.collisions,
       state: this.state,
       isUnderground: () => this.areaId !== 'overworld',
+      ladders: this.ladders,
     });
     this.scene.add(this.player.root);
     const ren = this.villages.renascimento;

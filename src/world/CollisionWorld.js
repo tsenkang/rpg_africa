@@ -16,6 +16,7 @@ export class CollisionWorld {
 
   insert(c, minX, minZ, maxX, maxZ) {
     c.enabled = true;
+    c.cells = [];
     this.all.push(c);
     const i0 = Math.floor(minX / this.cell), i1 = Math.floor(maxX / this.cell);
     const j0 = Math.floor(minZ / this.cell), j1 = Math.floor(maxZ / this.cell);
@@ -24,6 +25,7 @@ export class CollisionWorld {
         const k = this.key(i, j);
         if (!this.grid.has(k)) this.grid.set(k, []);
         this.grid.get(k).push(c);
+        c.cells.push(k);
       }
     }
     return c;
@@ -47,6 +49,21 @@ export class CollisionWorld {
     const len = Math.hypot(bx - ax, bz - az);
     const rot = Math.atan2(-(bz - az), bx - ax);
     return this.addBox((ax + bx) / 2, (az + bz) / 2, len / 2, thickness / 2, rot, tag);
+  }
+
+  /**
+   * Tira um colisor do mundo (móveis dos interiores, que vêm e vão).
+   * @param {object} c o retorno de addCircle/addBox/addWall
+   */
+  remove(c) {
+    for (const k of c.cells ?? []) {
+      const list = this.grid.get(k);
+      const i = list?.indexOf(c) ?? -1;
+      if (i >= 0) list.splice(i, 1);
+    }
+    const j = this.all.indexOf(c);
+    if (j >= 0) this.all.splice(j, 1);
+    c.enabled = false;
   }
 
   /**
