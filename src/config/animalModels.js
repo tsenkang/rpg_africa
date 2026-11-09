@@ -10,6 +10,7 @@
  *   4. apoia no chão (y mínimo = 0) e centraliza em X/Z.
  *
  * `clips`: nome da animação do GLB para cada estado (só nos animados).
+ * `tint` / `emissive`: recolore o modelo (materiais copiados só para a espécie).
  * Espécie sem entrada aqui (suricato) usa o corpo procedural.
  */
 const base = `${import.meta.env.BASE_URL}assets/models/animals/`;
@@ -47,4 +48,18 @@ export const ANIMAL_MODELS = {
   leopardo: { ...file('leopardo'), length: 1.9 },
   javali: { ...file('javali'), length: 1.4 },
   corvo: { ...file('corvo'), length: 0.5 },
+  // ---- 3 espécies por bioma (ver CREDITS.md) ----
+  camelo: { ...file('camelo'), length: 3.0 },
+  vibora: {
+    ...file('vibora'), length: 1.6,
+    clips: { idle: 'SnakeArmature|Snake_Idle', walk: 'SnakeArmature|Snake_Walk', run: 'SnakeArmature|Snake_Walk', attack: 'SnakeArmature|Snake_Attack' },
+    tint: 0xb89a68, // Quaternius vem verde: pinta de areia (víbora do deserto)
+  },
+  girafa: { ...file('girafa'), height: 5.2 },
+  urso: { ...file('urso'), length: 2.2 },
+  arara: { ...file('arara'), length: 0.85 },
+  avestruz: { ...file('avestruz'), height: 2.4 },
+  jacare: { ...file('jacare'), length: 3.4 },
+  // Cérbero: o lobo animado, maior, quase preto e com brilho vermelho (cão paranormal).
+  cerbero: { ...file('lobo'), length: 2.6, clips: QUATERNIUS, tint: 0x1c1618, emissive: 0x2a0404 },
 };

@@ -57,6 +57,7 @@ export class AnimalModels {
     try {
       const gltf = await this.fetchGltf(cfg);
       const template = normalize(gltf.scene, cfg);
+      if (cfg.tint || cfg.emissive) recolor(template, cfg);
       let skinned = false;
       template.traverse((o) => {
         if (o.isSkinnedMesh) skinned = true;
@@ -121,6 +122,29 @@ export function cleanClips(clips) {
     }
   }
   return clips;
+}
+
+/**
+ * Recolore um modelo (cópia dos materiais, então a outra espécie que usa o
+ * mesmo arquivo — o lobo do cérbero — não muda).
+ * @param {THREE.Object3D} root
+ * @param {{ tint?: number, emissive?: number }} cfg
+ */
+export function recolor(root, cfg) {
+  const done = new Map();
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    const swap = (m) => {
+      if (!done.has(m)) {
+        const c = m.clone();
+        if (cfg.tint !== undefined && c.color) { c.color.set(cfg.tint); if (c.map) c.color.multiplyScalar(1.6); }
+        if (cfg.emissive !== undefined && c.emissive) { c.emissive.set(cfg.emissive); c.emissiveIntensity = 0.5; }
+        done.set(m, c);
+      }
+      return done.get(m);
+    };
+    o.material = Array.isArray(o.material) ? o.material.map(swap) : swap(o.material);
+  });
 }
 
 /**
