@@ -170,7 +170,7 @@ export function clothTent(ctx, { x, z, rot = 0, w = 4.5, d = 3.4, h = 2.6, cloth
 export function oasisPond(ctx, { x, z, r = 9, plants }) {
   const { M } = ctx;
   const y = ctx.terrain.heightAt(x, z);
-  ctx.batch.add(G.disc, M.water, { x, y: y + 0.08, z, sx: r, sy: 1, sz: r });
+  ctx.batch.add(G.disc, M.waterOasis, { x, y: y + 0.08, z, sx: r, sy: 1, sz: r });
   for (let i = 0; i < 34; i++) {
     const a = (i / 34) * Math.PI * 2 + ctx.rnd() * 0.1;
     const rr = r + 0.2 + ctx.rnd() * 0.4;

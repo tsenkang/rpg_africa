@@ -75,6 +75,7 @@ export function createMaterials(timeUniform = { value: 0 }) {
     gold: mat({ color: 0xc9a64a, roughness: 0.3, metalness: 1 }, 1),
     whitePaint: mat({ color: 0xf0ebe0 }, 1),
     water: rippleWater(mat({ color: 0x1c3b44, roughness: 0.08, metalness: 0.1 }, 1), timeUniform),
+    waterOasis: rippleWater(mat({ color: 0x3a8e92, roughness: 0.05, metalness: 0.15 }, 1), timeUniform),
     clockFace: mat({ map: T.clockFace(), roughness: 0.6 }, 1, { keepUV: true }),
     produceRed: mat({ color: 0xb8352a, roughness: 0.6 }, 1),
     produceGreen: mat({ color: 0x5f8f32, roughness: 0.6 }, 1),

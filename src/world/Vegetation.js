@@ -137,9 +137,24 @@ export class Vegetation {
    */
   plant(list) {
     if (!list?.length) return;
+    // Um bloco por célula da grade: cada bloco liga/desliga pela distância
+    // do SEU centro (uma lista com plantas do mapa todo num bloco só ficava
+    // com o centro no meio do continente e sumia/ficava em baixo detalhe).
+    const cs = RENDER.treeChunkSize;
+    const cells = new Map();
+    for (const p of list) {
+      const key = `${Math.floor(p.x / cs)},${Math.floor(p.z / cs)}`;
+      if (!cells.has(key)) cells.set(key, []);
+      cells.get(key).push(p);
+    }
+    for (const cell of cells.values()) this.plantChunk(cell);
+  }
+
+  /** Um bloco com as plantas de uma célula. */
+  plantChunk(list) {
     const byType = new Map();
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-    let sx = 0, sz = 0;
+    let sx = 0, sz = 0, n = 0;
     for (const p of list) {
       if (!this.geos[p.type]) continue;
       const s = p.s ?? 1;
@@ -151,9 +166,9 @@ export class Vegetation {
       if (!byType.has(key)) byType.set(key, { matrices: [], colors: [] });
       byType.get(key).matrices.push(m.clone());
       byType.get(key).colors.push(new THREE.Color(1, 1, 1));
-      sx += p.x; sz += p.z;
+      sx += p.x; sz += p.z; n++;
     }
-    if (byType.size) this.chunks.push(this.createChunk(sx / list.length, sz / list.length, byType));
+    if (byType.size) this.chunks.push(this.createChunk(sx / n, sz / n, byType));
   }
 
   createChunk(cx, cz, byType) {
