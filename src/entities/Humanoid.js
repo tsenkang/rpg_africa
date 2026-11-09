@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { approach } from './Locomotion.js';
 
 const geoCache = new Map();
@@ -13,6 +14,39 @@ function mat(hex, rough = 0.85) {
   const k = `${hex}-${rough}`;
   if (!matCache.has(k)) matCache.set(k, new THREE.MeshStandardMaterial({ color: hex, roughness: rough }));
   return matCache.get(k);
+}
+
+/**
+ * Junta, em cada articulação, as peças filhas que usam o mesmo material.
+ * A pose não muda (a transformação local de cada peça é "assada" na
+ * geometria), mas a figura passa de ~40 para ~20 draw calls — e o mesmo
+ * vale para a passada de sombra. Peças em `keep` (animadas por escala)
+ * ficam de fora.
+ * @param {THREE.Object3D} joint
+ * @param {Set<THREE.Object3D>} keep
+ */
+function mergeJointParts(joint, keep) {
+  const buckets = new Map();
+  for (const child of [...joint.children]) {
+    if (child.isMesh && !keep.has(child) && child.children.length === 0 && child.geometry.index) {
+      if (!buckets.has(child.material)) buckets.set(child.material, []);
+      buckets.get(child.material).push(child);
+    } else if (child.isGroup) {
+      mergeJointParts(child, keep);
+    }
+  }
+  for (const [material, meshes] of buckets) {
+    if (meshes.length < 2) continue;
+    const geos = meshes.map((m) => {
+      m.updateMatrix();
+      return m.geometry.clone().applyMatrix4(m.matrix);
+    });
+    const merged = new THREE.Mesh(mergeGeometries(geos, false), material);
+    merged.castShadow = true;
+    geos.forEach((g) => g.dispose());
+    meshes.forEach((m) => joint.remove(m));
+    joint.add(merged);
+  }
 }
 
 export const SKIN_TONES = [0x3b2417, 0x4a2c1c, 0x5c3a24, 0x6e4529, 0x7d5233, 0x8f6440];
@@ -54,6 +88,7 @@ export class Humanoid {
   constructor({
     height = 1.8, skin = SKIN_TONES[2], shirt = 0x8a5a3a, pants = 0x3a3028,
     hair = 0x111111, hat = null, robe = false, accessory = null, build = 1, hunch = 0,
+    mergeParts = true,
   } = {}) {
     const s = height / 1.8;
     const B = BODY;
@@ -188,6 +223,7 @@ export class Humanoid {
       b.position.y = 0.3;
     }
 
+    if (mergeParts) mergeJointParts(this.root, new Set([this.chest]));
     this.torso.rotation.x = hunch;
     this.walk = 0; // 0 parado → 1 andando (suavizado)
     this.run = 0; // 0 andando → 1 correndo
