@@ -68,7 +68,7 @@ export const WEATHER = {
   deserto: {
     name: 'Tempestade de areia',
     particles: [
-      { shape: 'streakH', count: 5000, box: [40, 14, 40], size: 0.6, color: 0xc89550, opacity: 0.75, fall: 0.3, jitter: 3, flutter: 0.8, additive: false },
+      { shape: 'streakH', count: 5000, box: [40, 14, 40], size: 0.7, color: 0x9a6a32, opacity: 0.85, fall: 0.3, jitter: 3, flutter: 0.8, additive: false },
       { shape: 'dot', count: 2200, box: [30, 12, 30], size: 0.08, color: 0xb98642, opacity: 0.8, fall: 0.2, jitter: 1.5, flutter: 0.6, additive: false },
     ],
     wind: { x: 22, z: -4, gust: 0.5, gustPeriod: 4 },
