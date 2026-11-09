@@ -222,7 +222,9 @@ export class WeatherManager {
    * @param {number} [o.shelter] 0..1 dentro de uma vila
    * @param {number} [o.hourIndex] GameClock.hourIndex (sorteio a cada hora)
    */
-  update(dt, { time, camera, player, weights, underground, shelter = 0, hourIndex = 0 }) {
+  update(dt, { time, camera, player, weights, underground, shelter = 0, hourIndex = 0, indoor = false }) {
+    /** Dentro de casa: sem chuva/neve/areia caindo na sala nem vinheta na tela. */
+    this.indoor = indoor;
     this._time.value = time;
     this.renderer.getDrawingBufferSize(this._size);
     this._scale.value = this._size.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
@@ -266,7 +268,7 @@ export class WeatherManager {
       const level = this.scheduler.level(l.biome);
       const gate = l.spec.minLevel ? smoothstep(level, l.spec.minLevel - 0.1, l.spec.minLevel + 0.2) : 1;
       const w = this.place[l.biome] * roof * level * gate;
-      if (w < 0.01) { l.points.visible = false; continue; }
+      if (w < 0.01 || this.indoor) { l.points.visible = false; continue; }
       this.windOf(l.biome, time, wind);
       if (!l.state.seeded) seedParticles(l.state, center, this.rng);
       stepParticles(l.state, dt, center, wind.x, wind.z, time, this.rng);
@@ -294,7 +296,7 @@ export class WeatherManager {
     for (const sp of this.splashes) {
       const level = this.scheduler.level(sp.biome);
       const w = this.place[sp.biome] * roof * level;
-      const active = w < 0.05 ? 0 : Math.floor(sp.cfg.count * this.density * Math.min(1, w * 1.2));
+      const active = w < 0.05 || this.indoor ? 0 : Math.floor(sp.cfg.count * this.density * Math.min(1, w * 1.2));
       if (!active && !sp.points.visible) continue;
       stepSplashes(sp.s, dt, center, sp.cfg, active, this.groundAt, this.rng);
       sp.points.material.uniforms.uOpacity.value = sp.cfg.opacity * Math.sqrt(w);
@@ -379,7 +381,7 @@ export class WeatherManager {
     }
     this.bloomStrength = underground ? 0 : bloom;
     this.overcast = Math.min(1, skyToFog);
-    if (underground) for (const k of OVERLAYS) this.overlays[k] = 0;
+    if (underground || this.indoor) for (const k of OVERLAYS) this.overlays[k] = 0;
 
     // Lanterna: climas escuros, névoa paranormal e a noite.
     this.lantern.position.set(player.x, player.y + LANTERN.height, player.z);

@@ -191,6 +191,8 @@ export class CameraRig {
       const g = this.groundAt(cam.x, cam.z) + 0.4;
       if (cam.y < g) cam.y = g;
     }
+    // Dentro de casa: a câmera fica no cômodo (não atravessa parede/telhado).
+    this.confine?.(cam);
     cam.y += this.bobOffset.y;
     cam.addScaledVector(this._right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw)), this.bobOffset.x);
     this.camera.lookAt(this.focus);

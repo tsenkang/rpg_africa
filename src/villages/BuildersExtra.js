@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { G, part, local, groundUnder, wallHeight } from './Builders.js';
+import { G, part, local, groundUnder, wallHeight, shellRing, wallColliders, siteSeed } from './Builders.js';
 import { helixSteps, bridgeCurve } from './Layout.js';
 
 /**
@@ -67,13 +67,39 @@ export function logCabin(ctx, { x, z, rot = 0, w = 7, d = 5.5, h = 2.6, stories 
     for (let k = -2; k <= 2; k++) P(G.cyl6, M.woodDark, { lx: k * w * 0.18, lz: d / 2 + 1.75, ly: fy + 0.25, w: 0.04, h: 0.5, d: 0.04 });
     P(G.box, M.runeGlow, { lz: d / 2 + 0.02, ly: fy + 1.1, w: 0.9, h: 0.6, d: 0.04 });
   }
-  // Porta, batentes e janelinha com luz quente.
-  P(G.box, M.woodDark, { lz: d / 2 + 0.1, ly: 0.5 + doorH / 2, w: doorW, h: doorH, d: 0.08 });
+  // Porta ABERTA (girada na dobradiça), batentes e janelinha com luz quente.
+  P(G.box, M.woodDark, { lx: -doorW / 2 + Math.cos(1.9) * doorW / 2, lz: d / 2 + 0.1 + Math.sin(1.9) * doorW / 2, ly: 0.5 + doorH / 2, w: doorW, h: doorH, d: 0.08, ry: -1.9 });
   for (const s of [-1, 1]) P(G.box, M.log, { lx: s * (doorW / 2 + 0.08), lz: d / 2 + 0.12, ly: 0.5 + doorH / 2, w: 0.16, h: doorH, d: 0.16 });
   P(G.box, M.runeGlow, { lx: w / 2 + 0.02, ly: 0.5 + 1.6, w: 0.05, h: 0.6, d: 0.8 });
   // Chaminé de pedra no canto dos fundos.
   P(G.box, M.stone, { lx: w / 2 - 0.7, lz: -d / 2 + 0.6, ly: (top + 3.2) / 2, w: 0.9, h: top + 3.2, d: 0.9 });
-  ctx.collisions.addBox(x, z, w / 2 + 0.25, d / 2 + 0.25, rot, 'house');
+  ctx.collisions.addBox(x, z, w / 2 + 0.25, d / 2 + 0.25, rot, 'house').footprint = true;
+  wallColliders(ctx, { x, z, rot, w: w + 0.3, d: d + 0.3, t: 0.4, gap: doorW });
+  // Por dentro: assoalho, forro e — no sobrado — laje do 2º andar + escada interna.
+  const floor0 = y0 + 0.5, inW = w - 0.34, inD = d - 0.34;
+  ctx.surfaces?.addBox({ x, z, hw: inW / 2, hd: inD / 2, rot, y: floor0 });
+  P(G.box, M.wood, { ly: top - 0.06, w: inW, h: 0.12, d: inD });
+  const floors = [floor0];
+  let stair = null;
+  if (stories > 1) {
+    const mid = 0.5 + (top - 0.5) / 2, sw = 1.0;
+    const sx = -inW / 2 + sw / 2 + 0.02;
+    const n = Math.ceil((mid - 0.5) / 0.21), run = Math.min(0.28, (inD - 1.3) / n);
+    for (let k = 0; k < n; k++) {
+      const lz = inD / 2 - 0.9 - k * run, ly = 0.5 + (k + 1) * ((mid - 0.5) / n);
+      P(G.box, M.woodDark, { lx: sx, lz, ly: ly - 0.05, w: sw, h: 0.1, d: run + 0.02 });
+      const st = local(x, z, rot, sx, lz);
+      ctx.surfaces?.addBox({ x: st.x, z: st.z, hw: sw / 2, hd: run / 2 + 0.01, rot, y: y0 + ly });
+    }
+    // Laje do 2º andar com o vão da escada (faixa da esquerda livre).
+    const slabW = inW - sw - 0.05, slabX = sw / 2 + 0.025;
+    P(G.box, M.wood, { lx: slabX, ly: mid, w: slabW, h: 0.14, d: inD });
+    const sl = local(x, z, rot, slabX, 0);
+    ctx.surfaces?.addBox({ x: sl.x, z: sl.z, hw: slabW / 2, hd: inD / 2, rot, y: y0 + mid + 0.07 });
+    floors.push(y0 + mid + 0.07);
+    stair = { lx: sx, w: sw };
+  }
+  ctx.interiors?.push({ kind: 'cabin', x, z, rot, w: inW, d: inD, t: 0, floors, floorY: floor0, ceilY: y0 + top - 0.12, doorW, stories, stair, seed: siteSeed(x, z) });
   return { y0, door: local(x, z, rot, 0, d / 2 + 1.2), w, d, r: Math.hypot(w, d) / 2 };
 }
 
@@ -390,10 +416,11 @@ export function stiltHouse(ctx, { x, z, rot = 0, w = 5.5, d = 4.5, floorY = 1.6 
     P(G.cyl, M.log, { lx: i * (W / 2 - 0.3), lz: j * (D / 2 - 0.3), ly: floorY - 2.6, w: 0.15, h: 5.2, d: 0.15 });
   }
   const wallH = wallHeight(2.4, 2.9);
-  P(G.box, M.woodLight, { ly: floorY + wallH / 2 + 0.08, w, h: wallH, d });
+  // Paredes de tábua ocas com o vão da porta e forro (por dentro dá para entrar).
+  shellRing((geo, mat, o) => P(geo, mat, { ...o, ly: o.ly + floorY + 0.08 }), M.woodLight, { w, d, tt: 0.16, hh: wallH, ly: wallH / 2, gap: 1.05, top: 2.1 });
+  P(G.box, M.woodLight, { ly: floorY + wallH, w: w - 0.32, h: 0.08, d: d - 0.32 });
   P(G.roofSlopes, M.thatch, { ly: floorY + wallH + 0.08, w: w + 1.6, h: 2.0, d: d + 1.8 });
   P(G.gables, M.woodLight, { ly: floorY + wallH + 0.08, w, h: 2.0 * (d / (d + 1.8)), d });
-  P(G.box, M.darkOpening, { lz: d / 2 + 0.02, ly: floorY + 1.1, w: 0.95, h: 2.0, d: 0.04 });
   P(G.box, M.darkOpening, { lx: w / 2 + 0.02, ly: floorY + 1.5, w: 0.04, h: 0.7, d: 1.0 });
   for (const s of [-1, 1]) P(G.cyl6, M.woodDark, { lx: s * (W / 2 - 0.1), lz: D / 2 - 0.1, ly: floorY + 0.5, w: 0.04, h: 1, d: 0.04 });
   // Escadinha da varanda até a água (de frente).
@@ -402,7 +429,9 @@ export function stiltHouse(ctx, { x, z, rot = 0, w = 5.5, d = 4.5, floorY = 1.6 
     const st = local(x, z, rot, 0, D / 2 + 0.25 + k * 0.28);
     ctx.surfaces?.addBox({ x: st.x, z: st.z, hw: 0.5, hd: 0.14, rot, y: floorY - 0.22 - k * 0.3 }); // degrau andável
   }
-  ctx.collisions.addBox(x, z, w / 2, d / 2, rot, 'house');
+  ctx.collisions.addBox(x, z, w / 2, d / 2, rot, 'house').footprint = true;
+  wallColliders(ctx, { x, z, rot, w, d, t: 0.16, gap: 1.05 });
+  ctx.interiors?.push({ kind: 'stilt', x, z, rot, w: w - 0.32, d: d - 0.32, t: 0, floorY: floorY + 0.09, ceilY: floorY + wallH, doorW: 1.05, stories: 1, seed: siteSeed(x, z) });
   const a = local(x, z, rot, 0, -D / 2), b = local(x, z, rot, 0, D / 2);
   return { deck: { ax: a.x, az: a.z, bx: b.x, bz: b.z, width: W, y: floorY + 0.09 }, door: local(x, z, rot, 0, D / 2) };
 }

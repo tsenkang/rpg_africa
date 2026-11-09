@@ -46,6 +46,8 @@ import { Surfaces } from '../world/Surfaces.js';
 import { Ladders } from '../world/Ladders.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
 import { PropMeshes } from '../physics/PropMeshes.js';
+import { InteriorManager } from '../render/Interiors.js';
+import { BIOME_STYLE } from '../config/interiors.js';
 import { Landmarks } from '../world/Landmarks.js';
 import { LANDMARKS } from '../config/landmarks.js';
 import { UI } from '../ui/UI.js';
@@ -244,6 +246,18 @@ export class Game {
       },
     });
     this.scene.add(this.grass.mesh);
+    // Pegadas inteiras das casas só serviam para dispor a vila e a vegetação:
+    // agora quem bloqueia são as paredes com o vão da porta (dá para entrar).
+    for (const c of this.collisions.all) if (c.footprint) c.enabled = false;
+
+    // Interiores: cada casa registra sua planta; a mobília nasce perto do jogador.
+    this.interiors = new InteriorManager({ scene: this.scene, M: this.materials, collisions: this.collisions, fireLights: this.fireLights });
+    for (const v of Object.values(this.villages)) {
+      for (const desc of v.interiors) {
+        const biome = v.config.biome ?? BIOMES[this.terrain.dominantBiome(desc.x, desc.z)]?.id;
+        this.interiors.add(desc, BIOME_STYLE[biome] ?? 'common');
+      }
+    }
 
     // Física (cannon-es): objetos dinâmicos das vilas + estáticos transmitidos em volta do jogador.
     // O terreno físico ignora plataformas altas (feetY = −∞): só chão, pontes e píeres.
@@ -276,6 +290,7 @@ export class Game {
     const ren = this.villages.renascimento;
     this.player.teleport(ren.x + 3, ren.z + 17, Math.PI); // borda sul da praça, olhando para o poço e a igreja
     this.cameraRig = new CameraRig(this.camera, { groundAt: (x, z) => this.groundHeight(x, z) });
+    this.cameraRig.confine = (cam) => this.interiors?.confineCamera(cam, this.player.position);
     this.cameraRig.yaw = Math.PI;
     this.setupCamera();
     this.setupCombat();
@@ -661,7 +676,8 @@ export class Game {
     if (this.areaId === 'overworld') {
       const w = this.terrain.weightsAt(pos.x, pos.z, this._w);
       this.environment.update(dt, pos, this.camera, w, false);
-      this.weather.update(dt, { time: this.time, camera: this.camera, player: pos, weights: w, underground: false, shelter: this.villageShelter(pos), hourIndex });
+      const indoor = !!this.interiors.insideAt(pos);
+      this.weather.update(dt, { time: this.time, camera: this.camera, player: pos, weights: w, underground: false, shelter: indoor ? 1 : this.villageShelter(pos), hourIndex, indoor });
       this.clouds.update(dt, this.environment, this.weather.overcast);
       let best = 0;
       for (let i = 1; i < w.length; i++) if (w[i] > w[best]) best = i;
@@ -698,6 +714,7 @@ export class Game {
     ui.setWeather(this.gameClock.label(), this.weather.status, this.weather.overlays, this.weather.flash, this.debuffs);
     this.dungeons.update(dt, this.time, this.areaId);
     this.fireLights.update(this.time, this.areaId === 'overworld' ? pos : Game.NOWHERE);
+    if (this.areaId === 'overworld') this.interiors.update(dt, pos);
     if (this.areaId === 'overworld') {
       this.physics.update(dt, pos); // transmite + simula (passo fixo 1/60)
       this.propMeshes.sync(this.physics.props); // corpo → InstancedMesh

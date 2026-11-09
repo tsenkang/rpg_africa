@@ -43,6 +43,8 @@ export class Village {
     this.presences = [];
     /** Objetos dinâmicos (barris, caixotes…) — viram corpos no PhysicsWorld. */
     this.props = [];
+    /** Casas com interior (descrições dos construtores) — viram InteriorManager. */
+    this.interiors = [];
     this.rnd = mulberry32(seed);
     this.ctx = {
       batch: new StaticBatcher(),
@@ -53,6 +55,7 @@ export class Village {
       rnd: this.rnd,
       plants: this.plants,
       props: this.props,
+      interiors: this.interiors,
       surfaces: game.surfaces, // chão com andares (plataformas, pontes, palafitas)
       ladders: game.ladders, // escadas de mão (torres, cordas, terraços)
     };

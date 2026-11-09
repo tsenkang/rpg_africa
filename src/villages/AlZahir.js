@@ -143,9 +143,10 @@ function adobeUpperFloor(ctx, { x, z, rot, w, d, wall, y0, h }) {
   // Escada de mão na lateral até o terraço (subível) + terraço andável.
   for (const sd of [-0.28, 0.28]) P(B.G.cyl6, M.woodDark, { lx: w / 2 + 0.12, lz: d * 0.15 + sd, ly: -(top - y0) / 2 + 0.3, w: 0.05, h: top - y0 + 0.6, d: 0.05 });
   for (let yy = y0 + 0.4; yy < top; yy += 0.4) P(B.G.cyl6, M.wood, { lx: w / 2 + 0.12, lz: d * 0.15, ly: yy - top, w: 0.03, h: 0.6, d: 0.03, rx: Math.PI / 2 });
-  ctx.surfaces?.addBox({ x, z, hw: w / 2 - 0.25, hd: d / 2 - 0.25, rot, y: top + 0.02 });
+  const deck = top + 0.6; // em cima da laje + parapeito do térreo
+  ctx.surfaces?.addBox({ x, z, hw: w / 2 - 0.25, hd: d / 2 - 0.25, rot, y: deck });
   const up = B.local(x, z, rot, -w * 0.12, -d * 0.1);
-  ctx.collisions.setHeightRange(ctx.collisions.addBox(up.x, up.z, uw / 2, ud / 2, rot, 'upper'), top, top + uh + 0.6);
+  ctx.collisions.setHeightRange(ctx.collisions.addBox(up.x, up.z, uw / 2, ud / 2, rot, 'upper'), deck - 0.3, top + uh + 0.6);
   const foot = B.local(x, z, rot, w / 2 + 0.12, d * 0.15), exit = B.local(x, z, rot, w / 2 - 0.7, d * 0.15);
-  ctx.ladders?.add({ x: foot.x, z: foot.z, rot: rot + Math.PI / 2, y0: y0 + 0.25, y1: top + 0.02, exit: { x: exit.x, y: top + 0.02, z: exit.z } });
+  ctx.ladders?.add({ x: foot.x, z: foot.z, rot: rot + Math.PI / 2, y0: y0 + 0.25, y1: deck, exit: { x: exit.x, y: deck, z: exit.z } });
 }

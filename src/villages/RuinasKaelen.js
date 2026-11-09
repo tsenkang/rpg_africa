@@ -78,6 +78,13 @@ export function buildRuinasKaelen(game) {
   spots.forEach((p, i) => {
     const rot = Math.atan2(cx - p.x, cz - p.z) + (v.rnd() - 0.5) * 1.2;
     const w = 7 + v.rnd() * 4, d = 6 + v.rnd() * 2.5;
+    if (i % 9 === 4) {
+      // Uma das poucas casas ainda de pé: escura, por dentro tudo revirado.
+      B.house(ctx, { x: p.x, z: p.z, rot, w: Math.min(w, 8), d: Math.min(d, 6.5), h: 3, wall: M.stoneDark, roof: 'tile', roofMat: M.charred });
+      v.interiors.at(-1).style = 'ruin';
+      v.reserve(p.x, p.z, Math.hypot(w, d) / 2 + 1);
+      return;
+    }
     B.ruinedHouse(ctx, { x: p.x, z: p.z, rot, w, d, h: 3.2 + v.rnd() * 2.4, seed: 1000 + i * 37 });
     X.charredBeams(ctx, { x: p.x, z: p.z, n: 3 + Math.floor(v.rnd() * 3) });
     for (let k = 0; k < 2; k++) {
