@@ -239,7 +239,8 @@ export class PhysicsWorld {
     const f = punchForce * Math.min(2, b.mass / 10 + 0.4);
     this._tmp.set(dir.x * f, (dir.y + punchLift) * f, dir.z * f);
     // Acerta acima do centro → o objeto tomba/rola em vez de só deslizar.
-    b.applyImpulse(this._tmp, new CANNON.Vec3(b.position.x - dir.x * 0.2, b.position.y + 0.25 * best.scale, b.position.z - dir.z * 0.2));
+    // (cannon-es: o ponto é RELATIVO ao centro do corpo, não posição no mundo.)
+    b.applyImpulse(this._tmp, new CANNON.Vec3(-dir.x * 0.2, 0.25 * best.scale, -dir.z * 0.2));
     return best;
   }
 }

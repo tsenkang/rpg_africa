@@ -40,6 +40,17 @@ test('soco aplica impulso: o caixote voa/rola para frente', () => {
   assert.equal(pw.punch({ x: 0, y: 0.6, z: 0 }, { x: -1, y: 0, z: 0 }), null, 'nada atrás');
 });
 
+test('soco longe da origem do mundo: impulso igual (ponto relativo ao centro)', () => {
+  const pw = new PhysicsWorld({ groundAt: flat(40), collisions: new CollisionWorld() });
+  const p = pw.addProp('crate', { x: 2001.4, z: -1500 });
+  const pos = { x: 2000, y: 40, z: -1500 };
+  run(pw, pos, 0.2);
+  pw.punch({ x: 2000, y: 40.6, z: -1500 }, { x: 1, y: 0, z: 0 });
+  run(pw, pos, 1.5);
+  const moved = p.pos.x - 2001.4;
+  assert.ok(moved > 0.8 && moved < 8, `andou ${moved.toFixed(2)} m`);
+});
+
 test('parede estática segura o objeto (não atravessa)', () => {
   const cw = new CollisionWorld();
   cw.addBox(4, 0, 0.3, 3, 0, 'house'); // parede em x = 3,7..4,3
