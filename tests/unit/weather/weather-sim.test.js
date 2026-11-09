@@ -57,6 +57,17 @@ test('stepParticles: a caixa acompanha a câmera (inclusive teleporte)', () => {
   assert.ok(inBox(s, far));
 });
 
+test('stepParticles: quadro longo (dt grande) não deixa partícula fora da caixa', () => {
+  const rng = mulberry32(5);
+  const s = createParticleState({ ...SPEC, fall: 19 }, 300, rng);
+  const c = { x: 0, y: 0, z: 0 };
+  seedParticles(s, c, rng);
+  stepParticles(s, 10, c, 0, 0, 0, rng); // cai 190 m num passo
+  assert.ok(inBox(s, c));
+  stepParticles(s, 0.1, { x: 0, y: 300, z: 0 }, 0, 0, 0, rng); // câmera subiu 300 m
+  assert.ok(inBox(s, { x: 0, y: 300, z: 0 }));
+});
+
 test('stepParticles: vento empurra as partículas', () => {
   const rng = mulberry32(3);
   const s = createParticleState({ ...SPEC, box: [1000, 1000, 1000], fall: 0 }, 10, rng);

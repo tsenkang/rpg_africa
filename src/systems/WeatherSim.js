@@ -82,12 +82,14 @@ export function stepParticles(s, dt, center, windX, windZ, time, rng) {
     let y = p[k + 1] - s.speed[i] * dt;
     let z = p[k + 2] + (windZ * drift + Math.cos(time * 1.1 + sd * 30) * fl) * dt;
     if (y < bottom) {
-      y += h;
+      // Volta para o céu. Módulo (não só +h): mesmo num quadro longo ou com a
+      // câmera subindo rápido (voo) a partícula cai de volta dentro da caixa.
+      y = center.y + wrap(y - center.y, h);
       x = center.x + (rng() - 0.5) * w;
       z = center.z + (rng() - 0.5) * d;
       recycled++;
     } else if (y > top) {
-      y -= h;
+      y = center.y + wrap(y - center.y, h);
     }
     p[k] = center.x + wrap(x - center.x, w);
     p[k + 1] = y;
