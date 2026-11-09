@@ -97,7 +97,7 @@ export class FpsMeter {
 
 /**
  * Aplica um nível ao jogo já criado (sem recarregar): resolução, sombras,
- * capim e alcance das árvores. Antialias só vale ao recarregar.
+ * capim, alcance das árvores, partículas de clima e bloom. Antialias só vale ao recarregar.
  * @param {object} game precisa de renderer, environment, grass, vegetation
  * @param {object} preset item de GRAPHICS_PRESETS
  * @param {number} [devicePixelRatio]
@@ -110,6 +110,9 @@ export function applyGraphics(game, preset, devicePixelRatio = globalThis.device
   game.environment?.setShadows(preset);
   game.grass?.setRadius(preset.grassRadius);
   game.vegetation?.setDistances(preset.treeViewDistance, preset.treeHighDetailDistance);
+  game.weather?.setQuality(preset);
+  game.postfx?.setEnabled(preset.bloom);
+  game.postfx?.setSize();
   const aa = r.getContextAttributes?.()?.antialias ?? preset.antialias;
   return { needsReload: aa !== preset.antialias };
 }

@@ -38,6 +38,9 @@ import { Dungeons } from '../villages/Dungeons.js';
 import { Landmarks } from '../world/Landmarks.js';
 import { LANDMARKS } from '../config/landmarks.js';
 import { UI } from '../ui/UI.js';
+import { WeatherManager } from '../render/WeatherManager.js';
+import { PostFX } from '../render/PostFX.js';
+import { Thunder } from '../audio/Thunder.js';
 import { GRAPHICS_PRESETS, LOW_FPS_HINT } from '../config/graphics.js';
 import { GraphicsStore, FpsMeter, presetById, stepPreset, applyGraphics } from '../render/GraphicsSettings.js';
 
@@ -163,6 +166,13 @@ export class Game {
     this.water = new Water();
     this.scene.add(this.water.mesh);
     this.environment = new Environment(this.scene, this.renderer);
+    // Clima por bioma + névoa paranormal (roda depois do Environment no loop).
+    this.weather = new WeatherManager({
+      scene: this.scene, environment: this.environment, renderer: this.renderer, rng: this.random, audio: new Thunder(),
+    });
+    /** Criaturas paranormais: empurre aqui (`game.paranormalCreatures.push(obj)`) — a névoa engrossa perto delas. */
+    this.paranormalCreatures = this.weather.creatures;
+    this.postfx = new PostFX(this.renderer);
 
     const villageList = Object.values(this.villages);
     const extraFlat = EXTRA_FLAT_ZONES.map((z) => ({ ...uvToWorld(z.u, z.v), r: z.radius * 0.8 }));
@@ -449,6 +459,7 @@ export class Game {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.postfx?.setSize();
   }
 
   start() {
@@ -525,6 +536,7 @@ export class Game {
     if (this.areaId === 'overworld') {
       const w = this.terrain.weightsAt(pos.x, pos.z, this._w);
       this.environment.update(dt, pos, this.camera, w, false);
+      this.weather.update(dt, { time: this.time, camera: this.camera, player: pos, weights: w, underground: false });
       let best = 0;
       for (let i = 1; i < w.length; i++) if (w[i] > w[best]) best = i;
       ui.setBiome(best);
@@ -553,6 +565,7 @@ export class Game {
       }
     } else {
       this.environment.update(dt, pos, this.camera, this._w, true);
+      this.weather.update(dt, { time: this.time, camera: this.camera, player: pos, weights: this._w, underground: true });
       if (this._villageKey !== 'under') { this._villageKey = 'under'; ui.setVillage(null); }
     }
     this.dungeons.update(dt, this.time, this.areaId);
@@ -561,7 +574,7 @@ export class Game {
     if (this.cameraRig.isFirstPerson) this.fpArm.update(dt, busy ? 0 : this.player.speed, this.player.sprinting);
     ui.update(dt);
 
-    this.renderer.render(this.scene, this.camera);
+    this.postfx.render(this.scene, this.camera, this.weather.bloomStrength);
     input.endFrame();
   }
 }

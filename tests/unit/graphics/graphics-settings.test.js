@@ -6,7 +6,7 @@ import { GRAPHICS_PRESETS, DEFAULT_GRAPHICS, GRAPHICS_STORAGE_KEY } from '../../
 const RENDER = { shadowMapSize: 4096, shadowRange: 110, grassRadius: 62, treeViewDistance: 1100, treeHighDetailDistance: 150 };
 import { presetById, stepPreset, GraphicsStore, FpsMeter, applyGraphics } from '../../../src/render/GraphicsSettings.js';
 
-const NUMERIC = ['pixelRatio', 'shadowMapSize', 'shadowRange', 'grassRadius', 'treeViewDistance', 'treeHighDetailDistance'];
+const NUMERIC = ['weatherDensity', 'pixelRatio', 'shadowMapSize', 'shadowRange', 'grassRadius', 'treeViewDistance', 'treeHighDetailDistance'];
 
 test('presets: vão do mais leve ao mais pesado (nenhum valor diminui ao subir)', () => {
   for (let i = 1; i < GRAPHICS_PRESETS.length; i++) {
