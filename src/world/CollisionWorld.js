@@ -49,6 +49,18 @@ export class CollisionWorld {
     return this.addBox((ax + bx) / 2, (az + bz) / 2, len / 2, thickness / 2, rot, tag);
   }
 
+  /**
+   * Limita um colisor a uma faixa de altura (m). Sem faixa = parede infinita
+   * (como sempre foi). Com faixa, quem passa por baixo ou por cima não bate —
+   * ex.: a cabana numa plataforma a 12 m não bloqueia quem anda no chão.
+   * @example world.setHeightRange(world.addCircle(x, z, 3, 'hut'), 12, 15)
+   */
+  setHeightRange(c, y0, y1) {
+    c.y0 = y0;
+    c.y1 = y1;
+    return c;
+  }
+
   query(x, z) {
     return this.grid.get(this.key(Math.floor(x / this.cell), Math.floor(z / this.cell))) ?? [];
   }
@@ -73,6 +85,8 @@ export class CollisionWorld {
       let moved = false;
       for (const c of this.query(pos.x, pos.z)) {
         if (!c.enabled) continue;
+        // Faixa de altura: o corpo (pé até ~1,7 m) precisa cruzar a faixa.
+        if (c.y0 !== undefined && (pos.y + 1.7 < c.y0 || pos.y > c.y1 - 0.25)) continue;
         if (c.type === 'circle') {
           const dx = pos.x - c.x, dz = pos.z - c.z;
           const d = Math.hypot(dx, dz);

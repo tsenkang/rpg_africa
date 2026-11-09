@@ -949,14 +949,22 @@ export function pier(ctx, { ax, az, bx, bz, width = 3.5, boats = 3 }) {
 }
 
 // ---------- adereços ----------
+/**
+ * Barril. Nas vilas (ctx.props existe) vira objeto DINÂMICO com física
+ * (PhysicsWorld): rola, tomba, é empurrado e leva soco. Fora delas (marcos
+ * do mapa) continua geometria estática.
+ */
 export function barrel(ctx, { x, z }) {
+  if (ctx.props) { ctx.props.push({ type: 'barrel', x, z }); return; }
   const y = ctx.terrain.heightAt(x, z);
   ctx.batch.add(G.cyl, ctx.M.wood, { x, y: y + 0.45, z, sx: 0.33, sy: 0.9, sz: 0.33 });
   ctx.batch.add(G.torus, ctx.M.iron, { x, y: y + 0.25, z, rx: Math.PI / 2, sx: 0.34, sy: 0.34, sz: 0.3 });
   ctx.batch.add(G.torus, ctx.M.iron, { x, y: y + 0.65, z, rx: Math.PI / 2, sx: 0.34, sy: 0.34, sz: 0.3 });
 }
 
+/** Caixote (dinâmico nas vilas, como o barril). `y` = empilhado sobre outro. */
 export function crate(ctx, { x, z, s = 0.8, rot = 0, y: lift = 0 }) {
+  if (ctx.props) { ctx.props.push({ type: 'crate', x, z, lift, rot, scale: s / 0.8 }); return; }
   const y = ctx.terrain.heightAt(x, z) + lift; // lift: empilhado sobre outro
   ctx.batch.add(G.box, ctx.M.woodLight, { x, y: y + s / 2, z, ry: rot, sx: s, sy: s, sz: s });
 }

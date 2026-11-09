@@ -42,6 +42,9 @@ import { buildAreiasVivas } from '../villages/AreiasVivas.js';
 import { buildZambaRios } from '../villages/ZambaRios.js';
 import { buildRuinasKaelen } from '../villages/RuinasKaelen.js';
 import { FireLights } from '../render/FireLights.js';
+import { Surfaces } from '../world/Surfaces.js';
+import { PhysicsWorld } from '../physics/PhysicsWorld.js';
+import { PropMeshes } from '../physics/PropMeshes.js';
 import { Landmarks } from '../world/Landmarks.js';
 import { LANDMARKS } from '../config/landmarks.js';
 import { UI } from '../ui/UI.js';
@@ -72,6 +75,9 @@ import { yieldToBrowser as nextFrame } from './yieldToBrowser.js';
  *   damagePlayer(n, origem), killPlayer(msg), random() (injetável)
  */
 export class Game {
+  /** Nome dos objetos dinâmicos no aviso do soco. */
+  static PROP_NAMES = { barrel: 'Barril', crate: 'Caixote', plank: 'Tábua', log: 'Tora', sack: 'Saco', lantern: 'Lanterna', branch: 'Galho' };
+
   /** Posição longe de tudo (subsolo): nenhuma fogueira ganha luz. */
   static NOWHERE = { x: Infinity, z: Infinity };
 
@@ -115,6 +121,8 @@ export class Game {
     this.timeUniform = { value: 0 };
     this._w = new Float32Array(BIOMES.length);
     this.player = { position: new THREE.Vector3(), facing: new THREE.Vector3(0, 0, -1), fastTravel: false };
+    /** Chão com andares: plataformas, pontes de corda, escadas, palafitas (as vilas registram). */
+    this.surfaces = new Surfaces();
     this.ui = new UI(this, container);
     this.inventory.onChange((inv) => {
       this.ui.refreshHotbar(inv);
@@ -229,6 +237,19 @@ export class Game {
       },
     });
     this.scene.add(this.grass.mesh);
+
+    // Física (cannon-es): objetos dinâmicos das vilas + estáticos transmitidos em volta do jogador.
+    // O terreno físico ignora plataformas altas (feetY = −∞): só chão, pontes e píeres.
+    this.physics = new PhysicsWorld({ groundAt: (x, z) => this.groundHeight(x, z, -Infinity), collisions: this.collisions, surfaces: this.surfaces });
+    for (const v of Object.values(this.villages)) {
+      for (const p of v.props) {
+        const base = p.y ?? this.groundHeight(p.x, p.z, -Infinity) + (p.lift ?? 0);
+        this.physics.addProp(p.type, { x: p.x, z: p.z, y: base, rot: p.rot ?? 0, scale: p.scale ?? 1 });
+      }
+    }
+    this.propMeshes = new PropMeshes(this.physics.byType, this.materials);
+    this.propMeshes.sync(this.physics.props);
+    this.scene.add(this.propMeshes.group);
 
     // Minimapa em tempo real: terreno, água, pontes e ícones das construções.
     this.minimap = new Minimap(this.renderer, this.scene);
@@ -362,6 +383,12 @@ export class Game {
     this.player.startPunch(dir, punch.duration);
     if (this.cameraRig.isFirstPerson) this.fpArm.punch(punch.duration);
     const { hit } = this.combat.punch(origin, dir, this.time);
+    const prop = this.areaId === 'overworld' ? this.physics.punch(origin, dir) : null;
+    if (!hit && prop) {
+      this.cameraRig.kick(punch.cameraKick * 0.7);
+      this.ui.showHit(`Acertou: ${Game.PROP_NAMES[prop.type] ?? prop.type}`, true);
+      return;
+    }
     this.cameraRig.kick(hit ? punch.cameraKick : punch.cameraKick * 0.4);
     if (hit) {
       const dummy = this.dummies.find((d) => d.hitbox === hit.target?.object);
@@ -431,9 +458,13 @@ export class Game {
    * Altura do chão onde o personagem pisa: terreno, tabuleiro das pontes,
    * píeres e, no subsolo, o piso da masmorra ativa.
    */
-  groundHeight(x, z) {
+  groundHeight(x, z, feetY = Infinity) {
     if (this.areaId !== 'overworld') return this.areas[this.areaId].floorY;
     let h = this.terrain.heightAt(x, z);
+    // Superfícies com andar (plataformas, pontes de corda, degraus): só contam
+    // se o pé alcança (feetY); sem feetY = a mais alta (chuva, NPCs).
+    const s = this.surfaces.heightAt(x, z, feetY);
+    if (s > h) h = s;
     const deck = this.bridges?.deckHeightAt(x, z);
     if (deck !== null && deck !== undefined && deck > h) h = deck;
     for (const p of this.pierDecks ?? []) {
@@ -659,6 +690,10 @@ export class Game {
     ui.setWeather(this.gameClock.label(), this.weather.status, this.weather.overlays, this.weather.flash, this.debuffs);
     this.dungeons.update(dt, this.time, this.areaId);
     this.fireLights.update(this.time, this.areaId === 'overworld' ? pos : Game.NOWHERE);
+    if (this.areaId === 'overworld') {
+      this.physics.update(dt, pos); // transmite + simula (passo fixo 1/60)
+      this.propMeshes.sync(this.physics.props); // corpo → InstancedMesh
+    }
     for (const d of this.dummies) d.update(dt);
     this.fauna.update(dt, this.player.position, { active: this.areaId === 'overworld', playerAlive: !this.dead });
     if (this.cameraRig.isFirstPerson) this.fpArm.update(dt, busy ? 0 : this.player.speed, this.player.sprinting);

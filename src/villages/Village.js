@@ -41,6 +41,8 @@ export class Village {
     this.wisps = [];
     /** "Presenças" paranormais fixas: a névoa engrossa perto ({x, z, reach}). */
     this.presences = [];
+    /** Objetos dinâmicos (barris, caixotes…) — viram corpos no PhysicsWorld. */
+    this.props = [];
     this.rnd = mulberry32(seed);
     this.ctx = {
       batch: new StaticBatcher(),
@@ -50,6 +52,7 @@ export class Village {
       M: game.materials,
       rnd: this.rnd,
       plants: this.plants,
+      props: this.props,
     };
   }
 
@@ -240,16 +243,18 @@ export class Village {
       return null;
     };
     const solid = (p, r) => { this.reserve(p.x, p.z, r); ctx.collisions.addCircle(p.x, p.z, r, 'clutter'); };
+    // Barris e caixotes são dinâmicos (física): só reservam o lugar, sem parede fixa.
+    const prop = (p, r) => this.reserve(p.x, p.z, r);
     for (let i = randInt(CLUTTER.barrels, rnd); i > 0; i--) {
       const p = spot(0.5); if (!p) break;
-      B.barrel(ctx, p); solid(p, 0.4);
+      B.barrel(ctx, p); prop(p, 0.4);
     }
     for (let i = randInt(CLUTTER.crates, rnd); i > 0; i--) {
       const p = spot(0.6); if (!p) break;
       const sz = 0.6 + rnd() * 0.35;
       B.crate(ctx, { ...p, s: sz, rot: rnd() * 3 });
       if (rnd() < 0.35) B.crate(ctx, { x: p.x + (rnd() - 0.5) * 0.2, z: p.z + (rnd() - 0.5) * 0.2, s: sz * 0.75, rot: rnd() * 3, y: sz });
-      solid(p, sz * 0.6);
+      prop(p, sz * 0.6);
     }
     for (let i = randInt(CLUTTER.bushes, rnd); i > 0; i--) {
       const p = spot(0.8); if (!p) break;

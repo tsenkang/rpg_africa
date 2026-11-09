@@ -11,7 +11,8 @@ import { swimVerticalSpeed } from './Swimming.js';
  * pula (Espaço), nada em água funda e colide com prédios/muros.
  * F = viagem rápida (multiplica a velocidade, para testar o mapa grande).
  *
- * Dependências injetadas: groundAt(x,z), collisions, state (PlayerState).
+ * Dependências injetadas: groundAt(x, z, pésY), collisions, state (PlayerState).
+ * `pésY` deixa o chão ter vários andares (plataformas, pontes, escadas).
  */
 export class Player {
   constructor({ groundAt, collisions, state, isUnderground }) {
@@ -69,7 +70,7 @@ export class Player {
     if (this.flying && this.isUnderground()) this.flying = false;
     if (this.flying) return this.updateFlying(dt, input, move);
 
-    const ground = this.groundAt(this.position.x, this.position.z);
+    const ground = this.groundAt(this.position.x, this.position.z, this.position.y);
     const underground = this.isUnderground();
     const surfaceY = WORLD.waterLevel - GAMEPLAY.swimming.surfaceDepth; // pés boiando na superfície
     // Entra na água quando o fundo fica mais baixo que a altura de boiar.
@@ -96,7 +97,7 @@ export class Player {
     this.collisions.resolve(this.position, PLAYER.radius);
 
     // Vertical
-    const g = this.groundAt(this.position.x, this.position.z);
+    const g = this.groundAt(this.position.x, this.position.z, this.position.y);
     if (this.swimming) {
       this.velocity.y = 0;
       this.position.y += (swimLevel - this.position.y) * Math.min(1, dt * 4);
@@ -174,7 +175,7 @@ export class Player {
     this.position.x += move.x * speed * dt;
     this.position.z += move.z * speed * dt;
     this.collisions.resolve(this.position, PLAYER.radius);
-    const floor = this.groundAt(this.position.x, this.position.z);
+    const floor = this.groundAt(this.position.x, this.position.z, this.position.y);
     this.position.y = Math.min(surfaceY, Math.max(floor, this.position.y + vy * dt));
     this.velocity.set(0, 0, 0);
     this.grounded = false;
@@ -199,7 +200,7 @@ export class Player {
     this.position.x += move.x * speed * dt;
     this.position.z += move.z * speed * dt;
     this.position.y += up * speed * 0.6 * dt;
-    const g = this.groundAt(this.position.x, this.position.z);
+    const g = this.groundAt(this.position.x, this.position.z, this.position.y);
     this.position.y = Math.min(PLAYER.flyMaxHeight, Math.max(this.position.y, Math.max(g, WORLD.waterLevel) + 0.3));
     this.swimming = false;
     this.grounded = false;
