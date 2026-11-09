@@ -226,7 +226,8 @@ export class Game {
 
     // Minimapa em tempo real: terreno, água, pontes e ícones das construções.
     this.minimap = new Minimap(this.renderer, this.scene);
-    this.minimap.show(this.terrain.mesh, this.water.mesh, this.bridges.group, this.environment.sun, this.environment.hemi);
+    this.minimap.show(this.terrain.mesh, this.water.mesh, this.bridges.group);
+    this.minimap.setLighting(this.environment.sun, this.environment.hemi);
     this.minimap.buildIcons(this.collisions.all, (x, z) => this.terrain.heightAt(x, z));
 
     await step(0.97, 'Acordando os moradores…');

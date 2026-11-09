@@ -12,6 +12,8 @@ export const MINIMAP = {
   height: 1500,
   resolution: 320,
   viewMeters: { walk: 420, fast: 1600, fly: 2400 },
+  /** Luz mínima na vista de cima (o clima da Floresta Preta apaga o sol). */
+  minLight: { sun: 2.2, hemi: 1.1 },
   icons: {
     house: 0xd8b07a,
     hut: 0xa8763e,

@@ -94,7 +94,8 @@ export function buildRuinasKaelen(game) {
     v.addWisp(X.wisp(ctx, { x, z, y: ctx.terrain.heightAt(x, z) + 1.4 + v.rnd() * 1.4 }));
     n++;
   }
-  v.presences.push({ x: cx, z: cz, reach: 55, name: 'Presença de Kaelen' });
+  // reach 30: a névoa começa a ~80 m do centro e só fecha de vez perto da Pedra.
+  v.presences.push({ x: cx, z: cz, reach: 30, name: 'Presença de Kaelen' });
 
   v.finalize();
   return v;

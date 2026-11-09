@@ -58,6 +58,16 @@ export class Minimap {
     this._v = new THREE.Vector4();
   }
 
+  /**
+   * Luzes que o minimapa usa, com piso de intensidade (MINIMAP.minLight):
+   * o mapa fica legível mesmo com tempestade ou na Floresta Preta.
+   */
+  setLighting(sun, hemi) {
+    this.show(sun, hemi);
+    this.sun = sun;
+    this.hemi = hemi;
+  }
+
   /** Coloca objetos (e filhos) também na camada do minimapa. */
   show(...objects) {
     for (const o of objects) o?.traverse((c) => c.layers.enable(this.layer));
@@ -121,10 +131,15 @@ export class Minimap {
       const fog = this.scene.fog, autoShadow = r.shadowMap.autoUpdate;
       this.scene.fog = null; // vista de cima: nada de neblina
       r.shadowMap.autoUpdate = false; // reaproveita o mapa de sombras da câmera principal
+      const sunI = this.sun?.intensity, hemiI = this.hemi?.intensity;
+      if (this.sun) this.sun.intensity = Math.max(sunI, MINIMAP.minLight.sun);
+      if (this.hemi) this.hemi.intensity = Math.max(hemiI, MINIMAP.minLight.hemi);
       r.setRenderTarget(this.target);
       r.clear();
       r.render(this.scene, cam);
       r.setRenderTarget(null);
+      if (this.sun) this.sun.intensity = sunI;
+      if (this.hemi) this.hemi.intensity = hemiI;
       this.scene.fog = fog;
       r.shadowMap.autoUpdate = autoShadow;
     }

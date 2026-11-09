@@ -227,7 +227,7 @@ export const VILLAGES = {
     flatten: { radius: 88, blend: 40 },
     abandoned: true,
     population: 0,
-    populationNote: 'Abandonada. Ninguém sabe para onde foram.',
+    populationNote: 'Ninguém sabe para onde foram.',
     demographics: null,
     faction: 'Zona corrompida: a névoa engrossa perto do centro',
     founded: 'Conhecida como Vila das Sombras.',
