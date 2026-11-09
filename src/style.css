@@ -75,7 +75,8 @@ kbd {
 
 /* ===== Minimapa ===== */
 .minimap { position: absolute; top: 14px; right: 14px; width: 200px; text-align: center; }
-.minimap canvas { width: 200px; height: 200px; border-radius: 50%; box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5); }
+/* O mapa em si é desenhado pelo WebGL atrás deste canvas (scissor); o canvas só tem a moldura e a seta. */
+.minimap canvas { width: 200px; height: 200px; border-radius: 4px; outline: 2px solid rgba(255, 233, 168, 0.55); box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5); }
 .coords { margin-top: 4px; font-size: 11px; color: var(--ink-dim); text-shadow: 0 1px 3px #000; }
 
 /* ===== Interação, avisos, ajuda ===== */

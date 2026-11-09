@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { BIOMES, UNDERGROUND_AMBIENCE } from '../config/biomes.js';
 import { RENDER } from '../config/worldConfig.js';
+import { SUN_CYCLE } from '../config/sky.js';
+import { sunDirection } from './SunPath.js';
 
 const KEYS_COLOR = ['fogColor', 'skyTop', 'skyHorizon', 'sunColor', 'hemiSky', 'hemiGround'];
 const KEYS_NUM = ['fogDensity', 'sunIntensity', 'hemiIntensity', 'exposure'];
@@ -26,8 +28,9 @@ export class Environment {
     this.state = parseAmbience(BIOMES[0].ambience);
     this.target = parseAmbience(BIOMES[0].ambience);
 
-    // Sol de fim de tarde vindo do sudoeste: sombras longas e quentes.
-    this.sunDir = new THREE.Vector3(-0.55, 0.62, 0.55).normalize();
+    // Sol dinâmico: passeia devagar pelo céu (config/sky.js → SUN_CYCLE).
+    this.sunTime = SUN_CYCLE.period * 0.85; // começa no fim da tarde, como antes
+    this.sunDir = sunDirection(this.sunTime, SUN_CYCLE, new THREE.Vector3());
 
     scene.fog = new THREE.FogExp2(this.state.fogColor.clone(), this.state.fogDensity);
 
@@ -113,6 +116,9 @@ export class Environment {
    * @param {boolean} underground true dentro das masmorras
    */
   update(dt, focus, camera, weights, underground) {
+    this.sunTime += dt;
+    sunDirection(this.sunTime, SUN_CYCLE, this.sunDir);
+    this.skyUniforms.uSunDir.value.copy(this.sunDir);
     const t = this.target;
     if (underground) {
       copyAmb(t, this.undergroundAmb);

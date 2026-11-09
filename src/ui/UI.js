@@ -414,21 +414,33 @@ export class UI {
     c.restore();
   }
 
+  /**
+   * Retângulo (px CSS) do minimapa na tela — onde o WebGL desenha a câmera
+   * de cima (scissor). Guardado e refeito a cada atualização da UI.
+   */
+  minimapRect() {
+    if (!this._mmRect) {
+      const r = this.minimap.getBoundingClientRect();
+      this._mmRect = { left: r.left, top: r.top, width: r.width, height: r.height };
+    }
+    return this._mmRect;
+  }
+
+  /**
+   * Camada 2D por cima do minimapa 3D: fundo transparente; só nomes das
+   * vilas, seta do jogador e moldura. No subsolo cobre tudo de escuro.
+   */
   drawMinimap() {
     const c = this.minimap.getContext('2d');
     const S = c.canvas.width;
     const p = this.game.player.position;
-    const viewM = this.game.player.flying ? 2400 : this.game.player.fastTravel ? 1600 : 600; // metros mostrados
+    const viewM = this.game.minimapViewMeters?.() ?? 600; // metros mostrados
+    const under = this.game.areaId !== 'overworld';
+    c.clearRect(0, 0, S, S);
     c.save();
-    c.fillStyle = '#1b3a52';
-    c.fillRect(0, 0, S, S);
-    c.beginPath(); c.arc(S / 2, S / 2, S / 2 - 2, 0, Math.PI * 2); c.clip();
-    if (this.mapImage.complete && this.mapImage.naturalWidth) {
-      const iw = this.mapImage.naturalWidth, ih = this.mapImage.naturalHeight;
-      const uv = worldToUv(p.x, p.z);
-      const sw = (viewM / WORLD.width) * iw, sh = (viewM / WORLD.depth) * ih;
-      c.imageSmoothingEnabled = true;
-      c.drawImage(this.mapImage, uv.u * iw - sw / 2, uv.v * ih - sh / 2, sw, sh, 0, 0, S, S);
+    if (under) {
+      c.fillStyle = '#100d0c';
+      c.fillRect(0, 0, S, S);
     }
     const k = S / viewM;
     c.font = 'bold 10px system-ui';
@@ -445,20 +457,22 @@ export class UI {
     }
     this.drawArrow(c, S / 2, S / 2, 7);
     c.restore();
-    c.strokeStyle = 'rgba(255,255,255,0.6)';
-    c.lineWidth = 2;
-    c.beginPath(); c.arc(S / 2, S / 2, S / 2 - 2, 0, Math.PI * 2); c.stroke();
+    // Norte
+    c.font = 'bold 11px system-ui';
+    c.fillStyle = '#fff';
+    c.fillText('N', S / 2, 13);
     this.coords.textContent = this.game.areaId === 'overworld'
       ? `${Math.round(p.x)} m L · ${Math.round(p.z)} m S · alt. ${Math.round(p.y)} m`
       : this.game.areas[this.game.areaId]?.name ?? '';
   }
 
   update(dt) {
+    this.drawMinimap(); // todo quadro: acompanha o mapa 3D sem atraso
     this._effTimer -= dt;
     if (this._effTimer <= 0) {
       this._effTimer = 0.25;
       if (this.game.state.effects.length) { this.refreshEffects(); this.vitals.querySelector('.relic').textContent = `${Math.round(this.game.state.relicPower * 100)}%`; }
-      this.drawMinimap();
+      this._mmRect = null; // re-mede onde o minimapa está (resize, layout)
       this.speedTag.textContent = this.game.player.flying ? 'VOANDO' : 'VIAGEM RÁPIDA';
       this.speedTag.classList.toggle('hidden', !this.game.player.fastTravel && !this.game.player.flying);
     }

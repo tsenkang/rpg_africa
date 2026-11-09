@@ -87,15 +87,14 @@ export function buildAbstracao(game) {
   v.reserve(fx, fz, 13);
 
   // Casas simples (rondavéis de barro e casinhas de palha)
-  for (let i = 0; i < 700; i++) {
-    const a = v.rnd() * Math.PI * 2, r = 25 + Math.sqrt(v.rnd()) * (R - 32);
-    const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
-    if (!v.isFree(x, z, 3.4)) continue;
-    if (v.rnd() < 0.65) B.rondavel(ctx, { x, z, r: 2.3 + v.rnd() * 0.5, wall: v.rnd() < 0.5 ? M.mudBrick : M.mudBrickDark });
-    else B.house(ctx, { x, z, rot: v.rnd() * 6, w: 5, d: 4, h: 2.4, wall: M.mudBrickDark, roof: 'thatch' });
-    v.reserve(x, z, 3.4);
-    if (v.rnd() < 0.08) B.crate(ctx, { x: x + 3, z: z + 1, rot: v.rnd() * 3 });
-  }
+  v.scatterHouses((x, z, rot) => {
+    if (v.rnd() < 0.65) {
+      const r = 2.3 + v.rnd() * 0.5;
+      return { ...B.rondavel(ctx, { x, z, rot, r, wall: v.rnd() < 0.5 ? M.mudBrick : M.mudBrickDark }), r: r + 0.9 };
+    }
+    const info = B.house(ctx, { x, z, rot, w: 5, d: 4, h: 2.4, wall: M.mudBrickDark, roof: 'thatch' });
+    return { ...info, w: 5, d: 4, r: 3.2 };
+  });
 
   // Populistas e patrulha Hoogmoed
   for (let i = 0; i < 8; i++) {

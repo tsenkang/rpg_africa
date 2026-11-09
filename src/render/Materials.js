@@ -6,7 +6,7 @@ import { createTextures } from './ProceduralTextures.js';
  * `userData.uvScale` = metros cobertos por uma repetição da textura
  * (usado pelo StaticBatcher para projetar UVs em escala real).
  */
-export function createMaterials() {
+export function createMaterials(timeUniform = { value: 0 }) {
   const T = createTextures();
 
   const mat = (opts, uvScale = 2, extra = {}) => {
@@ -74,7 +74,7 @@ export function createMaterials() {
     glass: mat({ color: 0x23313a, roughness: 0.15, metalness: 0.2 }, 1),
     gold: mat({ color: 0xc9a64a, roughness: 0.3, metalness: 1 }, 1),
     whitePaint: mat({ color: 0xf0ebe0 }, 1),
-    water: mat({ color: 0x1c3b44, roughness: 0.1 }, 1),
+    water: rippleWater(mat({ color: 0x1c3b44, roughness: 0.08, metalness: 0.1 }, 1), timeUniform),
     clockFace: mat({ map: T.clockFace(), roughness: 0.6 }, 1, { keepUV: true }),
     produceRed: mat({ color: 0xb8352a, roughness: 0.6 }, 1),
     produceGreen: mat({ color: 0x5f8f32, roughness: 0.6 }, 1),
@@ -89,4 +89,39 @@ export function createMaterials() {
     eerie: mat({ color: 0x6b4a8a, emissive: 0x2a1240, roughness: 0.4 }, 1),
   };
   return M;
+}
+
+/**
+ * Água parada (poços, cisternas): três marolas cruzadas que perturbam a
+ * normal com o tempo. O reflexo do sol e do céu "dança" na
+ * superfície sem textura nenhuma. Funciona mesmo com a geometria unida pelo
+ * StaticBatcher (usa a posição no mundo).
+ * @param {THREE.MeshStandardMaterial} material
+ * @param {{ value: number }} timeUniform tempo do jogo (compartilhado)
+ * @returns {THREE.MeshStandardMaterial} o mesmo material
+ */
+function rippleWater(material, timeUniform) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = timeUniform;
+    shader.vertexShader = 'varying vec3 vRippleW;\n' + shader.vertexShader.replace(
+      '#include <worldpos_vertex>',
+      '#include <worldpos_vertex>\nvRippleW = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+    );
+    shader.fragmentShader = 'uniform float uTime;\nvarying vec3 vRippleW;\n' + shader.fragmentShader.replace(
+      '#include <normal_fragment_maps>',
+      `#include <normal_fragment_maps>
+      {
+        vec2 p = vRippleW.xz;
+        // Três marolas cruzadas em frequências diferentes (sem padrão visível).
+        vec2 g = vec2(0.0);
+        g += vec2(0.8, 0.6) * cos(dot(p, vec2(0.8, 0.6)) * 9.0 + uTime * 2.6) * 0.11;
+        g += vec2(-0.5, 0.86) * cos(dot(p, vec2(-0.5, 0.86)) * 13.0 + uTime * 3.4) * 0.07;
+        g += vec2(0.2, -0.98) * cos(dot(p, vec2(0.2, -0.98)) * 21.0 + uTime * 4.7) * 0.04;
+        vec3 nW = normalize(vec3(-g.x, 1.0, -g.y));
+        normal = normalize((viewMatrix * vec4(nW, 0.0)).xyz);
+      }`,
+    );
+  };
+  material.customProgramCacheKey = () => 'ripple-water';
+  return material;
 }

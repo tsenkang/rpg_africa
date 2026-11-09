@@ -56,6 +56,7 @@ export class WeatherManager {
     this.paranormal = 0;
     /** Força do bloom pedida pelo clima (o PostFX decide se usa). */
     this.bloomStrength = 0;
+    this.overcast = 0;
     /** Força o clima de um bioma (id) ou null = pelo lugar. Útil para testar. */
     this.override = null;
 
@@ -267,6 +268,8 @@ export class WeatherManager {
       if (flash > 0) { sky.uTop.value.addScalar(flash * 0.15); sky.uHorizon.value.addScalar(flash * 0.2); }
     }
     this.bloomStrength = underground ? 0 : bloom;
+    /** 0..1: quanto o céu está fechado (nuvens escurecem). */
+    this.overcast = Math.min(1, skyToFog);
 
     // 6) Lanterna do jogador nos climas escuros.
     this.lantern.position.set(player.x, player.y + LANTERN.height, player.z);

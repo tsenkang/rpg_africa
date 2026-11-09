@@ -76,23 +76,23 @@ export function buildPerseguicao(game) {
 
   // Muitas casas apertadas
   const walls = [M.mudBrick, M.mudBrickDark, M.adobeOchre, M.adobeRed];
-  for (let i = 0; i < 900; i++) {
-    const a = v.rnd() * Math.PI * 2, r = 22 + Math.sqrt(v.rnd()) * (R - 30);
-    const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
-    const round = v.rnd() < 0.3;
-    const size = round ? 3 : 4.2;
-    if (!v.isFree(x, z, size)) continue;
-    if (round) {
-      B.rondavel(ctx, { x, z, r: 2.4 + v.rnd() * 0.6, wall: walls[Math.floor(v.rnd() * walls.length)] });
+  v.scatterHouses((x, z, rot) => {
+    let info;
+    if (v.rnd() < 0.3) {
+      const r = 2.4 + v.rnd() * 0.6;
+      info = B.rondavel(ctx, { x, z, rot, r, wall: walls[Math.floor(v.rnd() * walls.length)] });
+      info.r = r + 0.9;
     } else {
-      B.house(ctx, {
-        x, z, rot: Math.atan2(cx - x, cz - z) + (v.rnd() - 0.5) * 0.5, w: 5.5 + v.rnd() * 2, d: 4.5 + v.rnd() * 1.5, h: 2.6,
-        wall: walls[Math.floor(v.rnd() * walls.length)], roof: v.rnd() < 0.6 ? 'tin' : 'thatch',
-      });
+      const w = 5.5 + v.rnd() * 2, d = 4.5 + v.rnd() * 1.5;
+      info = B.house(ctx, { x, z, rot, w, d, h: 2.6, wall: walls[Math.floor(v.rnd() * walls.length)], roof: v.rnd() < 0.6 ? 'tin' : 'thatch' });
+      Object.assign(info, { w, d, r: Math.hypot(w, d) / 2 });
     }
-    v.reserve(x, z, size);
-    if (v.rnd() < 0.1) B.dryingRack(ctx, { x: x + 4, z: z + 2, rot: v.rnd() * 3 });
-  }
+    if (v.rnd() < 0.1) {
+      const p = B.local(x, z, rot, info.r + 2, -1);
+      if (v.isFree(p.x, p.z, 1.4)) B.dryingRack(ctx, { x: p.x, z: p.z, rot: rot + Math.PI / 2 });
+    }
+    return info;
+  });
 
   v.addWanderers(12);
   for (let i = 0; i < 5; i++) {

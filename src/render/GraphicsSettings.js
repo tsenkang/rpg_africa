@@ -113,6 +113,7 @@ export function applyGraphics(game, preset, devicePixelRatio = globalThis.device
   game.weather?.setQuality(preset);
   game.postfx?.setEnabled(preset.bloom);
   game.postfx?.setSize();
+  game.minimap?.setInterval(preset.minimapInterval);
   const aa = r.getContextAttributes?.()?.antialias ?? preset.antialias;
   return { needsReload: aa !== preset.antialias };
 }

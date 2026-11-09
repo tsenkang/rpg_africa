@@ -224,7 +224,23 @@ export class Terrain {
   }
 }
 
+/** Caixa (x/z) fora da qual a forma não pinta nada — calculada uma vez. */
+function paintBounds(s) {
+  if (s.type === 'disc') return [s.x - s.r, s.z - s.r, s.x + s.r, s.z + s.r];
+  if (s.type === 'segment') {
+    const m = s.width / 2 + 1.5;
+    return [Math.min(s.ax, s.bx) - m, Math.min(s.az, s.bz) - m, Math.max(s.ax, s.bx) + m, Math.max(s.az, s.bz) + m];
+  }
+  if (s.type === 'rect') {
+    const m = Math.hypot(s.hw, s.hd) + 1.5;
+    return [s.x - m, s.z - m, s.x + m, s.z + m];
+  }
+  return [-Infinity, -Infinity, Infinity, Infinity];
+}
+
 function paintAmount(s, x, z) {
+  const b = (s.bounds ??= paintBounds(s));
+  if (x < b[0] || z < b[1] || x > b[2] || z > b[3]) return 0;
   if (s.type === 'disc') {
     const d = Math.hypot(x - s.x, z - s.z);
     return smoothstep(s.r, s.r - (s.soft ?? 3), d);

@@ -115,13 +115,10 @@ export function buildBussola(game) {
 
   // Casas menores, ricas (telha e reboco)
   const walls = [M.adobeWhite, M.adobePastel, M.adobeOchre, M.stoneLight];
-  for (let i = 0; i < 900; i++) {
-    const a = v.rnd() * Math.PI * 2, r = 28 + Math.sqrt(v.rnd()) * (R - 36);
-    const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
-    if (!v.isFree(x, z, 4.5)) continue;
-    B.house(ctx, { x, z, rot: Math.atan2(cx - x, cz - z), w: 7, d: 6, h: 3.3, wall: walls[Math.floor(v.rnd() * walls.length)], roof: 'tile' });
-    v.reserve(x, z, 4.6);
-  }
+  v.scatterHouses((x, z, rot) => {
+    const info = B.house(ctx, { x, z, rot, w: 7, d: 6, h: 3.3, wall: walls[Math.floor(v.rnd() * walls.length)], roof: 'tile' });
+    return { ...info, w: 7, d: 6, r: 4.6 };
+  });
 
   // Plantações e fazenda fora da muralha
   for (const zone of EXTRA_FLAT_ZONES) {

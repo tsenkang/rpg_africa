@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../world/Noise.js';
+import { BUILDING_SCALE } from '../config/settlements.js';
 
 /**
  * Peças de construção reutilizáveis, todas em metros reais.
- * Porta: 1,0 x 2,1 m · pé-direito: 2,8-3,2 m · casas: 5-10 m.
+ * Porta: 1,0 x 2,1 m (fixa) · pé-direito: ≥ 3,4 m (BUILDING_SCALE) · casas: 5-10 m.
  *
  * Cada função recebe `ctx`:
  *   ctx.batch      StaticBatcher (geometria estática)
@@ -116,8 +117,20 @@ export function roofSlope(d, rh, over) {
  * roof: 'tile' | 'tin' | 'thatch' | 'flat' (laje sudanesa com vigas aparentes)
  * @example house(ctx, { x: 10, z: 4, rot: 0, w: 8, d: 6, roof: 'tile' })
  */
+/**
+ * Altura de parede final (m): a pedida pela vila × `wallHeightMul`, com
+ * mínimo `minWallHeight`. Portas/janelas não mudam — só o pé-direito.
+ * @param {number} h altura pedida
+ * @param {number} [min] mínimo
+ * @example wallHeight(2.6) // 3.4
+ */
+export function wallHeight(h, min = BUILDING_SCALE.minWallHeight) {
+  return Math.max(min, h * BUILDING_SCALE.wallHeightMul);
+}
+
 export function house(ctx, { x, z, rot = 0, w = 7, d = 5.5, h = 3, wall, roof = 'tile', roofMat, collide = true }) {
   const { M } = ctx;
+  h = wallHeight(h);
   wall ??= M.adobeOchre;
   const r = mulberry32(siteSeed(x, z));
   const y0 = groundUnder(ctx, x, z, rot, w / 2, d / 2) - 0.25;
@@ -265,8 +278,9 @@ export function house(ctx, { x, z, rot = 0, w = 7, d = 5.5, h = 3, wall, roof = 
 }
 
 /** Cabana redonda (rondavel) de barro: base de pedra, faixa pintada e teto de palha em camadas. */
-export function rondavel(ctx, { x, z, r = 2.6, h = 2.4, wall }) {
+export function rondavel(ctx, { x, z, r = 2.6, h = 2.4, wall, rot }) {
   const { M } = ctx;
+  h = wallHeight(h, BUILDING_SCALE.minHutWall);
   wall ??= M.mudBrick;
   const y0 = ctx.terrain.heightAt(x, z) - 0.2;
   ctx.batch.add(G.cyl, wall, { x, y: y0 + h / 2, z, sx: r, sy: h, sz: r });
@@ -278,7 +292,7 @@ export function rondavel(ctx, { x, z, r = 2.6, h = 2.4, wall }) {
   ctx.batch.add(G.cone, M.thatch, { x, y: y0 + h + 1.2, z, sx: r * 0.82, sy: 1.8, sz: r * 0.82 });
   ctx.batch.add(G.cone, M.thatch, { x, y: y0 + h + 1.95, z, sx: r * 0.44, sy: 1.3, sz: r * 0.44 });
   ctx.batch.add(G.cyl6, M.woodDark, { x, y: y0 + h + 2.75, z, sx: 0.05, sy: 0.7, sz: 0.05 });
-  const rot = ctx.rnd() * Math.PI * 2;
+  rot ??= ctx.rnd() * Math.PI * 2; // porta: de frente para a rua quando a vila passa `rot`
   const at = (lz) => local(x, z, rot, 0, lz);
   let p = at(r + 0.02);
   ctx.batch.add(G.box, M.woodDark, { x: p.x, y: y0 + 1.1, z: p.z, ry: rot, sx: 1.15, sy: 2.15, sz: 0.12 });
@@ -293,6 +307,7 @@ export function rondavel(ctx, { x, z, r = 2.6, h = 2.4, wall }) {
 /** Casa muito destruída: paredes quebradas, sem telhado, entulho. */
 export function ruinedHouse(ctx, { x, z, rot = 0, w = 8, d = 6.5, h = 3.2 }) {
   const { M } = ctx;
+  h = wallHeight(h);
   const rnd = mulberry32(99);
   const y0 = groundUnder(ctx, x, z, rot, w / 2, d / 2) - 0.2;
   const P = (geo, mat, o) => part(ctx, geo, mat, x, z, rot, y0, o);
@@ -889,7 +904,7 @@ export function animal(ctx, { x, z, kind = 'cow' }) {
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   g.position.set(x, ctx.terrain.heightAt(x, z), z);
   g.rotation.y = ctx.rnd() * Math.PI * 2;
-  g.userData = { head, phase: ctx.rnd() * 10, home: { x, z } };
+  g.userData = { head, body, bodyScale: body.scale.clone(), breathRate: big ? 1.4 : 2.2, phase: ctx.rnd() * 10, home: { x, z } };
   ctx.dynamic.add(g);
   return g;
 }
@@ -938,8 +953,8 @@ export function barrel(ctx, { x, z }) {
   ctx.batch.add(G.torus, ctx.M.iron, { x, y: y + 0.65, z, rx: Math.PI / 2, sx: 0.34, sy: 0.34, sz: 0.3 });
 }
 
-export function crate(ctx, { x, z, s = 0.8, rot = 0 }) {
-  const y = ctx.terrain.heightAt(x, z);
+export function crate(ctx, { x, z, s = 0.8, rot = 0, y: lift = 0 }) {
+  const y = ctx.terrain.heightAt(x, z) + lift; // lift: empilhado sobre outro
   ctx.batch.add(G.box, ctx.M.woodLight, { x, y: y + s / 2, z, ry: rot, sx: s, sy: s, sz: s });
 }
 
@@ -967,4 +982,61 @@ export function dryingRack(ctx, { x, z, rot = 0 }) {
   for (const s of [-1, 1]) P(G.cyl6, M.wood, { lx: s * 1.2, ly: 0.9, w: 0.05, h: 1.8, d: 0.05 });
   P(G.cyl6, M.wood, { ly: 1.7, w: 0.04, h: 2.5, d: 0.04, rz: Math.PI / 2 });
   for (let i = 0; i < 6; i++) P(G.box, M.cropGreen, { lx: -1 + i * 0.4, ly: 1.4, w: 0.25, h: 0.55, d: 0.05 });
+}
+
+// ---------- decoração entre as casas ----------
+
+/**
+ * Cerca de madeira irregular: postes tortos (inclinação e altura variam) e
+ * duas travessas que acompanham o terreno.
+ * @param {object} ctx
+ * @param {{ax:number, az:number, bx:number, bz:number}} seg de onde até onde
+ * @example fenceRun(ctx, { ax: 0, az: 0, bx: 8, bz: 1 })
+ */
+export function fenceRun(ctx, { ax, az, bx, bz }) {
+  const { M } = ctx;
+  const len = Math.hypot(bx - ax, bz - az);
+  const n = Math.max(2, Math.round(len / 1.6));
+  const ry = Math.atan2(bx - ax, bz - az);
+  const posts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const x = ax + (bx - ax) * t + (ctx.rnd() - 0.5) * 0.15;
+    const z = az + (bz - az) * t + (ctx.rnd() - 0.5) * 0.15;
+    const h = 1.0 + ctx.rnd() * 0.35;
+    const y = ctx.terrain.heightAt(x, z);
+    ctx.batch.add(G.cyl6, M.woodDark, { x, y: y + h / 2 - 0.05, z, rx: (ctx.rnd() - 0.5) * 0.18, rz: (ctx.rnd() - 0.5) * 0.18, sx: 0.06, sy: h, sz: 0.06 });
+    posts.push({ x, y, z });
+  }
+  for (let i = 0; i < n; i++) {
+    const p = posts[i], q = posts[i + 1];
+    if (ctx.rnd() < 0.12) continue; // travessa caída/faltando
+    const mx = (p.x + q.x) / 2, mz = (p.z + q.z) / 2, my = (p.y + q.y) / 2;
+    const seg = Math.hypot(q.x - p.x, q.z - p.z);
+    const tilt = Math.atan2(q.y - p.y, seg);
+    for (const hy of [0.45, 0.85]) {
+      ctx.batch.add(G.box, M.wood, { x: mx, y: my + hy + (ctx.rnd() - 0.5) * 0.08, z: mz, ry, rx: -tilt, sx: 0.05, sy: 0.08, sz: seg + 0.1 });
+    }
+  }
+}
+
+/** Arbusto: 3-4 esferas verdes achatadas, tamanho e tom variados. */
+export function bush(ctx, { x, z, s = 1 }) {
+  const y = ctx.terrain.heightAt(x, z);
+  const n = 3 + Math.floor(ctx.rnd() * 2);
+  for (let i = 0; i < n; i++) {
+    const a = ctx.rnd() * Math.PI * 2, r = ctx.rnd() * 0.45 * s;
+    const k = (0.45 + ctx.rnd() * 0.35) * s;
+    ctx.batch.add(G.sphere, i % 2 ? ctx.M.vine : ctx.M.cropGreen, {
+      x: x + Math.cos(a) * r, y: y + k * 0.55, z: z + Math.sin(a) * r, sx: k, sy: k * 0.75, sz: k,
+    });
+  }
+}
+
+/** Pedra solta meio enterrada. */
+export function rock(ctx, { x, z, s = 0.5 }) {
+  const y = ctx.terrain.heightAt(x, z);
+  ctx.batch.add(G.rock, ctx.M.stone, {
+    x, y: y + s * 0.25, z, rx: ctx.rnd() * 3, ry: ctx.rnd() * 6, sx: s * (0.8 + ctx.rnd() * 0.5), sy: s * (0.5 + ctx.rnd() * 0.4), sz: s,
+  });
 }

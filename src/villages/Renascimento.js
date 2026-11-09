@@ -86,27 +86,18 @@ export function buildRenascimento(game) {
   });
   B.firePit(ctx, { x: ruin.inside.x + 2.5, z: ruin.inside.z + 1.5 });
 
-  // Casas em anéis, de frente para o centro
+  // Casas espalhadas organicamente (Poisson Disk), viradas para a rua mais próxima
   const walls = [M.adobeOchre, M.adobeRed, M.adobeWhite, M.adobePastel, M.mudBrick];
   const roofs = ['tin', 'tin', 'tile', 'tile', 'flat'];
-  for (let r = 52; r <= 200; r += 13) {
-    const step = 12.5 / r;
-    const off = v.rnd() * step;
-    for (let a = off; a < Math.PI * 2; a += step) {
-      const x = cx + Math.cos(a) * (r + (v.rnd() - 0.5) * 3);
-      const z = cz + Math.sin(a) * (r + (v.rnd() - 0.5) * 3);
-      const w = 6 + v.rnd() * 3, d = 5 + v.rnd() * 2;
-      if (!v.isFree(x, z, Math.max(w, d) / 2 + 0.8)) continue;
-      if (v.rnd() < 0.08) continue; // quintais vazios
-      const rot = Math.atan2(cx - x, cz - z) + (v.rnd() - 0.5) * 0.2;
-      B.house(ctx, {
-        x, z, rot, w, d, h: 2.8 + v.rnd() * 0.6,
-        wall: walls[Math.floor(v.rnd() * walls.length)], roof: roofs[Math.floor(v.rnd() * roofs.length)],
-      });
-      v.reserve(x, z, Math.max(w, d) / 2 + 0.5);
-      if (v.rnd() < 0.15) B.barrel(ctx, { x: x + (v.rnd() - 0.5) * 8, z: z + (v.rnd() - 0.5) * 8 });
-    }
-  }
+  v.scatterHouses((x, z, rot) => {
+    if (v.rnd() < 0.08) return null; // terreno baldio
+    const w = 6 + v.rnd() * 3, d = 5 + v.rnd() * 2;
+    const info = B.house(ctx, {
+      x, z, rot, w, d, h: 2.8 + v.rnd() * 0.6,
+      wall: walls[Math.floor(v.rnd() * walls.length)], roof: roofs[Math.floor(v.rnd() * roofs.length)],
+    });
+    return { door: info.door, w, d, r: Math.hypot(w, d) / 2 };
+  });
 
   // Moradores (população: 65% adultos, 5% crianças, 30% idosos)
   v.addWanderers(14);

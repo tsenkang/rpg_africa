@@ -4,6 +4,9 @@ import { NPC } from '../entities/NPC.js';
 import { SKIN_TONES } from '../entities/Humanoid.js';
 import { mulberry32 } from '../world/Noise.js';
 import { uvToWorld } from '../config/worldConfig.js';
+import { VILLAGE_LAYOUT, CLUTTER } from '../config/settlements.js';
+import { poissonAnnulus, faceStreet, randInt } from './Layout.js';
+import * as B from './Builders.js';
 
 const SHIRTS = [0xb5382a, 0x2f5d8a, 0xd9a02a, 0x4a7a3a, 0x7a3a6a, 0xe0d8c8, 0x8a5a2a, 0x1f6a6a, 0xc0602a];
 const PANTS = [0x3a3028, 0x2a2a30, 0x5a4a3a, 0x4a3a2a, 0x2e3a4a];
@@ -127,6 +130,112 @@ export class Village {
     }
   }
 
+  /**
+   * Espalha casas de forma orgânica (Poisson Disk no anel de VILLAGE_LAYOUT),
+   * cada uma virada para a rua mais próxima com um desvio aleatório, e
+   * depois decora os quintais (cercas, barris, caixotes, arbustos, pedras),
+   * pinta terra batida em volta e uma trilha da porta até a rua.
+   *
+   * @param {(x:number, z:number, rot:number) => ({ door?: {x:number,z:number}, w?: number, d?: number, r: number } | null)} build
+   *   constrói UMA casa e devolve a porta e o raio ocupado (m); null = pula
+   * @param {object} [overrides] sobrescreve campos de VILLAGE_LAYOUT[id]
+   * @returns {number} quantas casas foram construídas
+   * @example
+   * v.scatterHouses((x, z, rot) => {
+   *   const info = B.house(ctx, { x, z, rot, w: 7, d: 6 });
+   *   return { door: info.door, w: 7, d: 6, r: 4.6 };
+   * });
+   */
+  scatterHouses(build, overrides = {}) {
+    const cfg = { ...VILLAGE_LAYOUT[this.config.id], ...overrides };
+    const outer = cfg.outer <= 0 ? this.radius + cfg.outer : cfg.outer;
+    const pts = poissonAnnulus({
+      cx: this.x, cz: this.z, inner: cfg.inner, outer, spacing: cfg.spacing, rng: this.rnd,
+      accept: (x, z) => this.isFree(x, z, cfg.spacing * 0.36),
+    });
+    const placed = [];
+    for (const p of pts) {
+      const { rot, street } = faceStreet(p.x, p.z, {
+        streets: this.streets, cx: this.x, cz: this.z, reach: cfg.streetReach, jitter: cfg.jitter, rng: this.rnd,
+      });
+      const info = build(p.x, p.z, rot);
+      if (!info) continue;
+      this.reserve(p.x, p.z, info.r);
+      placed.push({ ...info, x: p.x, z: p.z, rot, street });
+    }
+    // Segunda passada: só agora os quintais (as casas já ocupam seu lugar).
+    for (const h of placed) {
+      this.paintDisc(h.x, h.z, h.r + 2.5, CLUTTER.yardDirt.color, CLUTTER.yardDirt.strength);
+      if (h.door && h.street && h.street.dist <= cfg.pathMax) {
+        this.shapes.push({ type: 'segment', ax: h.door.x, az: h.door.z, bx: h.street.x, bz: h.street.z, ...CLUTTER.path });
+      } else if (h.door) {
+        // Sem rua por perto: trilha até a porta do vizinho mais próximo
+        // (as trilhas formam uma rede entre as casas).
+        let best = null, bd = cfg.pathMax * 1.2;
+        for (const o of placed) {
+          if (o === h || !o.door) continue;
+          const dd = Math.hypot(o.door.x - h.door.x, o.door.z - h.door.z);
+          if (dd < bd) { bd = dd; best = o; }
+        }
+        if (best) this.shapes.push({ type: 'segment', ax: h.door.x, az: h.door.z, bx: best.door.x, bz: best.door.z, ...CLUTTER.path });
+      }
+      this.decorateYard(h);
+    }
+    return placed.length;
+  }
+
+  /**
+   * Objetos soltos em volta de uma casa, longe da porta e fora das ruas.
+   * @param {{x:number, z:number, rot:number, r:number, w?:number, d?:number}} h
+   */
+  decorateYard(h) {
+    const { ctx, rnd } = this;
+    const spot = (pad) => {
+      for (let t = 0; t < 8; t++) {
+        // Ângulo longe da frente (a porta fica em rot, na direção +Z local).
+        const a = Math.PI / 2 - h.rot + (0.7 + rnd() * (Math.PI * 2 - 1.4));
+        const dist = h.r + 0.6 + rnd() * CLUTTER.yard;
+        const x = h.x + Math.cos(a) * dist, z = h.z + Math.sin(a) * dist;
+        if (this.isFree(x, z, pad)) return { x, z };
+      }
+      return null;
+    };
+    const solid = (p, r) => { this.reserve(p.x, p.z, r); ctx.collisions.addCircle(p.x, p.z, r, 'clutter'); };
+    for (let i = randInt(CLUTTER.barrels, rnd); i > 0; i--) {
+      const p = spot(0.5); if (!p) break;
+      B.barrel(ctx, p); solid(p, 0.4);
+    }
+    for (let i = randInt(CLUTTER.crates, rnd); i > 0; i--) {
+      const p = spot(0.6); if (!p) break;
+      const sz = 0.6 + rnd() * 0.35;
+      B.crate(ctx, { ...p, s: sz, rot: rnd() * 3 });
+      if (rnd() < 0.35) B.crate(ctx, { x: p.x + (rnd() - 0.5) * 0.2, z: p.z + (rnd() - 0.5) * 0.2, s: sz * 0.75, rot: rnd() * 3, y: sz });
+      solid(p, sz * 0.6);
+    }
+    for (let i = randInt(CLUTTER.bushes, rnd); i > 0; i--) {
+      const p = spot(0.8); if (!p) break;
+      B.bush(ctx, { ...p, s: 0.7 + rnd() * 0.7 });
+      this.reserve(p.x, p.z, 0.6);
+    }
+    for (let i = randInt(CLUTTER.rocks, rnd); i > 0; i--) {
+      const p = spot(0.4); if (!p) break;
+      const s = 0.25 + rnd() * 0.5;
+      B.rock(ctx, { ...p, s });
+      if (s > 0.5) solid(p, s * 0.7);
+    }
+    if (h.w && rnd() < CLUTTER.fenceChance) {
+      // Cerca num dos lados do quintal (lado esquerdo ou direito da casa).
+      const side = rnd() < 0.5 ? -1 : 1;
+      const off = h.w / 2 + 1.6 + rnd() * 1.5;
+      const a = B.local(h.x, h.z, h.rot, side * off, h.d / 2 - 0.5);
+      const b = B.local(h.x, h.z, h.rot, side * (off + (rnd() - 0.5) * 0.8), -h.d / 2 - 2 - rnd() * 3);
+      if (this.isFree((a.x + b.x) / 2, (a.z + b.z) / 2, 0.8) && this.isFree(a.x, a.z, 0.3) && this.isFree(b.x, b.z, 0.3)) {
+        B.fenceRun(ctx, { ax: a.x, az: a.z, bx: b.x, bz: b.z });
+        ctx.collisions.addWall(a.x, a.z, b.x, b.z, 0.2, 'fence');
+      }
+    }
+  }
+
   /** Une a geometria estática e adiciona a vila à cena. */
   finalize() {
     this.ctx.batch.build(this.group);
@@ -148,6 +257,10 @@ export class Village {
       const u = a.userData;
       u.phase += dt;
       u.head.rotation.x = Math.sin(u.phase * 0.7) * 0.25 + 0.2;
+      // Respiração: o corpo incha no eixo Y (e um pouco no X) num ritmo lento.
+      const breath = Math.sin(u.phase * u.breathRate);
+      u.body.scale.y = u.bodyScale.y * (1 + breath * 0.035);
+      u.body.scale.x = u.bodyScale.x * (1 + breath * 0.02);
     }
     this.gate?.update(dt);
   }

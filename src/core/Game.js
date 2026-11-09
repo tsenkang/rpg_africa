@@ -41,6 +41,9 @@ import { UI } from '../ui/UI.js';
 import { WeatherManager } from '../render/WeatherManager.js';
 import { PostFX } from '../render/PostFX.js';
 import { Thunder } from '../audio/Thunder.js';
+import { Minimap } from '../render/Minimap.js';
+import { MINIMAP } from '../config/minimap.js';
+import { Clouds } from '../world/Clouds.js';
 import { GRAPHICS_PRESETS, LOW_FPS_HINT } from '../config/graphics.js';
 import { GraphicsStore, FpsMeter, presetById, stepPreset, applyGraphics } from '../render/GraphicsSettings.js';
 
@@ -140,7 +143,7 @@ export class Game {
 
     await step(0.46, 'Construindo pontes e vilas…');
     this.collisions = new CollisionWorld();
-    this.materials = createMaterials();
+    this.materials = createMaterials(this.timeUniform);
     this.interactions = new InteractionSystem();
     this.bridges = new Bridges(this.terrain, this.generator);
     this.scene.add(this.bridges.build(this.materials, this.collisions));
@@ -173,6 +176,8 @@ export class Game {
     /** Criaturas paranormais: empurre aqui (`game.paranormalCreatures.push(obj)`) — a névoa engrossa perto delas. */
     this.paranormalCreatures = this.weather.creatures;
     this.postfx = new PostFX(this.renderer);
+    this.clouds = new Clouds({ seed: WORLD.seed });
+    this.scene.add(this.clouds.mesh);
 
     const villageList = Object.values(this.villages);
     const extraFlat = EXTRA_FLAT_ZONES.map((z) => ({ ...uvToWorld(z.u, z.v), r: z.radius * 0.8 }));
@@ -197,6 +202,11 @@ export class Game {
       },
     });
     this.scene.add(this.grass.mesh);
+
+    // Minimapa em tempo real: terreno, água, pontes e ícones das construções.
+    this.minimap = new Minimap(this.renderer, this.scene);
+    this.minimap.show(this.terrain.mesh, this.water.mesh, this.bridges.group, this.environment.sun, this.environment.hemi);
+    this.minimap.buildIcons(this.collisions.all, (x, z) => this.terrain.heightAt(x, z));
 
     await step(0.97, 'Acordando os moradores…');
     this.player = new Player({
@@ -423,7 +433,7 @@ export class Game {
       area.onEnter?.(this);
     }
     const over = this.areaId === 'overworld';
-    for (const o of [this.terrain.mesh, this.water.mesh, this.vegetation.group, this.grass.mesh, this.bridges.group]) o.visible = over;
+    for (const o of [this.terrain.mesh, this.water.mesh, this.vegetation.group, this.grass.mesh, this.bridges.group, this.clouds.mesh]) o.visible = over;
     this.cameraRig.yaw = this.player.root.rotation.y;
     this.cameraRig.snap();
   }
@@ -453,6 +463,12 @@ export class Game {
     this.fpsMeter.reset();
     this.ui.refreshGraphics(this.graphics, needsReload);
     this.ui.toast(`Gráficos: ${this.graphics.name}${needsReload ? ' · a suavização de bordas muda ao recarregar a página' : ''}`);
+  }
+
+  /** Metros mostrados no minimapa (mais longe ao voar/viajar rápido). */
+  minimapViewMeters() {
+    const v = MINIMAP.viewMeters;
+    return this.player.flying ? v.fly : this.player.fastTravel ? v.fast : v.walk;
   }
 
   onResize() {
@@ -537,6 +553,7 @@ export class Game {
       const w = this.terrain.weightsAt(pos.x, pos.z, this._w);
       this.environment.update(dt, pos, this.camera, w, false);
       this.weather.update(dt, { time: this.time, camera: this.camera, player: pos, weights: w, underground: false });
+      this.clouds.update(dt, this.environment, this.weather.overcast);
       let best = 0;
       for (let i = 1; i < w.length; i++) if (w[i] > w[best]) best = i;
       ui.setBiome(best);
@@ -575,6 +592,7 @@ export class Game {
     ui.update(dt);
 
     this.postfx.render(this.scene, this.camera, this.weather.bloomStrength);
+    if (this.areaId === 'overworld') this.minimap.render(this.player.position, ui.minimapRect(), { viewMeters: this.minimapViewMeters() });
     input.endFrame();
   }
 }

@@ -19,32 +19,33 @@
  * - weatherDensity: fração das partículas de clima (chuva, neve, areia…).
  * - bloom: brilho de pós-processamento (ondas de calor do Kalahari). Sem ele,
  *   o clima compensa só com exposição.
+ * - minimapInterval: o minimapa é redesenhado a cada N quadros (1 = sempre).
  */
 export const GRAPHICS_PRESETS = [
   {
     id: 'muito-baixo', name: 'Muito baixo', hint: 'PCs e notebooks bem fracos',
     pixelRatio: 0.7, antialias: false, shadows: false, shadowMapSize: 1024, shadowRange: 50,
-    grassRadius: 24, treeViewDistance: 480, treeHighDetailDistance: 45, weatherDensity: 0.3, bloom: false,
+    grassRadius: 24, treeViewDistance: 480, treeHighDetailDistance: 45, weatherDensity: 0.3, bloom: false, minimapInterval: 6,
   },
   {
     id: 'baixo', name: 'Baixo', hint: 'Vídeo integrado',
     pixelRatio: 0.85, antialias: false, shadows: true, shadowMapSize: 1024, shadowRange: 55,
-    grassRadius: 34, treeViewDistance: 650, treeHighDetailDistance: 75, weatherDensity: 0.45, bloom: false,
+    grassRadius: 34, treeViewDistance: 650, treeHighDetailDistance: 75, weatherDensity: 0.45, bloom: false, minimapInterval: 4,
   },
   {
     id: 'medio', name: 'Médio', hint: 'Equilíbrio entre visual e desempenho',
     pixelRatio: 1, antialias: true, shadows: true, shadowMapSize: 2048, shadowRange: 80,
-    grassRadius: 45, treeViewDistance: 820, treeHighDetailDistance: 110, weatherDensity: 0.65, bloom: false,
+    grassRadius: 45, treeViewDistance: 820, treeHighDetailDistance: 110, weatherDensity: 0.65, bloom: false, minimapInterval: 3,
   },
   {
     id: 'alto', name: 'Alto', hint: 'Placa de vídeo dedicada',
     pixelRatio: 1.25, antialias: true, shadows: true, shadowMapSize: 2048, shadowRange: 110,
-    grassRadius: 54, treeViewDistance: 1000, treeHighDetailDistance: 135, weatherDensity: 0.85, bloom: true,
+    grassRadius: 54, treeViewDistance: 1000, treeHighDetailDistance: 135, weatherDensity: 0.85, bloom: true, minimapInterval: 2,
   },
   {
     id: 'ultra', name: 'Ultra', hint: 'Máximo detalhe, visual completo',
     pixelRatio: 1.75, antialias: true, shadows: true, shadowMapSize: 4096, shadowRange: 110,
-    grassRadius: 62, treeViewDistance: 1100, treeHighDetailDistance: 150, weatherDensity: 1, bloom: true,
+    grassRadius: 62, treeViewDistance: 1100, treeHighDetailDistance: 150, weatherDensity: 1, bloom: true, minimapInterval: 1,
   },
 ];
 
