@@ -3,7 +3,11 @@ import { Humanoid } from './Humanoid.js';
 import { activityAt, energyStep, tirednessOf } from '../systems/npc/Routine.js';
 import { PROFESSIONS, POPULATION, ENERGY, WEATHER_REACT } from '../config/npcLife.js';
 
+import { LAW } from '../config/law.js';
+
 const _e = new THREE.Euler();
+const HITBOX_MAT = new THREE.MeshBasicMaterial({ visible: false });
+const HITBOX_GEO = new THREE.BoxGeometry(1, 1, 1);
 const ARRIVE = 0.45;
 
 /**
@@ -60,6 +64,37 @@ export class NPCAgent {
     this.reaction = null;
     this.reactCooldown = 0;
     this.chatCooldown = rng() * 10;
+    /** Vida: 'ALIVE' | 'KNOCKED_OUT' (deitado, levanta sozinho) | 'DEAD' (corpo fica no chão). */
+    this.life = 'ALIVE';
+    this.koUntil = 0;
+  }
+
+  /** Fora de ação (desacordado ou morto): não anda, não conversa, não reage. */
+  get down() {
+    return this.life !== 'ALIVE';
+  }
+
+  /**
+   * Nocaute: deita no chão e levanta depois de `seconds`.
+   * @example agent.knockOut(LAW.knockoutSeconds);
+   */
+  knockOut(seconds) {
+    if (this.life === 'DEAD') return;
+    this.life = 'KNOCKED_OUT';
+    this.koUntil = this.t + seconds;
+    this.reaction = null;
+    this.route = [];
+    this.speed = 0;
+    this.state = 'DOWN';
+  }
+
+  /** Morte: o corpo fica onde caiu. */
+  kill() {
+    this.life = 'DEAD';
+    this.reaction = null;
+    this.route = [];
+    this.speed = 0;
+    this.state = 'DOWN';
   }
 
   /** Interrompe a rotina: foge, encara ou conversa por `seconds`. */
@@ -128,6 +163,8 @@ export class NPCAgent {
 
   /** Teletransporta direto para onde a rotina manda (vila acabou de ativar: posição "matemática"). */
   snap(hour, env) {
+    if (this.life === 'DEAD') return;
+    if (this.life === 'KNOCKED_OUT') this.life = 'ALIVE'; // salto de relógio: já acordou
     const g = this.desired(hour, env);
     this.goal = g;
     this.activity = g.key;
@@ -153,6 +190,16 @@ export class NPCAgent {
    */
   update(dt, { hour, hoursPassed, env, detailed, move }) {
     this.t += dt;
+    if (this.life === 'DEAD') { this.speed = 0; return; }
+    if (this.life === 'KNOCKED_OUT') {
+      this.speed = 0;
+      if (this.t < this.koUntil) return;
+      // Acorda: volta para a rotina (refaz a rota a partir de onde caiu).
+      this.life = 'ALIVE';
+      this.goal = null;
+      this.state = 'IDLE';
+      this.reactCooldown = 3;
+    }
     this.reactCooldown = Math.max(0, this.reactCooldown - dt);
     this.chatCooldown = Math.max(0, this.chatCooldown - dt);
     if (this.reaction) {
@@ -229,6 +276,14 @@ export class NPCAgent {
     this.model = new Humanoid(this.look);
     this.model.root.name = `npc-${this.id}`;
     this.model.root.userData.agent = this;
+    // Hitbox invisível (soco e projéteis): o Raycaster não olha `visible`.
+    const hb = new THREE.Mesh(HITBOX_GEO, HITBOX_MAT);
+    hb.scale.set(LAW.hitbox.w, LAW.hitbox.h, LAW.hitbox.d);
+    hb.position.y = LAW.hitbox.h / 2;
+    hb.name = 'hitbox';
+    hb.userData.agent = this;
+    this.model.root.add(hb);
+    this.hitbox = hb;
     scene.add(this.model.root);
     return this.model;
   }
@@ -246,7 +301,14 @@ export class NPCAgent {
     this.pos.y = groundAt(this.pos.x, this.pos.z, feet);
     m.root.position.set(this.pos.x, this.pos.y, this.pos.z);
     m.root.rotation.y = this.yaw;
-    m.update(dt, this.speed, {});
+    m.update(dt, this.down ? 0 : this.speed, {});
+    if (this.down) { // caído de costas (morto: meio de lado)
+      m.body.rotation.x = -Math.PI / 2;
+      m.body.rotation.z = this.life === 'DEAD' ? 0.35 : 0;
+      m.body.position.y = 0.16;
+      return;
+    }
+    m.body.rotation.z = 0;
     // Poses de corpo inteiro.
     m.body.rotation.x = sleeping ? -Math.PI / 2 : 0;
     m.body.position.y = sleeping ? 0.16 : sitting ? -0.42 : 0;

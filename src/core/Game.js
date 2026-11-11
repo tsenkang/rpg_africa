@@ -100,6 +100,8 @@ import { CHARACTER_PROFILE, SANITY_TRIGGERS, CURSED_AREAS, PHANTOMS, PHANTOM_SOU
 import { Hallucinations } from '../render/Hallucinations.js';
 import { Skeletons } from '../render/Skeletons.js';
 import { PhantomSounds } from '../audio/PhantomSounds.js';
+import { LAW } from '../config/law.js';
+import { CrimeLog, humanZone, rollLoot, TrespassTracker } from '../systems/law/Crimes.js';
 
 /**
  * Orquestra o jogo: gera o mundo (terreno → vilas → malha → água →
@@ -505,7 +507,8 @@ export class Game {
     if (hit) {
       const dummy = this.dummies.find((d) => d.hitbox === hit.target?.object);
       const animal = this.fauna.animals.find((a) => a.root === hit.target?.object);
-      const extra = dummy ? ` · ${dummy.health}/${dummy.maxHealth}`
+      const agent = hit.target?.object?.userData?.agent;
+      const extra = agent ? ' · desmaiou' : dummy ? ` · ${dummy.health}/${dummy.maxHealth}`
         : animal ? (animal.alive ? ` · ${Math.max(0, animal.health)}/${animal.spec.health}` : ' · abatido') : '';
       this.ui.showHit(`Acertou: ${hit.name}${extra}`, true);
     } else {
@@ -747,12 +750,103 @@ export class Game {
     const talk = this.interactions.register({ id: 'npc-talk', label: 'Falar', radius: 2.6, position: () => talk.pos ?? Game.NOWHERE, onInteract: (g) => g.talkToAgent(g._talkAgent) });
     talk.enabled = false;
     this.npcTalk = talk;
+    this.setupLaw();
     const s = this.npcManager.stats();
     console.info(`[mundo vivo] ${s.total} moradores em ${s.villages} vilas`);
   }
 
+  // ------------------------------------------------------------ lei (Etapa C)
+
+  /**
+   * Crimes (C1): moradores viram alvo do soco (nocaute = agressão) e dos
+   * projéteis (cabeça/corpo = assassinato, pernas = derruba), invasão de casa
+   * alheia e roubo ao vasculhar. Tudo vai para `this.crimes` (CrimeLog), sem
+   * testemunha ainda — a Etapa C2 decide quem viu.
+   */
+  setupLaw() {
+    this.crimes = new CrimeLog(LAW.crimes);
+    this.crimes.onCrime = (c) => console.info(`[lei] ${c.label} em ${c.villageId} (+${c.bounty} se testemunhado)`);
+    this.trespass = new TrespassTracker(LAW.trespass.graceSeconds);
+    /** Casa alheia onde o jogador está agora: { home, vs, residents } ou null. */
+    this._alienHome = null;
+    this.npcManager.onModelBuilt = (a) => this.combat.register({
+      name: a.name,
+      object: a.model.root,
+      enabled: () => this.areaId === 'overworld' && a.rendered && a.life !== 'DEAD',
+      onHit: () => this.assaultAgent(a),
+    });
+    const loot = this.interactions.register({
+      id: 'house-loot', label: 'Vasculhar a casa (roubo)', radius: 6,
+      position: () => loot.pos ?? Game.NOWHERE,
+      onInteract: (g) => g.lootHouse(),
+    });
+    loot.enabled = false;
+    this.houseLoot = loot;
+  }
+
+  /** Registra um crime na vila do morador/lugar. */
+  reportCrime(type, village, at, victim = null, details = {}) {
+    return this.crimes.report({ type, villageId: village.config.id, x: at.x, z: at.z, time: this.time, victimId: victim?.id ?? null, details });
+  }
+
+  /** Soco num morador: nocaute (~20 s deitado), rancor da família e crime de agressão. */
+  assaultAgent(a) {
+    if (a.life === 'DEAD') return;
+    a.knockOut(LAW.knockoutSeconds);
+    this.npcManager.remember(a, 'agredido');
+    this.reportCrime('agressao', a.village, a.pos, a);
+    this.ui.showHit(`${a.name} desmaiou`, true);
+  }
+
+  /** Lança/flecha num morador: cabeça ou corpo mata (assassinato); pernas derrubam (agressão). */
+  onAgentShot({ agent: a, zone, point }) {
+    if (a.life === 'DEAD') return;
+    const y = this.groundHeight(point.x, point.z, -Infinity);
+    for (let i = 0; i < BLEED.bloodAtHit; i++) this.trails.add('blood', point.x + (this.random() - 0.5) * 0.5, y, point.z + (this.random() - 0.5) * 0.5, this.time);
+    if (zone === 'legs') { this.assaultAgent(a); this.ui.showHit(`Acertou: ${a.name} · pernas · caiu`, true); return; }
+    a.kill();
+    this.npcManager.remember(a, 'morto');
+    this.reportCrime('assassinato', a.village, a.pos, a, { guard: a.person.profession === 'guarda' });
+    this.onNpcDeath({ name: a.name, position: a.pos });
+    this.ui.showHit(`Acertou: ${a.name} · ${zone === 'head' ? 'cabeça' : 'corpo'} · morto`, true);
+  }
+
+  /** Invasão (ficar numa casa com moradores que não são o jogador) e o botão de vasculhar. */
+  updateLaw(dt) {
+    const pos = this.player.position;
+    const inside = this.areaId === 'overworld' ? this.interiors.insideAt(pos) : null;
+    const h = inside ? this.npcManager.homeOfHouse(inside.house) : null;
+    this._alienHome = h && h.residents.length ? h : null;
+    if (this.trespass.update(this._alienHome?.home.id ?? null, dt)) {
+      const { home, vs, residents } = this._alienHome;
+      const night = residents.some((a) => a.state === 'SLEEPING');
+      this.reportCrime('invasao', vs.village, pos, null, { homeId: home.id, night });
+      this.ui.toast(`Você invadiu a casa de outra família${night ? ' enquanto dormem' : ''}.`);
+    }
+    const lh = this._alienHome?.home;
+    const can = lh && (lh.lootedAt === undefined || this.gameClock.totalHours - lh.lootedAt >= LAW.theft.cooldownHours);
+    this.houseLoot.enabled = !!can;
+    if (can) this.houseLoot.pos = pos; // sempre ao alcance enquanto estiver dentro
+  }
+
+  /** Vasculha a casa alheia: itens/moedas sorteados e crime de roubo. */
+  lootHouse() {
+    const h = this._alienHome;
+    if (!h) return;
+    h.home.lootedAt = this.gameClock.totalHours;
+    const got = rollLoot(LAW.theft.loot, LAW.theft.rolls, this.random);
+    const names = [];
+    for (const g of got) {
+      if (g.coins) { this.state.coins += g.coins; this.state.emit('change'); names.push(`${g.coins} moedas`); }
+      else { this.state.addItem(g.id, g.count); names.push(`${g.count}× ${ITEMS[g.id]?.name ?? g.id}`); }
+    }
+    this.reportCrime('roubo', h.vs.village, this.player.position, null, { homeId: h.home.id, items: got });
+    this.ui.toast(`Você roubou: ${names.join(', ')}.`);
+  }
+
   updateLivingWorld(dt) {
     this.npcManager.update(dt);
+    this.updateLaw(dt);
     if (this.areaId === 'overworld') this.npcManager.updateSocial(dt, this.playerPerceptionState(dt));
     // Balões somem atrás de diálogos e painéis (não tampam a caixa de texto).
     this.bubbles.root.style.display = this.ui.dialogue.isOpen || this.backpack.open || this.notebookUI.open || this.recipeBook.open || this.inspection.active ? 'none' : '';
@@ -1091,7 +1185,7 @@ export class Game {
     for (const { p, hit } of events) {
       if (p.gone) { this.projectiles.remove(p); continue; }
       if (hit) {
-        this.onAnimalShot(hit, p);
+        if (hit.agent) this.onAgentShot(hit, p); else this.onAnimalShot(hit, p);
         if (this.random() < WEAPONS[p.weapon].breakChance) { this.projectiles.remove(p); this.ui.toast(`${ITEMS[p.item].name} quebrou no impacto.`); }
       }
     }
@@ -1112,6 +1206,7 @@ export class Game {
   projectileHit(a, b) {
     this._hb.length = 0;
     for (const an of this.fauna.animals) if (an.alive && an.hitbox) this._hb.push(an.hitbox);
+    for (const ag of this.npcManager?.rendering ?? []) if (ag.rendered && ag.life !== 'DEAD' && ag.hitbox) this._hb.push(ag.hitbox);
     if (!this._hb.length) return null;
     this._rayDir.set(b.x - a.x, b.y - a.y, b.z - a.z);
     const len = this._rayDir.length();
@@ -1122,6 +1217,10 @@ export class Game {
     const hits = this._ray.intersectObjects(this._hb, false);
     if (!hits.length) return null;
     const hb = hits[0].object, animal = hb.userData.animal;
+    if (hb.userData.agent) {
+      const ag = hb.userData.agent;
+      return { agent: ag, zone: humanZone(hits[0].point.y - ag.pos.y), point: { x: hits[0].point.x, y: hits[0].point.y, z: hits[0].point.z } };
+    }
     animal.root.worldToLocal(this._local.copy(hits[0].point));
     const zone = classifyZone(this._local, hb.position, hb.scale);
     return { animal, zone, point: { x: hits[0].point.x, y: hits[0].point.y, z: hits[0].point.z } };

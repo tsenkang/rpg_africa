@@ -46,6 +46,8 @@ export class NPCManager {
     /** Memória social: id do morador → { provocado: n, agredido: bool }; família → { parente_agredido }. */
     this.memory = new Map();
     this.familyMemory = new Map();
+    /** Chamado quando um morador ganha boneco 3D (o jogo registra o alvo do soco). */
+    this.onModelBuilt = null;
     /** Balões de fala (SpeechBubbles) — o jogo injeta. */
     this.bubbles = null;
     this.rng = mulberry32(4242);
@@ -267,7 +269,7 @@ export class NPCManager {
     this.rendering = [];
     cands.forEach(([, a], i) => {
       if (i >= NPC_LOD.maxRendered) { a.hideModel(); return; }
-      if (!a.model) { if (builds <= 0) return; builds--; a.ensureModel(this.game.scene); }
+      if (!a.model) { if (builds <= 0) return; builds--; a.ensureModel(this.game.scene); this.onModelBuilt?.(a); }
       a.rendered = true;
       this.rendering.push(a);
     });
@@ -296,7 +298,7 @@ export class NPCManager {
   nearest(pos, radius = 2.5) {
     let best = null, bd = radius;
     for (const a of this.rendering ?? []) {
-      if (!a.rendered || a.state === 'SLEEPING') continue;
+      if (!a.rendered || a.state === 'SLEEPING' || a.down) continue;
       const d = Math.hypot(a.pos.x - pos.x, a.pos.z - pos.z);
       if (d < bd) { bd = d; best = a; }
     }
@@ -314,14 +316,32 @@ export class NPCManager {
 
   /**
    * Grava um acontecimento na memória do morador (e da família, se for agressão).
-   * @param {'provocado'|'agredido'} key
+   * @param {'provocado'|'agredido'|'morto'} key
    */
   remember(agent, key) {
     const m = this.memory.get(agent.id) ?? {};
     if (key === 'provocado') m.provocado = (m.provocado ?? 0) + 1;
     else m[key] = true;
     this.memory.set(agent.id, m);
-    if (key === 'agredido') this.familyMemory.set(`${agent.village.config.id}:${agent.person.familyId}`, { parente_agredido: true });
+    const famKey = `${agent.village.config.id}:${agent.person.familyId}`;
+    if (key === 'agredido') this.familyMemory.set(famKey, { ...this.familyMemory.get(famKey), parente_agredido: true });
+    if (key === 'morto') this.familyMemory.set(famKey, { ...this.familyMemory.get(famKey), parente_agredido: true, parente_morto: true });
+  }
+
+  /**
+   * Lar correspondente a uma casa do `InteriorManager` (mesmo centro), com a vila e os moradores.
+   * @returns {null | { home: object, vs: object, residents: NPCAgent[] }}
+   * @example nm.homeOfHouse(game.interiors.insideAt(pos)?.house);
+   */
+  homeOfHouse(house) {
+    if (!house) return null;
+    for (const vs of this.villages) {
+      for (const h of vs.homes) {
+        if (Math.abs(h.x - house.x) > 0.01 || Math.abs(h.z - house.z) > 0.01) continue;
+        return { home: h, vs, residents: vs.agents.filter((a) => a.home === h) };
+      }
+    }
+    return null;
   }
 
   /** Clima como palavra (diálogos). */
@@ -359,7 +379,7 @@ export class NPCManager {
    * @param {{ x:number, z:number, armed:boolean, dirt:number, bleeding:boolean, sanity:number, sprinting:boolean, vx:number, vz:number, wanted?:boolean }} player
    */
   updateSocial(dt, player) {
-    const list = (this.rendering ?? []).filter((a) => a.rendered && !a.indoors);
+    const list = (this.rendering ?? []).filter((a) => a.rendered && !a.indoors && !a.down);
     this._perceiveT -= dt;
     if (this._perceiveT <= 0) {
       this._perceiveT = 0.25;
