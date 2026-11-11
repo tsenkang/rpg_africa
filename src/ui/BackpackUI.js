@@ -1,4 +1,5 @@
 import { ITEMS } from '../systems/PlayerState.js';
+import { icon } from './Icons.js';
 
 const el = (tag, cls, parent, html) => {
   const e = document.createElement(tag);
@@ -30,7 +31,7 @@ export class BackpackUI {
     this.root = el('div', 'backpack hidden', game.ui.root);
     this.root.innerHTML = `
       <div class="bp-card">
-        <div class="bp-head"><b>🎒 Mochila</b><button class="bp-book" title="Livro de receitas (J)">📚 Receitas <kbd>J</kbd></button><span class="bp-hint">clique num item · arraste para a mesa · <kbd>I</kbd>/<kbd>Esc</kbd> fecha</span></div>
+        <div class="bp-head"><b>${icon('backpack')} Mochila</b><button class="bp-book" title="Livro de receitas (J)">${icon('book')} Receitas <kbd>J</kbd></button><span class="bp-hint">clique num item · arraste para a mesa · <kbd>I</kbd>/<kbd>Esc</kbd> fecha</span></div>
         <div class="bp-body">
           <div class="bp-items"></div>
           <div class="bp-side">
@@ -109,14 +110,14 @@ export class BackpackUI {
       if (!list.length) return '';
       return `<div class="bp-group"><div class="bp-group-title">${label}</div><div class="bp-grid">${list.map(([id, n]) => {
         const d = ITEMS[id];
-        return `<div class="bp-chip${this.selected === id ? ' sel' : ''}" data-id="${id}" title="${d?.description ?? ''}" tabindex="0"><span class="ic">${d?.icon ?? '▪'}</span><span class="nm">${d?.name ?? id}</span><span class="ct">×${n - (onTable[id] ?? 0)}</span></div>`;
+        return `<div class="bp-chip${this.selected === id ? ' sel' : ''}" data-id="${id}" title="${d?.description ?? ''}" tabindex="0"><span class="ic">${icon(d?.icon ?? 'dot')}</span><span class="nm">${d?.name ?? id}</span><span class="ct">×${n - (onTable[id] ?? 0)}</span></div>`;
       }).join('')}</div></div>`;
     }).join('');
     this.items.innerHTML = groups || '<i class="bp-empty">Mochila vazia.</i>';
     this.renderDetail();
     this.tableEl.innerHTML = [0, 1, 2, 3].map((i) => {
       const id = this.table[i], d = id && ITEMS[id];
-      return `<div class="bp-slot${id ? ' filled' : ''}" data-slot="${i}" title="${id ? 'clique para tirar' : ''}">${d ? `<span class="ic">${d.icon}</span><span class="nm">${d.name}</span>` : '<span class="plus">+</span>'}</div>`;
+      return `<div class="bp-slot${id ? ' filled' : ''}" data-slot="${i}" title="${id ? 'clique para tirar' : ''}">${d ? `<span class="ic">${icon(d.icon)}</span><span class="nm">${d.name}</span>` : '<span class="plus">+</span>'}</div>`;
     }).join('');
   }
 
@@ -126,10 +127,10 @@ export class BackpackUI {
     const acts = [];
     if (d.food) acts.push(`<button data-act="eat" data-id="${id}">Comer / beber</button>`);
     if (d.comfort) acts.push(`<button data-act="use" data-id="${id}">Usar</button>`);
-    if (this.mode === 'full') acts.push(`<button data-act="book" data-id="${id}">📚 Receitas</button>`);
+    if (this.mode === 'full') acts.push(`<button data-act="book" data-id="${id}">${icon('book')} Receitas</button>`);
     if (d.hotbar) acts.push(`<button data-act="equip" data-id="${id}">Pôr na hotbar</button>`);
     if (this.mode === 'full' && this.table.length < 4) acts.push(`<button data-act="table" data-id="${id}">Pôr na mesa</button>`);
-    this.detail.innerHTML = `<div class="bp-detail-head"><span class="ic">${d.icon}</span><b>${d.name}</b> <span class="ct">×${n}</span></div><p>${d.description ?? ''}</p><div class="bp-actions">${acts.join('')}</div>`;
+    this.detail.innerHTML = `<div class="bp-detail-head"><span class="ic">${icon(d.icon)}</span><b>${d.name}</b> <span class="ct">×${n}</span></div><p>${d.description ?? ''}</p><div class="bp-actions">${acts.join('')}</div>`;
   }
 
   /** Ações dos botões (pedidos ao jogo; a UI não muda estado sozinha). */
@@ -179,7 +180,7 @@ export class BackpackUI {
     const move = (ev) => {
       if (!ghost) {
         if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 6) return;
-        ghost = el('div', 'bp-ghost', document.body, `${ITEMS[id]?.icon ?? ''} ${ITEMS[id]?.name ?? id}`);
+        ghost = el('div', 'bp-ghost', document.body, `${icon(ITEMS[id]?.icon)} ${ITEMS[id]?.name ?? id}`);
       }
       ghost.style.left = `${ev.clientX + 12}px`;
       ghost.style.top = `${ev.clientY + 12}px`;

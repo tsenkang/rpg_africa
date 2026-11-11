@@ -2,6 +2,7 @@ import { BIOMES } from '../config/biomes.js';
 import { SPECIES } from '../config/fauna.js';
 import { RECIPES } from '../config/items.js';
 import { ITEMS } from '../systems/PlayerState.js';
+import { icon } from './Icons.js';
 
 const el = (tag, cls, parent, html) => {
   const e = document.createElement(tag);
@@ -11,7 +12,7 @@ const el = (tag, cls, parent, html) => {
   return e;
 };
 
-const TABS = [['biomas', '🗺️ Biomas'], ['fauna', '🐾 Fauna'], ['plantas', '🌿 Plantas medicinais'], ['receitas', '📜 Receitas']];
+const TABS = [['biomas', 'Biomas', 'map'], ['fauna', 'Fauna', 'paw'], ['plantas', 'Plantas medicinais', 'leaf'], ['receitas', 'Receitas', 'scroll']];
 const BEHAVIOR = { flee: 'foge', aggressive: 'agressivo', stalker: 'emboscada', pack: 'em bando', burrow: 'se enterra', neutral: 'neutro', fly: 'voa', passive: 'pacífico', ambush: 'emboscada na água/areia', territorial: 'territorial', soar: 'plana', guardian: 'guardião' };
 
 /**
@@ -31,7 +32,7 @@ export class NotebookUI {
         <div class="nb-page nb-left">
           <div class="nb-title">Caderneta de Sobrevivência</div>
           <div class="nb-sub">anotações de viagem · <span class="nb-count"></span></div>
-          <div class="nb-tabs">${TABS.map(([id, label]) => `<button data-tab="${id}">${label} <em></em></button>`).join('')}</div>
+          <div class="nb-tabs">${TABS.map(([id, label, ic]) => `<button data-tab="${id}">${icon(ic)} ${label} <em></em></button>`).join('')}</div>
           <div class="nb-foot"><kbd>N</kbd> ou <kbd>Esc</kbd> fecha · <kbd>←</kbd><kbd>→</kbd> trocam a página</div>
         </div>
         <div class="nb-page nb-right"><div class="nb-content"></div></div>
@@ -77,14 +78,14 @@ export class NotebookUI {
       html = list.map((id) => { const s = SPECIES[id]; return s ? `<div class="nb-entry"><b>${s.nome}</b><p>${BEHAVIOR[s.behavior] ?? s.behavior}${s.damage ? ` · ataque ${s.damage}` : ''} · vida ${s.health ?? '?'}</p></div>` : ''; }).join('');
       html += `<div class="nb-todo">${Object.keys(SPECIES).length - list.length} espécies por avistar.</div>`;
     } else if (this.tab === 'plantas') {
-      html = list.map((id) => { const d = ITEMS[id]; return d ? `<div class="nb-entry"><b>${d.icon} ${d.name}</b><p>${d.description ?? ''}</p></div>` : ''; }).join('');
+      html = list.map((id) => { const d = ITEMS[id]; return d ? `<div class="nb-entry"><b>${icon(d.icon)} ${d.name}</b><p>${d.description ?? ''}</p></div>` : ''; }).join('');
       html += `<div class="nb-todo">${Object.values(ITEMS).filter((d) => d.plant).length - list.length} plantas por colher.</div>`;
     } else {
       html = list.map((id) => {
         const r = RECIPES.find((x) => x.id === id);
         if (!r) return '';
-        const ins = [...Object.entries(r.in).map(([i, n]) => `${ITEMS[i].icon} ${ITEMS[i].name}${n > 1 ? ` ×${n}` : ''}`), ...(r.tools ?? []).map((t) => `${ITEMS[t].icon} ${ITEMS[t].name} <small>(ferramenta)</small>`)];
-        const outs = Object.entries(r.out).map(([i, n]) => `${ITEMS[i].icon} ${ITEMS[i].name}${n > 1 ? ` ×${n}` : ''}`);
+        const ins = [...Object.entries(r.in).map(([i, n]) => `${icon(ITEMS[i].icon)} ${ITEMS[i].name}${n > 1 ? ` ×${n}` : ''}`), ...(r.tools ?? []).map((t) => `${icon(ITEMS[t].icon)} ${ITEMS[t].name} <small>(ferramenta)</small>`)];
+        const outs = Object.entries(r.out).map(([i, n]) => `${icon(ITEMS[i].icon)} ${ITEMS[i].name}${n > 1 ? ` ×${n}` : ''}`);
         return `<div class="nb-entry"><b>${outs.join(', ')}</b><p>${ins.join(' + ')}${r.hint ? `<br><small>${r.hint}</small>` : ''}</p></div>`;
       }).join('');
       html += `<div class="nb-todo">${RECIPES.length - list.length} receitas por descobrir na mesa livre.</div>`;

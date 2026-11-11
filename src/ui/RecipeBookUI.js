@@ -1,5 +1,6 @@
 import { ITEMS } from '../systems/PlayerState.js';
 import { RecipeIndex } from '../systems/RecipeIndex.js';
+import { icon } from './Icons.js';
 
 const el = (tag, cls, parent, html) => {
   const e = document.createElement(tag);
@@ -10,7 +11,7 @@ const el = (tag, cls, parent, html) => {
 };
 
 const KIND_LABEL = { medicine: 'Remédio', weapon: 'Arma', tool: 'Ferramenta', material: 'Material', food: 'Comida', key: 'Missão' };
-const SOURCE_ICON = { coleta: '🌿', caça: '🔪', fogueira: '🔥', loja: '🪙', kit: '🎒', água: '🌊' };
+const SOURCE_ICON = { coleta: 'leaf', caça: 'knife', fogueira: 'flame', loja: 'coin', kit: 'backpack', água: 'wave' };
 const FILTERS = [['', 'Tudo'], ['@remedio', 'Remédios'], ['@arma', 'Armas'], ['@ferramenta', 'Ferramentas'], ['@material', 'Materiais'], ['@comida', 'Comida']];
 
 /**
@@ -37,7 +38,7 @@ export class RecipeBookUI {
     this.root.innerHTML = `
       <div class="rb-card">
         <div class="rb-left">
-          <div class="rb-head"><b>📚 Livro de Receitas</b><span><kbd>J</kbd>/<kbd>Esc</kbd> fecha</span></div>
+          <div class="rb-head"><b>${icon('book')} Livro de Receitas</b><span><kbd>J</kbd>/<kbd>Esc</kbd> fecha</span></div>
           <input class="rb-search" type="search" placeholder="Buscar item… (ex.: curativo, lança)" spellcheck="false" autocomplete="off">
           <div class="rb-filters">${FILTERS.map(([q, l]) => `<button data-q="${q}">${l}</button>`).join('')}</div>
           <div class="rb-grid"></div>
@@ -117,7 +118,7 @@ export class RecipeBookUI {
       const craftable = this.index.recipesFor(id).some((r) => !Object.keys(this.index.missing(r, inv)).length);
       const learned = this.index.recipesFor(id).some((r) => known.has('receitas', r.id));
       return `<button class="rb-item${id === this.selected ? ' sel' : ''}${craftable ? ' can' : ''}" data-id="${id}" title="${d.name}${craftable ? ' — dá para fazer agora' : ''}">
-        <span class="ic">${d.icon ?? '▪'}</span>${n ? `<span class="n">${n}</span>` : ''}${learned ? '<span class="k">✓</span>' : ''}</button>`;
+        <span class="ic">${icon(d.icon ?? 'dot')}</span>${n ? `<span class="n">${n}</span>` : ''}${learned ? `<span class="k">${icon('check')}</span>` : ''}</button>`;
     }).join('') || '<i class="rb-empty">Nada encontrado.</i>';
   }
 
@@ -126,8 +127,8 @@ export class RecipeBookUI {
     const d = ITEMS[id], have = this.game.state.inventory.get(id) ?? 0;
     const ok = out || have >= need;
     return `<button class="rb-slot${ok ? '' : ' lack'}${tool ? ' tool' : ''}${out ? ' out' : ''}" data-go="${id}" title="${d.name}${tool ? ' (ferramenta: não é gasta)' : ''}">
-      <span class="ic">${d.icon}</span><span class="nm">${d.name}</span>
-      <span class="q">${out ? `×${need}` : `${have}/${need}`}${tool ? ' 🔧' : ''}</span></button>`;
+      <span class="ic">${icon(d.icon)}</span><span class="nm">${d.name}</span>
+      <span class="q">${out ? `×${need}` : `${have}/${need}`}${tool ? ` ${icon('wrench')}` : ''}</span></button>`;
   }
 
   recipeCard(r) {
@@ -137,9 +138,9 @@ export class RecipeBookUI {
     const ins = [...Object.entries(r.in).map(([id, n]) => this.slot(id, n)), ...(r.tools ?? []).map((t) => this.slot(t, 1, { tool: true }))];
     const outs = Object.entries(r.out).map(([id, n]) => this.slot(id, n, { out: true }));
     return `<div class="rb-recipe${can ? ' can' : ''}">
-      <div class="rb-row">${ins.join('<span class="plus">+</span>')}<span class="arrow">➜</span>${outs.join('')}</div>
+      <div class="rb-row">${ins.join('<span class="plus">+</span>')}<span class="arrow">${icon('next')}</span>${outs.join('')}</div>
       <div class="rb-foot">
-        <span class="rb-tag">${learned ? '✓ anotada na caderneta' : 'ainda não descoberta'}${r.hint ? ` · ${r.hint}` : ''}</span>
+        <span class="rb-tag">${learned ? `${icon('check')} anotada na caderneta` : 'ainda não descoberta'}${r.hint ? ` · ${r.hint}` : ''}</span>
         <button class="rb-put" data-put="${r.id}" ${can ? '' : 'disabled'} title="${can ? 'Põe os itens na mesa e abre a mochila' : 'Faltam itens'}">+ Pôr na mesa</button>
       </div></div>`;
   }
@@ -147,7 +148,7 @@ export class RecipeBookUI {
   renderDetail() {
     const id = this.selected, ix = this.index;
     if (!id) {
-      this.detail.innerHTML = `<div class="rb-hello"><b>Escolha um item</b><p>Clique em qualquer item para ver como fazer, onde é usado e onde conseguir. Itens com borda verde dá para fazer agora; ✓ = receita já anotada na caderneta.</p></div>`;
+      this.detail.innerHTML = `<div class="rb-hello"><b>Escolha um item</b><p>Clique em qualquer item para ver como fazer, onde é usado e onde conseguir. Itens com borda verde dá para fazer agora; ${icon('check')} = receita já anotada na caderneta.</p></div>`;
       return;
     }
     const d = ITEMS[id], have = this.game.state.inventory.get(id) ?? 0;
@@ -156,11 +157,11 @@ export class RecipeBookUI {
     let body = '';
     if (this.tab === 'make') body = make.length ? make.map((r) => this.recipeCard(r)).join('') : '<i class="rb-none">Não se fabrica: veja "Onde conseguir".</i>';
     else if (this.tab === 'use') body = use.length ? use.map((r) => this.recipeCard(r)).join('') : '<i class="rb-none">Não é ingrediente de nenhuma receita.</i>';
-    else body = get.length ? `<ul class="rb-sources">${get.map((s) => `<li><span>${SOURCE_ICON[s.kind] ?? '•'}</span><b>${s.kind}</b> ${s.text}</li>`).join('')}</ul>` : '<i class="rb-none">Só pela mesa de crafting.</i>';
+    else body = get.length ? `<ul class="rb-sources">${get.map((s) => `<li><span>${icon(SOURCE_ICON[s.kind] ?? 'dot')}</span><b>${s.kind}</b> ${s.text}</li>`).join('')}</ul>` : '<i class="rb-none">Só pela mesa de crafting.</i>';
     this.detail.innerHTML = `
       <div class="rb-top">
         <button class="rb-back" ${this.history.length ? '' : 'disabled'} title="Voltar">←</button>
-        <span class="rb-big">${d.icon}</span>
+        <span class="rb-big">${icon(d.icon)}</span>
         <div><b class="rb-name">${d.name}</b><div class="rb-meta">${KIND_LABEL[d.kind] ?? ''}${d.tool ? ' · não é gasto' : ''} · você tem <b>${have}</b></div></div>
       </div>
       ${d.description ? `<p class="rb-desc">${d.description}</p>` : ''}

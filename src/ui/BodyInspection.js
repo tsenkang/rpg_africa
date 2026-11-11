@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LIMBS, WOUNDS, INSPECTION } from '../config/survival.js';
 import { ITEMS } from '../systems/PlayerState.js';
+import { icon } from './Icons.js';
 
 const el = (tag, cls, parent, html) => {
   const e = document.createElement(tag);
@@ -55,7 +56,7 @@ export class BodyInspection {
 
     this.layer = el('div', 'inspect hidden', game.ui.root);
     this.layer.innerHTML = `
-      <div class="inspect-top"><b>🔍 Inspeção corporal</b>
+      <div class="inspect-top"><b>${icon('search')} Inspeção corporal</b>
         <span>arraste para girar o membro · <b>sanguessuga</b>: clique e puxe · <b>ferida</b>: clique ou solte um remédio da mochila em cima · <kbd>1</kbd>–<kbd>5</kbd> membros · <kbd>C</kbd>/<kbd>Esc</kbd> fecha</span></div>
       <div class="inspect-limbs">
         ${Object.entries(LIMBS).map(([id, l], i) => `<button data-limb="${id}"><kbd>${i + 1}</kbd>${l.name}<em></em></button>`).join('')}
@@ -228,7 +229,7 @@ export class BodyInspection {
     if (!id) { this.tip.classList.add('hidden'); return; }
     const w = this.game.survival.body.get(id), def = WOUNDS[w.type];
     const how = w.type === 'sanguessuga' ? 'clique e puxe' : w.bandage ? 'coberta — cicatrizando' : `trata com: ${Object.keys(def.treat ?? {}).map((k) => (k === 'maos' ? 'as mãos' : ITEMS[k]?.name ?? k)).join(', ')}`;
-    this.tip.innerHTML = `${def.icon} <b>${def.name}</b> · ${LIMBS[w.limb].name}<br><small>${how}</small>`;
+    this.tip.innerHTML = `${icon(def.icon)} <b>${def.name}</b> · ${LIMBS[w.limb].name}<br><small>${how}</small>`;
     this.tip.style.left = `${Math.min(x + 16, window.innerWidth - 280)}px`;
     this.tip.style.top = `${y + 16}px`;
     this.tip.classList.remove('hidden');
@@ -280,12 +281,12 @@ export class BodyInspection {
     if (!w) return;
     const def = WOUNDS[w.type];
     const rows = Object.keys(def.treat ?? {}).map((k) => {
-      if (k === 'maos') return `<button data-item="maos" data-wound="${id}">✋ Puxar com a mão</button>`;
+      if (k === 'maos') return `<button data-item="maos" data-wound="${id}">${icon('hand')} Puxar com a mão</button>`;
       const n = g.state.inventory.get(k) ?? 0, d = ITEMS[k];
-      return `<button data-item="${k}" data-wound="${id}" ${n ? '' : 'disabled'}>${d.icon} ${d.name} ${n ? `×${n}` : '<small>(não tem)</small>'}</button>`;
+      return `<button data-item="${k}" data-wound="${id}" ${n ? '' : 'disabled'}>${icon(d.icon)} ${d.name} ${n ? `×${n}` : '<small>(não tem)</small>'}</button>`;
     });
-    const dirty = g.survival.dirty ? '<div class="warn">⚠ Pele suja: enfaixar agora tem alta chance de infecção. Lave-se no rio ou na chuva.</div>' : '';
-    this.popup.innerHTML = `<div class="head">${def.icon} <b>${def.name}</b> · ${LIMBS[w.limb].name}<button class="close">×</button></div>
+    const dirty = g.survival.dirty ? `<div class="warn">${icon('warn')} Pele suja: enfaixar agora tem alta chance de infecção. Lave-se no rio ou na chuva.</div>` : '';
+    this.popup.innerHTML = `<div class="head">${icon(def.icon)} <b>${def.name}</b> · ${LIMBS[w.limb].name}<button class="close">×</button></div>
       ${w.bandage ? '<p>Coberta. Vai cicatrizar sozinha.</p>' : `<p>${hintFor(w.type)}</p>${dirty}<div class="opts">${rows.join('')}</div>`}`;
     this.popup.style.left = `${Math.min(x + 10, window.innerWidth - 340)}px`;
     this.popup.style.top = `${Math.min(y + 10, window.innerHeight - 260)}px`;

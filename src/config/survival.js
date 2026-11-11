@@ -120,33 +120,33 @@ export const DIRT = {
  */
 export const WOUNDS = {
   arranhao: {
-    name: 'Arranhão', icon: '〰️', bleed: 0.015, selfHeal: 150, infectAfter: 240, healBandaged: 60,
+    name: 'Arranhão', icon: 'scratch', bleed: 0.015, selfHeal: 150, infectAfter: 240, healBandaged: 60,
     treat: { curativo_folha: 'bandage', curativo_cinza: 'bandage', curativo_mel: 'bandage' },
   },
   laceracao: {
-    name: 'Laceração', icon: '🩸', bleed: 0.22, selfHeal: null, infectAfter: 150, healBandaged: 200,
+    name: 'Laceração', icon: 'blood', bleed: 0.22, selfHeal: null, infectAfter: 150, healBandaged: 200,
     treat: { formigas: 'suture', curativo_folha: 'bandage', curativo_cinza: 'bandage', curativo_mel: 'bandage' },
   },
   limpa: { // ferida infectada depois que as larvas comeram o pus: falta cobrir
-    name: 'Ferida Limpa', icon: '🩹', bleed: 0.03, selfHeal: null, infectAfter: 90, healBandaged: 160,
+    name: 'Ferida Limpa', icon: 'bandage', bleed: 0.03, selfHeal: null, infectAfter: 90, healBandaged: 160,
     treat: { curativo_folha: 'bandage', curativo_cinza: 'bandage', curativo_mel: 'bandage' },
   },
   infeccao: {
-    name: 'Ferida Infectada', icon: '🦠', bleed: 0.02, damage: 0.08, sanity: 3, fever: 0.6, selfHeal: null,
+    name: 'Ferida Infectada', icon: 'germ', bleed: 0.02, damage: 0.08, sanity: 3, fever: 0.6, selfHeal: null,
     treat: { larvas_carne: 'clean' },
   },
   veneno: {
-    name: 'Picada Venenosa', icon: '☠️', bleed: 0.01, damage: 0.32, fever: 1.0, selfHeal: null,
+    name: 'Picada Venenosa', icon: 'skull', bleed: 0.01, damage: 0.32, fever: 1.0, selfHeal: null,
     treat: { curativo_tabaco: 'antivenom', curativo_lirio: 'antivenom' },
     /** Neutralizado o veneno, sobra um furo pequeno. */
     neutralized: 'arranhao',
   },
   sanguessuga: {
-    name: 'Sanguessuga', icon: '🪱', bleed: 0.04, sanity: 2, selfHeal: 420,
+    name: 'Sanguessuga', icon: 'bug', bleed: 0.04, sanity: 2, selfHeal: 420,
     treat: { maos: 'pull' },
   },
   larva: {
-    name: 'Larva sob a Pele', icon: '🐛', damage: 0.02, sanity: 4, selfHeal: null, becomesAfter: 360, becomes: 'infeccao',
+    name: 'Larva sob a Pele', icon: 'bug', damage: 0.02, sanity: 4, selfHeal: null, becomesAfter: 360, becomes: 'infeccao',
     treat: { agulha_osso: 'extract' },
   },
 };
@@ -172,9 +172,9 @@ export const INFECTION = {
  * - febre: derivada das feridas (infecção, veneno); acima de `high` a febre é alta
  */
 export const CONDITIONS = {
-  parasitas: { name: 'Parasitas Intestinais', icon: '🪱', cures: ['cogumelo_azul', 'cogumelo_roxo', 'guanabana'] },
+  parasitas: { name: 'Parasitas Intestinais', icon: 'bug', cures: ['cogumelo_azul', 'cogumelo_roxo', 'guanabana'] },
   febre: {
-    name: 'Febre', icon: '🌡️', high: 1,
+    name: 'Febre', icon: 'thermo', high: 1,
     sanityPerMinute: 5, // × nível de febre
     staminaMax: 25, // tira isto do máximo de stamina (× nível, até 1)
   },
@@ -193,28 +193,28 @@ export const CONTAMINATION = {
  * `cures` = doença/veneno que o alimento trata ao ser consumido.
  */
 export const FOODS = {
-  carne_assada: { name: 'Carne Assada', icon: '🍖', proteins: 32, fats: 10 },
-  carne_seca: { name: 'Carne Seca', icon: '🥩', proteins: 26, fats: 6, water: -4 },
-  carne_crua: { name: 'Carne Crua', icon: '🥩', proteins: 14, fats: 6, contamination: 'rawMeat' },
-  carne_gorda: { name: 'Carne de Javali Assada', icon: '🍖', proteins: 24, fats: 28 },
-  peixe_assado: { name: 'Peixe Assado', icon: '🐟', proteins: 26, fats: 8 },
-  larva_assada: { name: 'Larva Assada', icon: '🐛', proteins: 12, fats: 8 },
-  banana: { sweet: true, name: 'Banana', icon: '🍌', carbs: 24, water: 4 },
-  fruta: { sweet: true, name: 'Fruta do Bioma', icon: '🍑', carbs: 18, water: 8 },
-  guanabana: { sweet: true, name: 'Guanábana', icon: '🍈', carbs: 20, water: 10, cures: ['parasitas'] },
-  cogumelo: { name: 'Cogumelo Comestível', icon: '🍄', carbs: 10, proteins: 4 },
-  cogumelo_azul: { name: 'Cogumelo Azul', icon: '🍄', carbs: 6, cures: ['parasitas'] },
-  cogumelo_roxo: { name: 'Cogumelo Roxo', icon: '🍄', carbs: 6, cures: ['parasitas'] },
-  castanha: { name: 'Castanha-do-Pará', icon: '🌰', fats: 22, proteins: 6 },
-  noz: { name: 'Noz', icon: '🌰', fats: 16, proteins: 4 },
-  coco: { name: 'Coco (polpa)', icon: '🥥', fats: 20, carbs: 6 },
-  agua_coco: { sweet: true, name: 'Água de Coco', icon: '🥥', water: 30, carbs: 4 },
-  agua_fervida: { name: 'Água Fervida', icon: '💧', water: 35 },
-  agua_rio: { name: 'Água do Rio', icon: '🌊', water: 25, contamination: 'rawWater' },
-  agua_poco: { name: 'Água do Poço', icon: '🪣', water: 30, contamination: 'wellWater' },
-  mel: { sweet: true, name: 'Mel', icon: '🍯', carbs: 22 },
-  folha_tabaco: { name: 'Folha de Tabaco', icon: '🍂', cures: ['veneno'], sanity: -6 },
-  refeicao_vila: { name: 'Refeição da Vila', icon: '🍲', proteins: 30, carbs: 30, fats: 22, water: 10 },
+  carne_assada: { name: 'Carne Assada', icon: 'meat', proteins: 32, fats: 10 },
+  carne_seca: { name: 'Carne Seca', icon: 'meat', proteins: 26, fats: 6, water: -4 },
+  carne_crua: { name: 'Carne Crua', icon: 'meat', proteins: 14, fats: 6, contamination: 'rawMeat' },
+  carne_gorda: { name: 'Carne de Javali Assada', icon: 'meat', proteins: 24, fats: 28 },
+  peixe_assado: { name: 'Peixe Assado', icon: 'fish', proteins: 26, fats: 8 },
+  larva_assada: { name: 'Larva Assada', icon: 'bug', proteins: 12, fats: 8 },
+  banana: { sweet: true, name: 'Banana', icon: 'fruit', carbs: 24, water: 4 },
+  fruta: { sweet: true, name: 'Fruta do Bioma', icon: 'fruit', carbs: 18, water: 8 },
+  guanabana: { sweet: true, name: 'Guanábana', icon: 'fruit', carbs: 20, water: 10, cures: ['parasitas'] },
+  cogumelo: { name: 'Cogumelo Comestível', icon: 'mushroom', carbs: 10, proteins: 4 },
+  cogumelo_azul: { name: 'Cogumelo Azul', icon: 'mushroom', carbs: 6, cures: ['parasitas'] },
+  cogumelo_roxo: { name: 'Cogumelo Roxo', icon: 'mushroom', carbs: 6, cures: ['parasitas'] },
+  castanha: { name: 'Castanha-do-Pará', icon: 'nut', fats: 22, proteins: 6 },
+  noz: { name: 'Noz', icon: 'nut', fats: 16, proteins: 4 },
+  coco: { name: 'Coco (polpa)', icon: 'nut', fats: 20, carbs: 6 },
+  agua_coco: { sweet: true, name: 'Água de Coco', icon: 'nut', water: 30, carbs: 4 },
+  agua_fervida: { name: 'Água Fervida', icon: 'drop', water: 35 },
+  agua_rio: { name: 'Água do Rio', icon: 'wave', water: 25, contamination: 'rawWater' },
+  agua_poco: { name: 'Água do Poço', icon: 'bucket', water: 30, contamination: 'wellWater' },
+  mel: { sweet: true, name: 'Mel', icon: 'jar', carbs: 22 },
+  folha_tabaco: { name: 'Folha de Tabaco', icon: 'leaf', cures: ['veneno'], sanity: -6 },
+  refeicao_vila: { name: 'Refeição da Vila', icon: 'bowl', proteins: 30, carbs: 30, fats: 22, water: 10 },
 };
 
 /**

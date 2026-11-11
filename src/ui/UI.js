@@ -3,6 +3,7 @@ import { VILLAGES } from '../config/villages.js';
 import { BIOMES } from '../config/biomes.js';
 import { WORLD, REFERENCE_MAP, worldToUv, uvToWorld } from '../config/worldConfig.js';
 import { GRAPHICS_PRESETS } from '../config/graphics.js';
+import { icon } from './Icons.js';
 
 const el = (tag, cls, parent, html) => {
   const e = document.createElement(tag);
@@ -184,7 +185,7 @@ export class UI {
     const key = [...s.inventory].filter(([id]) => (ITEMS[id]?.kind ?? 'key') === 'key');
     const rest = [...s.inventory].reduce((n, [id, c]) => n + ((ITEMS[id]?.kind ?? 'key') === 'key' ? 0 : c), 0);
     q('.inventory').innerHTML = key.map(([id, n]) => `<span class="item" title="${ITEMS[id]?.description ?? ''}">${ITEMS[id]?.name ?? id} ×${n}</span>`).join('')
-      + (rest ? `<span class="item dim">🎒 Mochila: ${rest} itens · <b>I</b></span>` : '');
+      + (rest ? `<span class="item dim">${icon('backpack')} Mochila: ${rest} itens · <b>I</b></span>` : '');
     this.refreshEffects();
   }
 
@@ -208,7 +209,7 @@ export class UI {
     this.hotbar.innerHTML = inv.slots.map((item, i) => `
       <div class="slot${i === inv.selected ? ' active' : ''}${item ? ' filled' : ''}" title="${item?.nome ?? 'Vazio'}">
         <span class="key">${i + 1}</span>
-        ${item ? `<span class="icon">${item.icone ?? item.nome.slice(0, 2)}</span><span class="name">${item.nome}</span>` : ''}
+        ${item ? `<span class="icon">${icon(item.icone ?? 'dot')}</span><span class="name">${item.nome}</span>` : ''}
       </div>`).join('');
     const eq = inv.equipado;
     this.equipLabel.innerHTML = `Equipado: <b>${eq.nome}</b>`;
@@ -389,9 +390,9 @@ export class UI {
     this._debuffKey = key;
     const chips = (debuffs?.active ?? []).map((d) => `
       <div class="debuff" title="${d.description}">
-        <span class="icon">${d.icon}</span>${d.name}<span class="pct">${Math.round(d.strength * 100)}%</span>
+        <span class="icon">${icon(d.icon)}</span>${d.name}<span class="pct">${Math.round(d.strength * 100)}%</span>
       </div>`);
-    if (debuffs?.warmed) chips.push('<div class="debuff warm" title="Perto do fogo o frio não pega."><span class="icon">🔥</span>Aquecido</div>');
+    if (debuffs?.warmed) chips.push(`<div class="debuff warm" title="Perto do fogo o frio não pega."><span class="icon">${icon('flame')}</span>Aquecido</div>`);
     this.debuffBox.innerHTML = chips.join('');
   }
 

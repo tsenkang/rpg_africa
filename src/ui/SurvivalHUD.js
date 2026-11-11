@@ -1,5 +1,6 @@
 import { MACROS, MACRO_NAMES } from '../systems/Nutrition.js';
 import { NUTRITION, SANITY, DIRT, WOUNDS, CONDITIONS, LIMBS } from '../config/survival.js';
+import { icon, iconAt } from './Icons.js';
 
 const el = (tag, cls, parent, html) => {
   const e = document.createElement(tag);
@@ -9,7 +10,7 @@ const el = (tag, cls, parent, html) => {
   return e;
 };
 
-const ICONS = { proteins: '🥩', carbs: '🍌', fats: '🌰', water: '💧' };
+const ICONS = { proteins: 'meat', carbs: 'fruit', fats: 'nut', water: 'drop' };
 const COLORS = { proteins: '#d0594a', carbs: '#e8b85a', fats: '#c98a3a', water: '#4aa8e0' };
 const R = 46, C = 2 * Math.PI * R, ARC = 0.22; // cada barra ocupa 22% do círculo
 
@@ -37,7 +38,7 @@ export class SurvivalHUD {
     }).join('');
     const labels = MACROS.map((k, i) => {
       const a = (-45 + i * 90) * Math.PI / 180;
-      return `<text class="macro-icon" x="${60 + Math.cos(a) * 58}" y="${64 + Math.sin(a) * 58}">${ICONS[k]}</text>`;
+      return iconAt(ICONS[k], 60 + Math.cos(a) * 58, 60 + Math.sin(a) * 58, 13, `macro-icon mi-${k}`);
     }).join('');
     this.watch.innerHTML = `
       <svg viewBox="-8 -8 136 136" class="dial">${arcs}${labels}
@@ -68,11 +69,11 @@ export class SurvivalHUD {
    * Novo pop-up de condição médica.
    * @param {{ icon: string, title: string, text: string, inspect?: boolean }} a
    */
-  alert({ icon, title, text, inspect }) {
+  alert({ icon: key, title, text, inspect }) {
     const card = el('div', 'med-alert', this.alerts, `
-      <div class="med-icon">${icon}</div>
+      <div class="med-icon">${icon(key)}</div>
       <div><b>${title}</b><p>${text}</p></div>
-      ${inspect ? '<div class="lupa" title="Inspecionar o corpo (C)">🔍<kbd>C</kbd></div>' : ''}`);
+      ${inspect ? `<div class="lupa" title="Inspecionar o corpo (C)">${icon('search')}<kbd>C</kbd></div>` : ''}`);
     setTimeout(() => card.classList.add('out'), 6500);
     setTimeout(() => card.remove(), 7200);
     while (this.alerts.children.length > 3) this.alerts.firstChild.remove();
@@ -113,12 +114,12 @@ export class SurvivalHUD {
     this.stamina.classList.toggle('exhausted', s.exhausted);
     this.dirt.style.width = `${s.dirt}%`;
     this.dirt.classList.toggle('dirty', s.dirt >= DIRT.dirtyWarning);
-    this.macroText.innerHTML = MACROS.map((k) => `<span class="${v[k] < NUTRITION.deficient ? 'low' : ''}" title="${MACRO_NAMES[k]}">${ICONS[k]}${Math.round(v[k])}</span>`).join('');
+    this.macroText.innerHTML = MACROS.map((k) => `<span class="${v[k] < NUTRITION.deficient ? 'low' : ''}" title="${MACRO_NAMES[k]}">${icon(ICONS[k])}${Math.round(v[k])}</span>`).join('');
     const chips = [];
-    if (fever > 0) chips.push(`<span class="cond fever" title="Febre${fever >= CONDITIONS.febre.high ? ' alta' : ''}">${CONDITIONS.febre.icon}${fever >= CONDITIONS.febre.high ? '!' : ''}</span>`);
-    for (const id of s.body.conditions.keys()) chips.push(`<span class="cond" title="${CONDITIONS[id].name}">${CONDITIONS[id].icon}</span>`);
+    if (fever > 0) chips.push(`<span class="cond fever" title="Febre${fever >= CONDITIONS.febre.high ? ' alta' : ''}">${icon(CONDITIONS.febre.icon)}${fever >= CONDITIONS.febre.high ? '!' : ''}</span>`);
+    for (const id of s.body.conditions.keys()) chips.push(`<span class="cond" title="${CONDITIONS[id].name}">${icon(CONDITIONS[id].icon)}</span>`);
     for (const w of s.body.wounds) {
-      chips.push(`<span class="cond wound${w.bandage ? ' bandaged' : ''}" title="${WOUNDS[w.type].name} — ${LIMBS[w.limb].name}${w.bandage ? ' (coberta)' : ''}">${WOUNDS[w.type].icon}</span>`);
+      chips.push(`<span class="cond wound${w.bandage ? ' bandaged' : ''}" title="${WOUNDS[w.type].name} — ${LIMBS[w.limb].name}${w.bandage ? ' (coberta)' : ''}">${icon(WOUNDS[w.type].icon)}</span>`);
     }
     this.conds.innerHTML = chips.join('');
     this.watch.classList.toggle('alarm', s.body.wounds.some((w) => !w.bandage) || fever > 0);

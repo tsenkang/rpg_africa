@@ -64,7 +64,7 @@ export const GAMEPLAY = {
   /** Itens da hotbar com uso (clique com o item equipado). */
   items: {
     injecao_suspeita: {
-      id: 'injecao_suspeita', nome: 'Injeção Suspeita', icone: '💉', tipo: 'consumivel',
+      id: 'injecao_suspeita', nome: 'Injeção Suspeita', icone: 'syringe', tipo: 'consumivel',
       healChance: 0.5, // 50% cura total (vida + doenças); 50% Febre do Mendigo
     },
   },

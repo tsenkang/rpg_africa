@@ -9,5 +9,5 @@ game.init().catch((err) => {
   if (step) step.textContent = `Erro ao gerar o mundo: ${err.message}`;
 });
 window.game = game; // depuração no console
-/** Teste rápido da hotbar no console: adicionarItem({ id: 'faca', nome: 'Faca', icone: '🔪' }) */
+/** Teste rápido da hotbar no console: adicionarItem({ id: 'faca', nome: 'Faca', icone: 'knife' }) */
 window.adicionarItem = (item) => game.adicionarItem(item);

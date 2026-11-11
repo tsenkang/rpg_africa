@@ -89,7 +89,7 @@ export class RecipeIndex {
       const m = [['proteins', 'proteínas'], ['carbs', 'carboidratos'], ['fats', 'gorduras'], ['water', 'água']].filter(([k]) => f[k]).map(([k, n]) => `${f[k] > 0 ? '+' : ''}${f[k]} ${n}`);
       if (m.length) out.push(`Comer: ${m.join(', ')}`);
       for (const c of f.cures ?? []) out.push(`Cura ${c === 'veneno' ? 'veneno' : CONDITIONS[c]?.name.toLowerCase() ?? c}`);
-      if (f.contamination) out.push('⚠ Pode dar parasitas (ferva/asse antes)');
+      if (f.contamination) out.push('Pode dar parasitas (ferva/asse antes)');
       if (f.sweet) out.push('Doce: acalma a mente');
     }
     if (this.items[id]?.comfort) out.push('Atividade de conforto: recupera sanidade');

@@ -58,7 +58,7 @@ export const Mechanics = {
         return;
       }
       game.flags.beggarReadyAt = game.time + cfg.cooldownSeconds;
-      game.ui.toast(`Você recebeu: ${item.icone} ${item.nome}. Equipe na hotbar (1–8) e clique para usar.`);
+      game.ui.toast(`Você recebeu: ${item.nome}. Equipe na hotbar (1–8) e clique para usar.`);
     };
     const lines = [
       '"Ei, viajante… você tem os olhos de quem já viu o outro lado. A Praça da Saudade sussurra à noite, sabia?"',
@@ -182,7 +182,7 @@ export const Mechanics = {
       text: '"Escolha o que precisa. Vai direto para a sua mochila."',
       options: [
         ...list.map(({ id, price: p }) => ({
-          label: `${ITEM_CATALOG[id].icon} ${ITEM_CATALOG[id].name} (${p} moedas)`,
+          label: `${ITEM_CATALOG[id].name} (${p} moedas)`,
           disabled: s.coins < p,
           onSelect: () => { s.spend(p); s.addItem(id); game.ui.toast(`${ITEM_CATALOG[id].name} na mochila.`); Mechanics.shopList(game, name, title, list); },
         })),

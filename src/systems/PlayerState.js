@@ -3,8 +3,8 @@ import { ITEM_CATALOG } from '../config/items.js';
 
 /** Itens do inventário: os de missão + o catálogo de sobrevivência (mochila). */
 export const ITEMS = {
-  pocao_cura_total: { name: 'Poção de Cura Total', icon: '🧪', kind: 'key', description: 'Restaura toda a vida. Não cura doenças.' },
-  carta_recomendacao: { name: 'Carta de Recomendação', icon: '✉️', kind: 'key', description: 'Escrita pelo Senhor da Vila Renascimento. O prefeito da Bússola do Sul confia nele.' },
+  pocao_cura_total: { name: 'Poção de Cura Total', icon: 'flask', kind: 'key', description: 'Restaura toda a vida. Não cura doenças.' },
+  carta_recomendacao: { name: 'Carta de Recomendação', icon: 'mail', kind: 'key', description: 'Escrita pelo Senhor da Vila Renascimento. O prefeito da Bússola do Sul confia nele.' },
   ...ITEM_CATALOG,
 };
 

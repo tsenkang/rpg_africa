@@ -599,3 +599,17 @@ kbd {
 .bubble.medo::after { border-top-color: rgba(255, 200, 190, 0.96); }
 .bubble.alerta::after { border-top-color: rgba(255, 226, 170, 0.96); }
 .dlg-mood { color: var(--ink-dim); font: italic 13px Georgia, serif; }
+
+/* ---------------- Ícones de linha (ui/Icons.js) ---------------- */
+svg.i { width: 1.05em; height: 1.05em; vertical-align: -0.17em; flex: none; overflow: visible; }
+svg.i.lg { width: 1.6em; height: 1.6em; }
+.slot .icon svg.i { width: 22px; height: 22px; opacity: 0.92; }
+.med-alert .med-icon svg.i { width: 26px; height: 26px; color: #f0c674; }
+.rb-big svg.i { width: 44px; height: 44px; opacity: 0.9; }
+.bio-macros span svg.i { margin-right: 2px; opacity: 0.75; }
+.bio-watch .mi-proteins { color: #d0594a; }
+.bio-watch .mi-carbs { color: #e8b85a; }
+.bio-watch .mi-fats { color: #c98a3a; }
+.bio-watch .mi-water { color: #4aa8e0; }
+.bio-conds .cond svg.i { width: 13px; height: 13px; vertical-align: -2px; }
+.nb-tabs button svg.i, .bp-head svg.i, .rb-head svg.i, .inspect-top svg.i { opacity: 0.8; margin-right: 2px; }

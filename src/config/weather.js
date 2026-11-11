@@ -212,13 +212,13 @@ export const WEATHER_CYCLE = {
  * - fireCancels: perto de uma fogueira (DEBUFF_RULES.fireRadius) o efeito some
  */
 export const DEBUFFS = {
-  ventania: { name: 'Ventania', icon: '💨', speed: 0.88, description: 'Vento contra: −12% de velocidade.' },
-  frio: { name: 'Frio extremo', icon: '❄️', speed: 0.65, jump: 0.8, dps: 0.4, fireCancels: true, description: 'Lento e perdendo vida. Fique perto de uma fogueira.' },
-  areia: { name: 'Areia cortante', icon: '🌪️', speed: 0.7, dps: 0.25, description: 'A areia corta a pele e atrasa os passos.' },
-  lama: { name: 'Chão encharcado', icon: '🌧️', speed: 0.82, jump: 0.75, description: 'Lama e poças: mais lento, pulo fraco.' },
-  insolacao: { name: 'Insolação', icon: '☀️', speed: 0.9, dps: 0.15, description: 'O calor drena suas forças.' },
-  umidade: { name: 'Névoa úmida', icon: '🌫️', speed: 0.92, description: 'Roupa encharcada pesa.' },
-  corrupcao: { name: 'Cinzas corrompidas', icon: '🕯️', speed: 0.9, exposure: 0.12, description: 'As cinzas sussurram: a exposição paranormal sobe.' },
+  ventania: { name: 'Ventania', icon: 'wind', speed: 0.88, description: 'Vento contra: −12% de velocidade.' },
+  frio: { name: 'Frio extremo', icon: 'snow', speed: 0.65, jump: 0.8, dps: 0.4, fireCancels: true, description: 'Lento e perdendo vida. Fique perto de uma fogueira.' },
+  areia: { name: 'Areia cortante', icon: 'wind', speed: 0.7, dps: 0.25, description: 'A areia corta a pele e atrasa os passos.' },
+  lama: { name: 'Chão encharcado', icon: 'rain', speed: 0.82, jump: 0.75, description: 'Lama e poças: mais lento, pulo fraco.' },
+  insolacao: { name: 'Insolação', icon: 'sun', speed: 0.9, dps: 0.15, description: 'O calor drena suas forças.' },
+  umidade: { name: 'Névoa úmida', icon: 'fog', speed: 0.92, description: 'Roupa encharcada pesa.' },
+  corrupcao: { name: 'Cinzas corrompidas', icon: 'candle', speed: 0.9, exposure: 0.12, description: 'As cinzas sussurram: a exposição paranormal sobe.' },
 };
 
 /** Regras gerais dos debuffs. */

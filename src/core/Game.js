@@ -363,7 +363,7 @@ export class Game {
     this.survival.on('faint', () => ui.toast('Fraqueza: você desmaiou. Coma e beba algo.'));
     // Caderneta, mochila (I) com mesa de crafting livre e inspeção corporal 3D (C).
     this.notebook = new Notebook();
-    this.notebook.on('entry', ({ section, id }) => ui.toast(`📓 Caderneta: ${notebookLabel(section, id)}`));
+    this.notebook.on('entry', ({ section, id }) => ui.toast(`Caderneta: ${notebookLabel(section, id)}`));
     this.crafting = new Crafting();
     this.state.on('item-added', ({ id }) => { if (ITEMS[id]?.plant) this.notebook.record('plantas', id); });
     for (const [id, n] of Object.entries(STARTER_KIT)) this.state.addItem(id, n);
@@ -397,7 +397,7 @@ export class Game {
 
   /**
    * Coloca um item na hotbar (primeiro slot vazio).
-   * Teste no console: `game.adicionarItem({ id: 'faca', nome: 'Faca', icone: '🔪' })`.
+   * Teste no console: `game.adicionarItem({ id: 'faca', nome: 'Faca', icone: 'knife' })`.
    * @returns {number} slot usado, ou -1 se a hotbar estiver cheia.
    */
   adicionarItem(item) {
@@ -733,7 +733,7 @@ export class Game {
     }
     const r = this.crafting.apply(recipe, this.state);
     if (!r.ok) return r;
-    const made = Object.entries(recipe.out).map(([id, n]) => `${ITEMS[id].icon} ${ITEMS[id].name}${n > 1 ? ` ×${n}` : ''}`).join(', ');
+    const made = Object.entries(recipe.out).map(([id, n]) => `${ITEMS[id].name}${n > 1 ? ` ×${n}` : ''}`).join(', ');
     const isNew = this.notebook.record('receitas', recipe.id);
     for (const id of Object.keys(recipe.out)) if (ITEMS[id].hotbar) this.equipFromBackpack(id);
     return { ok: true, message: `Criado: ${made}${isNew ? ' · receita anotada na caderneta' : ''}` };
@@ -980,7 +980,7 @@ export class Game {
   popSanity(delta, reason) {
     const d = document.createElement('div');
     if (delta > 0) d.className = 'up';
-    d.textContent = `🧠 ${delta > 0 ? '+' : '−'}${Math.abs(delta).toFixed(delta % 1 && Math.abs(delta) < 10 ? 1 : 0)} · ${reason}`;
+    d.textContent = `Sanidade ${delta > 0 ? '+' : '−'}${Math.abs(delta).toFixed(delta % 1 && Math.abs(delta) < 10 ? 1 : 0)} · ${reason}`;
     this.sanityPop.appendChild(d);
     setTimeout(() => d.remove(), 3300);
     while (this.sanityPop.children.length > 4) this.sanityPop.firstChild.remove();
@@ -1262,7 +1262,7 @@ export class Game {
     this.state.addItem(got.item, got.n);
     if (got.also) this.state.addItem(got.also, 1);
     if (got.dirt) this.survival.addDirt(got.dirt);
-    this.ui.toast(`${ITEMS[got.item].icon} ${ITEMS[got.item].name} ×${got.n}${got.also ? ` + ${ITEMS[got.also].name}` : ''} na mochila.`);
+    this.ui.toast(`${ITEMS[got.item].name} ×${got.n}${got.also ? ` + ${ITEMS[got.also].name}` : ''} na mochila.`);
   }
 
   useWater() {
@@ -1300,7 +1300,7 @@ export class Game {
     const item = PROP_TYPES[p.type].item;
     this.physics.storeProp(p);
     this.state.addItem(item);
-    this.ui.toast(`${ITEMS[item].icon} ${ITEMS[item].name} na mochila.`);
+    this.ui.toast(`${ITEMS[item].name} na mochila.`);
   }
 
   pickProjectile() {
