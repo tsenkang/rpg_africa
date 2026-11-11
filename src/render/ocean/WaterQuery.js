@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SHORE_GLSL } from './ShoreWaves.js';
 
 export const MAX_QUERIES = 64;
 
@@ -51,6 +52,7 @@ export class WaterQuery {
         uPoints: { value: this.inputs }, uLevel: { value: level },
         uDisp: u.uDisp, uSizes: u.uSizes, uD0: u.uD0, uFloor: u.uFloor, uFoamW: u.uFoamW,
         uAmp: u.uAmp, uDepthTex: u.uDepthTex, uDepthRect: u.uDepthRect, uTexel: u.uTexel, uDeriv: u.uDeriv,
+        uShoreT: u.uShoreT, uShoreGrid: u.uShoreGrid, uShoreSize: u.uShoreSize, uShoreP: u.uShoreP, uShoreOn: u.uShoreOn, uShoreTime: u.uShoreTime,
       },
       vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }',
       fragmentShader: /* glsl */ `
@@ -68,10 +70,12 @@ export class WaterQuery {
           float a = smoothstep(0.0, uD0[c], depth);
           return mix(uFloor[c] * smoothstep(0.0, 0.6, depth), 1.0, a);
         }
+        ${SHORE_GLSL}
         vec4 dispAt(vec2 x0, float depth) {
           vec4 d = vec4(0.0);
           ${[0, 1, 2, 3].map((c) => `{ vec4 s = textureLod(uDisp[${c}], x0 / uSizes[${c}], ${c === 3 ? '2.0' : '0.0'}); d.xyz += s.xyz * atten(${c}, depth); d.w += s.w * uFoamW[${c}] * atten(${c}, depth); }`).join('\n          ')}
           d.xyz *= uAmp;
+          if (depth > 0.0) { ShoreS sh = shoreEval(x0, depth); d.xyz += sh.disp; d.w += sh.foam; } // ondas de costa
           return d;
         }
         void main() {

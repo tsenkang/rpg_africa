@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SHORE_GLSL } from './ShoreWaves.js';
 
 /**
  * Luz debaixo d'água nos materiais do cenário (Etapa A2) — adaptação do
@@ -33,7 +34,10 @@ export class UnderwaterLighting {
       uUwCausticK: { value: caustics ? o.causticStrength : 0 },
       uUwSunShare: { value: 0.6 },
       uUwSunCos: { value: 1 },
+      uUwWet: { value: water.cfg.shore?.wetSand ?? 0 },
     };
+    // ondas de costa (A5): mesma fase para saber onde o espraiado alcança (areia molhada)
+    if (water.uniforms?.uShoreT) for (const k of ['uShoreT', 'uShoreGrid', 'uShoreSize', 'uShoreP', 'uShoreOn', 'uShoreTime']) this.uniforms[k] = water.uniforms[k];
   }
 
   /** Encadeia o gancho no `onBeforeCompile` do material. */
@@ -50,7 +54,8 @@ export class UnderwaterLighting {
         .replace('#include <common>', `#include <common>
 varying vec3 vUwWorld;
 uniform float uUwLevel, uUwTile, uUwCausticK, uUwSunShare, uUwSunCos;
-uniform vec3 uUwAbsorb; uniform vec2 uUwDepths; uniform sampler2D uUwCaustics;`)
+uniform vec3 uUwAbsorb; uniform vec2 uUwDepths; uniform sampler2D uUwCaustics; uniform float uUwWet;
+${U.uShoreT ? SHORE_GLSL : ''}`)
         .replace('#include <opaque_fragment>', `{
   float below = uUwLevel - vUwWorld.y;
   if (below > 0.0) {
@@ -61,6 +66,14 @@ uniform vec3 uUwAbsorb; uniform vec2 uUwDepths; uniform sampler2D uUwCaustics;`)
     c = mix(1.0, c, uUwCausticK * smoothstep(0.0, 0.5, below));
     outgoingLight *= mix(Tamb, Tsun * c, uUwSunShare);
   }
+${U.uShoreT ? `  // areia molhada: até onde o espraiado chega (escurece e fica um pouco mais lisa)
+  else if (uShoreOn > 0.5 && -below < uShoreP.x * uShoreP.w * 1.3) {
+    float T = shoreT(vUwWorld.xz);
+    if (T >= 0.0) {
+      float wet = 1.0 - smoothstep(uShoreP.x * uShoreP.w * 0.6, uShoreP.x * uShoreP.w * 1.3, -below);
+      outgoingLight *= mix(1.0, 1.0 - uUwWet, wet);
+    }
+  }` : ''}
 }
 #include <opaque_fragment>`);
     };

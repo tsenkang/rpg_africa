@@ -38,7 +38,7 @@ export const OCEAN = {
   /** Malha da água em anéis em volta da câmera [jogo]. */
   mesh: { segments: 192, innerSpacing: 0.5, farRadius: 6000 },
   /** Textura de profundidade do fundo (m por texel) [jogo]. */
-  depthTexel: 8,
+  depthTexel: 4,
   /**
    * Ótica (Etapa A2).
    * - `absorption`: coeficiente de Beer-Lambert por canal (1/m) [jogo: água costeira tropical, o vermelho
@@ -59,6 +59,12 @@ export const OCEAN = {
     shoreFoam: 0.9,
     underwaterFog: 0.06,
   },
+  /**
+   * Ondas de costa (Etapa A5) [Tidewater ShoreWaves]: altura em mar aberto (m), período (s),
+   * γ de quebra (H = γ d), run-up (fração de H0), grade do campo de percurso (m), profundidade
+   * mínima das fontes na borda do mapa e quantas células de areia recebem fase (espraiado).
+   */
+  shore: { height: 0.5, period: 8, gamma: 0.78, runup: 1.2, cell: 8, sourceDepth: 2, landReach: 3, wetSand: 0.45 },
   /** Velocidade do tempo do oceano. */
   timeScale: 1,
 };

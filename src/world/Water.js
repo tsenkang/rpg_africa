@@ -6,6 +6,7 @@ import { buildOceanGrid } from '../render/ocean/OceanGrid.js';
 import { WaterQuery } from '../render/ocean/WaterQuery.js';
 import { Caustics } from '../render/ocean/Caustics.js';
 import { UnderwaterLighting } from '../render/ocean/UnderwaterLighting.js';
+import { ShoreWaves, SHORE_GLSL } from '../render/ocean/ShoreWaves.js';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 
 /**
@@ -66,8 +67,14 @@ export class Water {
         uRefr: { value: OCEAN.optics.refraction }, uIor: { value: OCEAN.optics.ior },
         uAbsorb: { value: new THREE.Vector3(...OCEAN.optics.absorption) },
         uScatter: { value: new THREE.Vector3(...OCEAN.optics.scatter) },
-        uShoreFoam: { value: OCEAN.optics.shoreFoam }, uLevel: { value: WORLD.waterLevel },
+        uShoreFoam: { value: OCEAN.optics.shoreFoam }, uLevel: { value: WORLD.waterLevel }, uLevelV: { value: WORLD.waterLevel },
         uWake: { value: null }, uWakeOn: { value: 0 }, uWakeRect: { value: new THREE.Vector4(0, 0, 1, 1) },
+      });
+      // ondas de costa (A5): campo de percurso a partir do terreno
+      this.shore = terrain ? new ShoreWaves(terrain, OCEAN.shore) : null;
+      Object.assign(this.uniforms, this.shore ? this.shore.uniforms : {
+        uShoreT: { value: null }, uShoreGrid: { value: new THREE.Vector4(0, 0, 1, 0) }, uShoreSize: { value: new THREE.Vector2(1, 1) },
+        uShoreP: { value: new THREE.Vector4() }, uShoreOn: { value: 0 }, uShoreTime: { value: 0 },
       });
     }
     const material = new THREE.ShaderMaterial({
@@ -212,6 +219,7 @@ export class Water {
     u.uScatter.value.set(...o.scatter);
     u.uRefr.value = o.refraction;
     u.uShoreFoam.value = o.shoreFoam;
+    this.shore?.update(this.ocean.time);
     this.caustics.update(env.sunDir, this.ocean);
     this.underwaterLighting.update(env);
     this.underwaterLighting.uniforms.uUwCausticK.value = o.causticStrength;
@@ -291,6 +299,7 @@ float atten(int c, float depth) {
   float a = smoothstep(0.0, uD0[c], depth);
   return mix(uFloor[c] * smoothstep(0.0, 0.6, depth), 1.0, a);
 }
+${SHORE_GLSL}
 `;
 
 const FFT_VERT = /* glsl */ `
@@ -299,6 +308,9 @@ varying vec3 vWorld;
 varying vec2 vLag;
 varying float vDepth;
 varying float vFoam;
+varying vec2 vShoreSlope;
+varying float vSwash;
+uniform float uLevelV;
 ${COMMON}
 #include <fog_pars_vertex>
 void main() {
@@ -316,6 +328,13 @@ void main() {
     foam += textureLod(uDisp[${c}], xz / uSizes[${c}], max(level, 1.5)).w * uFoamW[${c}] * att;
   }`).join('\n  ')}
   wp.xyz += disp * uAmp;
+  // ondas de costa: empinam, quebram, viram corredeira e espraiam na areia (A5)
+  ShoreS sh = shoreEval(xz, depth);
+  wp.xyz += sh.disp;
+  foam += sh.foam;
+  vShoreSlope = sh.slope;
+  vSwash = 0.0;
+  if (sh.swashY > -100.0) { wp.y = sh.swashY + uLevelV; vSwash = 1.0; }
   vec4 wk = wakeSample(xz);
   wp.y += wk.x;
   foam += wk.w * 0.8;
@@ -341,6 +360,8 @@ varying vec3 vWorld;
 varying vec2 vLag;
 varying float vDepth;
 varying float vFoam;
+varying vec2 vShoreSlope;
+varying float vSwash;
 ${COMMON}
 #include <fog_pars_fragment>
 
@@ -370,7 +391,7 @@ void main() {
   }`).join('\n  ')}
   slope *= uAmp; jac *= uAmp;
   vec4 wk = wakeSample(vLag);
-  vec2 s = slope / max(vec2(1.0) + jac, vec2(0.2)) + wk.yz;
+  vec2 s = slope / max(vec2(1.0) + jac, vec2(0.2)) + wk.yz + vShoreSlope;
   foamDetail += wk.w * 0.9;
   vec3 n = normalize(vec3(-s.x, 1.0, -s.y));
   bool below = !gl_FrontFacing;               // câmera debaixo d'água vê a face de trás
@@ -408,6 +429,7 @@ void main() {
 
   float cosI = max(dot(n, V), 0.0);
   float F = fresnelD(cosI, uIor);
+  if (vSwash > 0.5) F *= 0.35; // lâmina fina do espraiado: quase só transparência (a areia molhada aparece)
   vec3 R = reflect(-V, n);
   R.y = abs(R.y);
   vec3 refl = mix(uSkyHorizon, uSkyTop, smoothstep(0.0, 0.6, R.y));
