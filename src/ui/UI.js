@@ -51,10 +51,8 @@ export class UI {
     this.village = el('div', 'panel village hidden', this.root);
     this.prompt = el('div', 'prompt hidden', this.root);
     this.toasts = el('div', 'toasts', this.root);
-    this.help = el('div', 'help', this.root,
-      '<b>WASD</b> mover · <b>Shift</b> correr · <b>Espaço</b> pular · <b>ALT</b> trava câmera · <b>T</b> 1ª/3ª pessoa · <b>C</b> corpo · <b>Roda</b> zoom · '
-      + '<b>E</b> interagir · <b>H</b> poção · <b>M</b> mapa · <b>F</b> viagem rápida · <b>V</b> voar · '
-      + '<b>1–8</b> slot · <b>Clique</b> bater/arremessar · <b>I</b> mochila · <b>J</b> receitas · <b>N</b> caderneta · <b>G</b> gráficos');
+    // os comandos foram para o menu do Esc (aba Controles); aqui fica só a dica
+    this.help = el('div', 'help', this.root, '<kbd>Esc</kbd> menu · controles · ajustes');
     this.speedTag = el('div', 'speed-tag hidden', this.root, 'VIAGEM RÁPIDA');
     this.sickOverlay = el('div', 'sick-overlay', this.root);
     // Água: tinta azul debaixo d'água + barra de fôlego (só aparece na água).

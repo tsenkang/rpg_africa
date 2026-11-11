@@ -679,3 +679,39 @@ svg.i.lg { width: 1.6em; height: 1.6em; }
 .nb-entry .nb-chain svg.i { opacity: 0.7; margin-right: 3px; }
 .slope-hint.danger { border-color: rgba(255, 96, 76, 0.75); }
 .slope-hint.danger svg.i { color: #ff6b55; }
+
+/* ===== Menu do Esc (pausa, controles, água e barco) ===== */
+.ui .pause { pointer-events: auto; }
+.pause { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.5); z-index: 6; }
+.pause-card {
+  width: min(760px, 94vw); max-height: 90vh; overflow: auto; padding: 18px 22px 20px; border-radius: 12px;
+  background: rgba(16, 12, 8, 0.94); border: 1px solid var(--edge); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+.pause-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.pause-title { font: 600 22px Georgia, serif; color: var(--gold); }
+.pause-esc { font-size: 12px; color: var(--ink-dim); }
+.pause-tabs { display: flex; gap: 6px; margin: 14px 0 14px; border-bottom: 1px solid var(--edge); }
+.pause-tabs button {
+  padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--ink-dim);
+  font: 600 14px 'Segoe UI', system-ui; cursor: pointer;
+}
+.pause-tabs button.active { color: var(--gold); border-bottom-color: var(--gold); }
+.pause-tabs button:focus-visible, .pause-actions button:focus-visible, .pause-row input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.pause-actions { display: grid; gap: 8px; max-width: 360px; }
+.pause-actions button {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--edge); color: var(--ink); font: 14px 'Segoe UI', system-ui; text-align: left;
+}
+.pause-actions button:hover { background: rgba(232, 184, 90, 0.1); }
+.pause-actions button.primary { border-color: var(--gold); background: rgba(232, 184, 90, 0.16); color: var(--gold); font-weight: 600; }
+.pause-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px 26px; }
+.pause-cols h4 { margin: 0 0 8px; font: 600 12px 'Segoe UI', system-ui; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
+.pause-cols section > h4:not(:first-child) { margin-top: 14px; }
+.pause-cols ul { list-style: none; display: grid; gap: 6px; font-size: 13.5px; }
+.pause-cols li kbd + kbd { margin-left: -0.25em; }
+.pause-row { display: grid; grid-template-columns: 1fr 120px 64px; align-items: center; gap: 10px; margin: 7px 0; font-size: 13.5px; }
+.pause-row input[type=range] { width: 100%; accent-color: var(--gold); }
+.pause-row input[type=color] { width: 44px; height: 24px; border: 1px solid var(--edge); background: none; padding: 0; }
+.pause-row output { text-align: right; color: var(--ink-dim); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.pause-note { margin: 10px 0; font-size: 12px; color: var(--ink-dim); line-height: 1.5; }
+@media (max-width: 520px) { .pause-row { grid-template-columns: 1fr 90px 52px; } }

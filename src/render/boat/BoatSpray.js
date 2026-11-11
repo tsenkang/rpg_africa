@@ -82,7 +82,9 @@ export class BoatSpray {
         this.emit(this._a.x, this._a.y, this._a.z, fx * back + (Math.random() - 0.5), 0.8 + Math.random() * 1.6, fz * back + (Math.random() - 0.5));
       }
     }
-    // gotas: gravidade, arrasto do ar, somem ao cair na água
+    // gotas: gravidade, arrasto do ar, somem ao cair na água (sem gotas vivas: nada a fazer)
+    if (!this.alive && n <= 0 && this.acc < 1 && bowDemand === 0 && sternDemand === 0) return;
+    let alive = 0;
     for (let i = 0; i < c.max; i++) {
       if (this.life[i] <= 0) { this.alpha[i] = 0; continue; }
       const k = i * 3;
@@ -93,7 +95,9 @@ export class BoatSpray {
       this.pos[k] += this.vel[k] * dt; this.pos[k + 1] += this.vel[k + 1] * dt; this.pos[k + 2] += this.vel[k + 2] * dt;
       if (this.vel[k + 1] < 0 && this.pos[k + 1] < water(this.pos[k], this.pos[k + 2])) this.life[i] = 0;
       this.alpha[i] = this.life[i] > 0 ? Math.min(0.85, this.life[i] / (c.life * 0.4)) : 0;
+      if (this.life[i] > 0) alive++;
     }
+    this.alive = alive;
     this.points.geometry.attributes.position.needsUpdate = true;
     this.points.geometry.attributes.aAlpha.needsUpdate = true;
   }

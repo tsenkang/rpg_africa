@@ -116,6 +116,7 @@ import { payQuote } from '../systems/law/Redemption.js';
 import { grudgeReaction } from '../systems/law/Grudge.js';
 import { BountyHunter } from '../entities/BountyHunter.js';
 import { BoatController } from '../systems/boat/BoatController.js';
+import { PauseMenu } from '../ui/PauseMenu.js';
 
 /**
  * Orquestra o jogo: gera o mundo (terreno → vilas → malha → água →
@@ -395,6 +396,7 @@ export class Game {
     this.setupLivingWorld();
     const ren = this.villages.renascimento;
     this.player.teleport(ren.x + 3, ren.z + 17, Math.PI); // borda sul da praça, olhando para o poço e a igreja
+    this.pauseMenu = new PauseMenu(this); // Esc: pausa, controles, ajustes da água e do barco
     // Barco de pesca pilotável, ancorado na água funda mais perto da vila (Etapa A3).
     this.boat = new BoatController(this);
     // Nado acompanha as ondas: altura da água sob o jogador vem da GPU (slot próprio).
@@ -1704,8 +1706,13 @@ export class Game {
 
   update() {
     const rawDt = this.clock.getDelta();
-    const dt = Math.min(rawDt, 0.1);
     if (!this.ready) return;
+    // Esc abre/fecha o menu quando nenhum outro painel está aberto (os outros fecham com Esc antes)
+    const ui0 = this.ui, othersOpen = ui0.graphicsOpen || ui0.dialogue.isOpen || !ui0.worldMap.classList.contains('hidden')
+      || this.inspection.active || this.backpack.open || this.notebookUI.open || this.recipeBook.open;
+    if (this.input.pressed('Escape') && (this.pauseMenu.open || !othersOpen)) { this.pauseMenu.toggle(); this.input.consume?.('Escape'); }
+    // menu aberto = jogo pausado (dt 0: nada anda, a cena continua desenhada)
+    const dt = this.pauseMenu.open ? 0 : Math.min(rawDt, 0.1);
     if (this.fpsMeter.tick(rawDt) && this.graphics.id !== GRAPHICS_PRESETS[0].id && !this._fpsHinted) {
       this._fpsHinted = true;
       this.ui.toast(`O jogo está lento (${Math.round(this.fpsMeter.fps)} FPS). Aperte <b>G</b> para baixar os gráficos.`);
@@ -1724,7 +1731,7 @@ export class Game {
       if (input.pressed('Escape')) ui.toggleGraphics(false);
     }
     const panels = this.inspection.active || this.backpack.open || this.notebookUI.open || this.recipeBook.open;
-    const busy = this.dead || this.survival.fainted || panels || ui.dialogue.isOpen || ui.graphicsOpen || !ui.worldMap.classList.contains('hidden');
+    const busy = this.dead || this.survival.fainted || panels || ui.dialogue.isOpen || ui.graphicsOpen || this.pauseMenu.open || !ui.worldMap.classList.contains('hidden');
     // Painéis de sobrevivência: C inspeção, I mochila, N caderneta, Esc fecha.
     if (!this.dead && !ui.dialogue.isOpen && !ui.graphicsOpen) {
       if (input.pressed('KeyC')) { if (this.inspection.active) this.inspection.close(); else if (!busy) this.inspection.open(); }

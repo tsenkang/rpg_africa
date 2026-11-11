@@ -134,6 +134,7 @@ export class Input {
   }
 
   unlock() {
+    this.unlockedByGame = performance.now(); // diferencia do Esc do navegador (que solta sozinho)
     if (this.locked) document.exitPointerLock();
   }
 

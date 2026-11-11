@@ -77,3 +77,11 @@ test('shallowBottom_boatRestsOnGround_insteadOfSinking', () => {
   assert.ok(b.position.y > -0.05, `y ${b.position.y.toFixed(3)}`);
   assert.ok(Number.isFinite(b.com.x));
 });
+
+test('heavierLoad_sitsDeeper_lighterSitsHigher', () => {
+  const heavy = new BoatPhysics({ ...BOAT, mass: BOAT.designMass * 1.4 }), light = new BoatPhysics({ ...BOAT, mass: BOAT.designMass * 0.7 });
+  run(heavy, 12, { throttle: 0, steer: 0 }, calm);
+  run(light, 12, { throttle: 0, steer: 0 }, calm);
+  assert.ok(heavy.position.y < -0.05, `pesado y ${heavy.position.y.toFixed(3)}`);
+  assert.ok(light.position.y > 0.03, `leve y ${light.position.y.toFixed(3)}`);
+});

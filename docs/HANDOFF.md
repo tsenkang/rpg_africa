@@ -53,8 +53,9 @@ npm run build      # build de produção em dist/
 | **Lei — Etapa C**: crimes (agressão = nocaute, assassinato, invasão, roubo ao vasculhar), testemunhas (olho, corrida até a guarda, intimidar/subornar), PROCURADO por vila com zona de busca e fuga, IA dos guardas (reconhecer, perseguir, flanquear, atacar, apito), caçadores de recompensa com cães (≥ 1000), Comandante da Guarda (pagar limpa a ficha), parentes das vítimas | `systems/law/*`, `config/law.js`, `ui/WantedHUD.js`, `ui/WitnessMarkers.js`, `entities/BountyHunter.js` — ver `docs/LAW-SYSTEM.md` | E / clique |
 | **Limite de inclinação 45°** (jogador, animais, moradores, caçadores): bloqueia subida, escorregão até chão firme, IA contorna montanhas, som de derrapagem | `systems/physics/SlopePhysics.js`, `config/physics.js` (`SLOPE`) — ver `docs/SLOPE-PHYSICS.md` | — |
 | **Ecossistema da fauna — F1–F4**: cadeia alimentar em níveis, fome/energia (caça só > 60%), LOD estatístico, ataques por espécie (agarrão, rolamento, coice, flanco, soco no chão, veneno), matilhas (líder uiva, batedores/interceptadores), manadas (vigia, alarme, debandada, círculo defensivo, filhotes), carcaças com necrófagos | `systems/fauna/*`, `config/ecosystem.js`, `config/faunaCombat.js` — ver `docs/FAUNA-ECOSYSTEM.md` | — |
+| **Água e barco — A1–A6**: oceano FFT de 4 cascatas (Tidewater, WebGL2), refração/absorção/reflexo/cáusticas/mergulho, barco pilotável com flutuação por pontos, esteira de Kelvin + espuma + spray, ondas de costa com quebra e espraiado, menu Esc com ajustes | `src/world/Water.js`, `src/render/ocean/*`, `src/systems/ocean/*`, `src/systems/boat/*`, `src/ui/PauseMenu.js` — ver `docs/OCEAN-SYSTEM.md` | E (barco) / Esc |
 
-Outras teclas: **T** câmera 1ª/3ª pessoa, **M** mapa, **G** gráficos, **F** viagem rápida, **V** voo (debug), **H** poção.
+Outras teclas (todas listadas no menu do **Esc** → Controles): **T** câmera 1ª/3ª pessoa, **M** mapa, **G** gráficos, **F** viagem rápida, **V** voo (debug), **H** poção.
 
 ### Decisões já tomadas pelo dono (não perguntar de novo)
 - **Sem elefante** (não há modelo 3D): girafa, alce e camelo são os grandes defensores.

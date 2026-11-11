@@ -113,6 +113,21 @@ export class Water {
     this.setReflection(OCEAN.optics.reflection);
   }
 
+  /**
+   * Detalhe da malha da água por nível gráfico (setores por anel; perto da câmera o
+   * espaçamento é sempre o mesmo, longe a malha fica mais grossa nos níveis baixos).
+   * @param {string} level id do preset ('muito-baixo' … 'ultra')
+   */
+  setQuality(level) {
+    if (!this.fft) return;
+    const seg = { 'muito-baixo': 112, baixo: 144, medio: 192, alto: 224, ultra: 256 }[level] ?? 192;
+    if (seg === this._segments) return;
+    this._segments = seg;
+    const m = this.cfg.mesh;
+    this.mesh.geometry.dispose();
+    this.mesh.geometry = buildOceanGrid({ segments: seg, inner: m.innerSpacing, far: m.farRadius });
+  }
+
   /** Liga/desliga o reflexo planar do cenário ('planar' | 'sky'). */
   setReflection(mode) {
     if (!this.fft) return;
@@ -209,6 +224,8 @@ export class Water {
     this.uniforms.uSkyTop.value.copy(env.state.skyTop);
     this.uniforms.uSkyHorizon.value.copy(env.state.skyHorizon);
     if (!this.fft) return;
+    // água fora de vista (dentro de casas, subsolo): nada de FFT, cáusticas nem consultas
+    if (!this.mesh.visible) return;
     this.ocean.update(time);
     const u = this.uniforms;
     u.uDisp.value = this.ocean.displacement;
@@ -220,7 +237,8 @@ export class Water {
     u.uRefr.value = o.refraction;
     u.uShoreFoam.value = o.shoreFoam;
     this.shore?.update(this.ocean.time);
-    this.caustics.update(env.sunDir, this.ocean);
+    // cáusticas mudam devagar: quadros alternados bastam (metade do custo)
+    if ((this._cf = (this._cf ?? 0) + 1) % 2 === 0) this.caustics.update(env.sunDir, this.ocean);
     this.underwaterLighting.update(env);
     this.underwaterLighting.uniforms.uUwCausticK.value = o.causticStrength;
     if (!camera) return;
@@ -335,6 +353,13 @@ void main() {
   vShoreSlope = sh.slope;
   vSwash = 0.0;
   if (sh.swashY > -100.0) { wp.y = sh.swashY + uLevelV; vSwash = 1.0; }
+  else if (depth < 0.0 && depth > -2.5) {
+    // areia descoberta perto da água: o vértice fica rente, logo abaixo da areia (não 0,5 m
+    // enterrado). Senão o triângulo até um vértice coberto pelo espraiado corta a areia
+    // e aparece como dentes de serra brancos.
+    wp.y = -depth - 0.04 + uLevelV;
+    foam = 0.0;
+  }
   vec4 wk = wakeSample(xz);
   wp.y += wk.x;
   foam += wk.w * 0.8;

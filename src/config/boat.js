@@ -19,6 +19,11 @@ export const BOAT = {
   waterlineBeam: 2.7,
   /** Massa (kg) [Tidewater: ~3,2 t]. */
   mass: 3200,
+  /** Massa de projeto: o casco desloca exatamente isto na linha d'água (a massa acima pode ser ajustada no menu). */
+  designMass: 3200,
+  /** Multiplicadores ajustáveis no menu (A6). */
+  buoyancyScale: 1,
+  dampingScale: 1,
   /** Densidade da água (kg/m³) — doce no lago e nos rios, salgada no mar; usamos a do mar [Tidewater]. */
   rho: 1025,
   gravity: 9.81,

@@ -41,8 +41,9 @@ export class BoatPhysics {
     const lcb = this.samples.reduce((s, p) => s + p.area * p.depth * p.z, 0) / V;
     this.comLocal = new THREE.Vector3(cfg.centerOfMass[0], cfg.centerOfMass[1], lcb);
     this.displaced = V;
-    const m = cfg.mass, L = cfg.length, B = cfg.beam, g = cfg.gyration;
+    const m = cfg.designMass ?? cfg.mass, L = cfg.length, B = cfg.beam, g = cfg.gyration;
     this.inertia = new THREE.Vector3(m * (g.pitch * L) ** 2, m * (g.yaw * L) ** 2, m * (g.roll * B) ** 2);
+    this._m0 = m; // a inércia acompanha a massa se ela for ajustada no menu
     this.waterplane = this.samples.reduce((s, p) => s + p.area, 0);
 
     // estado (mundo): centro de massa, orientação, velocidades
@@ -130,7 +131,7 @@ export class BoatPhysics {
       if (sub > 0) {
         wetVol += s.area * Math.min(sub, s.depth);
         const k = Math.min(1, sub / s.depth);
-        f.set(0, rho * g * s.area * sub - cfg.heaveDamping * s.area * k * (VP.y - (wq.vy ?? 0)), 0);
+        f.set(0, rho * g * s.area * sub * (cfg.buoyancyScale ?? 1) - cfg.heaveDamping * (cfg.dampingScale ?? 1) * s.area * k * (VP.y - (wq.vy ?? 0)), 0);
         addForce(f, s.local);
       }
       // encalhe: o fundo empurra o casco para cima e segura de lado
@@ -203,7 +204,8 @@ export class BoatPhysics {
     const pitchNow = this.angles().pitch;
     if (pitchNow < cfg.trim.max) Tb.x -= trimMom; // −X ergue a proa (+Z)
     const AD = cfg.angularDamping;
-    Tb.x -= AD.pitch * wb.x * wet; Tb.y -= AD.yaw * wb.y * wet; Tb.z -= AD.roll * wb.z * wet;
+    const ds = cfg.dampingScale ?? 1;
+    Tb.x -= AD.pitch * ds * wb.x * wet; Tb.y -= AD.yaw * ds * wb.y * wet; Tb.z -= AD.roll * ds * wb.z * wet;
     // a quilha resiste ao balanço proporcional à velocidade (barco andando balança menos)
     Tb.z -= 1500 * au * wb.z * wet;
 
@@ -213,10 +215,10 @@ export class BoatPhysics {
     Fb.x /= m * (1 + Am.sway * wet); Fb.y /= m * (1 + Am.heave * wet); Fb.z /= m * (1 + Am.surge * wet);
     this.v.add(Fb.applyQuaternion(this.q).multiplyScalar(dt));
     this.com.addScaledVector(this.v, dt);
-    const I = this.inertia;
-    wb.x += (Tb.x / (I.x * (1 + Am.pitch * wet))) * dt;
-    wb.y += (Tb.y / (I.y * (1 + Am.yaw * wet))) * dt;
-    wb.z += (Tb.z / (I.z * (1 + Am.roll * wet))) * dt;
+    const mi = cfg.mass / this._m0, I = this.inertia;
+    wb.x += (Tb.x / (I.x * mi * (1 + Am.pitch * wet))) * dt;
+    wb.y += (Tb.y / (I.y * mi * (1 + Am.yaw * wet))) * dt;
+    wb.z += (Tb.z / (I.z * mi * (1 + Am.roll * wet))) * dt;
     this.w.copy(wb).applyQuaternion(this.q);
     const wq = new THREE.Quaternion(this.w.x * 0.5 * dt, this.w.y * 0.5 * dt, this.w.z * 0.5 * dt, 0).multiply(this.q);
     this.q.set(this.q.x + wq.x, this.q.y + wq.y, this.q.z + wq.z, this.q.w + wq.w).normalize();
@@ -252,7 +254,8 @@ export function buildHullSamples(cfg = BOAT) {
       out.push({ local: new THREE.Vector3(x, 0, z), area: w * dz, depth, z });
     }
   }
-  const V = out.reduce((s, p) => s + p.area * p.depth, 0), target = cfg.mass / cfg.rho;
+  // casco de projeto: desloca a massa de projeto (mudar a massa depois afunda ou levanta o barco)
+  const V = out.reduce((s, p) => s + p.area * p.depth, 0), target = (cfg.designMass ?? cfg.mass) / cfg.rho;
   for (const p of out) { p.depth *= target / V; p.local.y = -p.depth; }
   return out;
 }

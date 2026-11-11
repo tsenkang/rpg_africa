@@ -143,6 +143,15 @@ export class BoatController {
   /** Esteira na GPU + spray; liga a textura na água. */
   updateWake(dt) {
     const u = this.game.water.uniforms;
+    // Esteira dorme com o barco parado e sem piloto (as ondas já se dissiparam)
+    const still = !this.piloting && Math.abs(this.physics.speed) < 0.05 && Math.abs(this.physics.rpm) < 0.02;
+    this.idleT = still ? (this.idleT ?? 0) + dt : 0;
+    if (this.wake && this.idleT > 30) {
+      u.uWakeOn.value = 0;
+      this.wake.started = false; // acorda com a janela zerada
+      this.spray.update(dt, this.physics, (x, z) => this.waterAt(x, z).h);
+      return;
+    }
     if (this.wake) {
       const q = this.game.water.query;
       this.wake.u.uDepth.value = Math.min(WAKE.maxDepth, Math.max(0.5, q?.valid ? q.depth(this.slots[10] ?? 1) : WAKE.maxDepth));
