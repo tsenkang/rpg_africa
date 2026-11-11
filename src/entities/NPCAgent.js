@@ -4,6 +4,10 @@ import { activityAt, energyStep, tirednessOf } from '../systems/npc/Routine.js';
 import { PROFESSIONS, POPULATION, ENERGY, WEATHER_REACT } from '../config/npcLife.js';
 
 import { LAW } from '../config/law.js';
+import { SLOPE } from '../config/physics.js';
+import { surfaceNormal, isUnwalkable, SlideState, steerAroundSlope } from '../systems/physics/SlopePhysics.js';
+
+const _steer = { x: 0, z: 0, blocked: false };
 
 const _e = new THREE.Euler();
 const HITBOX_MAT = new THREE.MeshBasicMaterial({ visible: false });
@@ -67,6 +71,10 @@ export class NPCAgent {
     /** Vida: 'ALIVE' | 'KNOCKED_OUT' (deitado, levanta sozinho) | 'DEAD' (corpo fica no chão). */
     this.life = 'ALIVE';
     this.koUntil = 0;
+    /** Limite de inclinação: normal sob os pés e escorregão (SLIDING). */
+    this.normal = { x: 0, y: 1, z: 0 };
+    this.slide = new SlideState();
+    this.sliding = false;
   }
 
   /** Fora de ação (desacordado ou morto): não anda, não conversa, não reage. */
@@ -193,6 +201,8 @@ export class NPCAgent {
   update(dt, { hour, hoursPassed, env, detailed, move }) {
     this.t += dt;
     if (this.life === 'DEAD') { this.speed = 0; return; }
+    // Física de encosta (só com boneco, fora de casa, pisando no relevo): > 45° = escorrega.
+    if (detailed && move && !this.indoors && this.slideStep(dt, move)) return;
     if (this.life === 'KNOCKED_OUT') {
       this.speed = 0;
       if (this.t < this.koUntil) return;
@@ -237,7 +247,33 @@ export class NPCAgent {
     this.wipeT = Math.max(0, this.wipeT - dt);
   }
 
+  /**
+   * Escorregão: pisou (ou foi empurrado) numa encosta > 45°. Enquanto desliza, a
+   * rotina para e ele faz o gesto de desequilíbrio, até tocar chão firme.
+   * @returns {boolean} true = escorregando neste passo (a rotina não roda)
+   */
+  slideStep(dt, move) {
+    const T = this.manager.terrainAt;
+    if (!T || this.life !== 'ALIVE') { this.sliding = false; return false; }
+    const onTerrain = Math.abs(this.pos.y - T(this.pos.x, this.pos.z)) < SLOPE.onTerrainEps;
+    if (onTerrain) surfaceNormal(T, this.pos.x, this.pos.z, SLOPE.normalSample, this.normal);
+    else { this.normal.x = 0; this.normal.y = 1; this.normal.z = 0; }
+    const d = this.slide.update(dt, this.normal, onTerrain && isUnwalkable(this.normal));
+    this.sliding = this.slide.sliding;
+    if (!this.sliding) return false;
+    move(this.pos, d.dx, d.dz);
+    this.speed = 0;
+    return true;
+  }
+
   step(dx, dz, dist, detailed, move) {
+    // Encosta íngreme à frente: contorna (descarta o passo que escalaria a montanha).
+    const T = this.manager.terrainAt;
+    if (T && dist > 0 && !this.indoors) {
+      steerAroundSlope(T, this.pos.x, this.pos.z, dx, dz, SLOPE, _steer);
+      if (_steer.blocked) { this.speed = 0; return; }
+      dx = _steer.x; dz = _steer.z;
+    }
     if (detailed && move) move(this.pos, dx * dist, dz * dist);
     else { this.pos.x += dx * dist; this.pos.z += dz * dist; }
     this.yaw = turn(this.yaw, Math.atan2(dx, dz), 0.25);
@@ -322,6 +358,7 @@ export class NPCAgent {
 
   /** Gesto do momento (prioridade: clima > trabalho/descanso > cansaço). */
   gestureNow(env) {
+    if (this.sliding) return 'balance';
     if (this.reaction) return this.reaction.gesture ?? (this.reaction.kind === 'FLEE' || this.reaction.kind === 'RUN_TO' ? 'panic' : this.reaction.kind === 'CHAT' ? 'talk' : null);
     if (env.shelter && !this.indoors) return 'coverHead';
     if (this.wipeT > 0) return 'wipe';
@@ -434,6 +471,14 @@ export function applyGesture(m, gesture, t) {
       set(m.torso, 0.12 + 0.18 * k);
       set(m.arms[R], -1.45 - 0.2 * k, 0, 0.1); set(m.elbows[R], -1.6 + 1.5 * k);
       set(m.arms[L], -1.2, 0, -0.2); set(m.elbows[L], -1.1);
+      break;
+    }
+    case 'balance': { // perdeu a aderência na encosta: braços abertos, tronco para trás, abanando
+      const w = Math.sin(t * 9) * 0.35;
+      set(m.torso, -0.28, 0, w * 0.4);
+      set(m.head, -0.15);
+      set(m.arms[R], -0.6 + w, 0, 1.25); set(m.elbows[R], -0.35);
+      set(m.arms[L], -0.6 - w, 0, -1.25); set(m.elbows[L], -0.35);
       break;
     }
     case 'guard': // lança em posição de guarda

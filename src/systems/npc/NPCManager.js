@@ -46,6 +46,8 @@ export class NPCManager {
     /** Memória social: id do morador → { provocado: n, agredido: bool }; família → { parente_agredido }. */
     this.memory = new Map();
     this.familyMemory = new Map();
+    /** Só o relevo (sem pisos): normal da superfície e limite de 45° dos moradores. */
+    this.terrainAt = (x, z) => game.terrain.heightAt(x, z);
     /** Chamado quando um morador ganha boneco 3D (o jogo registra o alvo do soco). */
     this.onModelBuilt = null;
     /** Balões de fala (SpeechBubbles) — o jogo injeta. */

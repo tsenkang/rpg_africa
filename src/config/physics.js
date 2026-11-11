@@ -154,3 +154,24 @@ export const TREE_COLLIDERS = {
 
 /** Escadas de mão: velocidade de subida (m/s) e alcance para agarrar (m). */
 export const CLIMB = { speed: 2.4, reach: 0.95, facing: 0.35, detachPush: 0.6 };
+
+/**
+ * Limite de inclinação (Max Slope Limit) para jogador, animais e NPCs.
+ * Acima de `maxAngleDeg` o chão é inacessível: não se sobe, e quem pisa nele escorrega.
+ */
+export const SLOPE = {
+  maxAngleDeg: 45,
+  cosMax: Math.cos((45 * Math.PI) / 180), // 0,7071 — N·UP abaixo disto = íngreme
+  tanMax: Math.tan((45 * Math.PI) / 180), // 1 — subida máxima por metro andado
+  stepHeight: 0.35, // m: degrau/pedra que se sobe mesmo acima do limite (borda de calçada, raiz)
+  normalSample: 1.0, // m: meia-distância da amostra da normal (suaviza as arestas dos triângulos)
+  onTerrainEps: 0.08, // m: pés a esta distância do relevo = pisando no terreno (não em piso/ponte/degrau)
+  gravity: 20, // m/s² (a mesma do jogador, em módulo)
+  friction: 0.35, // fração da aceleração perdida no cascalho
+  maxSlideSpeed: 9, // m/s
+  stopSpeed: 0.4, // abaixo disto (em chão andável) o corpo para de escorregar
+  settle: 6, // 1/s: quão rápido o escorregão morre ao chegar no plano
+  probeDist: 2.0, // m à frente que a IA testa antes de seguir
+  steerAngles: [0.5, 1.0, 1.5, 2.1], // rad: desvios testados (dos dois lados) para contornar
+  skidCooldown: 0.7, // s entre sons de derrapagem
+};

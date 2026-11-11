@@ -109,6 +109,8 @@ import { canSee } from '../systems/law/Witness.js';
 import { WantedHUD } from '../ui/WantedHUD.js';
 import { GuardAIController } from '../systems/law/GuardAI.js';
 import { Whistle } from '../audio/Whistle.js';
+import { SkidSound } from '../audio/SkidSound.js';
+import { SlopeHint } from '../ui/SlopeHint.js';
 import { HunterDirector, ambushPoint } from '../systems/law/Hunters.js';
 import { payQuote } from '../systems/law/Redemption.js';
 import { grudgeReaction } from '../systems/law/Grudge.js';
@@ -359,8 +361,12 @@ export class Game {
       state: this.state,
       isUnderground: () => this.areaId !== 'overworld',
       ladders: this.ladders,
+      terrainAt: (x, z) => this.terrain.heightAt(x, z),
     });
     this.scene.add(this.player.root);
+    // Limite de inclinação: som de derrapagem e aviso de encosta íngreme.
+    this.skid = new SkidSound();
+    this.player.onSkid = (angle) => this.skid.play((angle - 45) / 35);
 
     // Sobrevivência avançada: corpo (ferimentos por membro), macros, stamina,
     // sanidade, sujeira. Ferimentos aparecem na malha do personagem.
@@ -1003,7 +1009,7 @@ export class Game {
       const h = this.hunters[i];
       const far = Math.hypot(h.pos.x - p.x, h.pos.z - p.z) > H.despawnDist || this.areaId !== 'overworld';
       if (far) { this.removeHunter(h); continue; }
-      if (h.update(dt, p, { move, groundAt, playerAlive: !this.dead })) { this.damagePlayer(H.damage, 'Caçador de recompensa', null, h); this.cameraRig.kick(0.05); }
+      if (h.update(dt, p, { move, groundAt, playerAlive: !this.dead, terrainAt: this._terrainAt ??= (x, z) => this.terrain.heightAt(x, z) })) { this.damagePlayer(H.damage, 'Caçador de recompensa', null, h); this.cameraRig.kick(0.05); }
     }
   }
 
@@ -1747,6 +1753,8 @@ export class Game {
     if (busy) { if (!inspecting) this.player.model.update(dt, 0); } // na inspeção a pose é da BodyInspection
     else {
       this.player.update(dt, input, this.cameraRig);
+      this.slopeHint ??= new SlopeHint(ui.root);
+      this.slopeHint.update(this.player.slope);
       // Em 1ª pessoa o corpo acompanha para onde se olha (o soco sai daí).
       if (this.cameraRig.isFirstPerson) this.player.faceDirection(this.cameraRig.forward(this._camFwd));
     }

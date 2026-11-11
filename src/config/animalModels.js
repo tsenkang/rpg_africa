@@ -13,7 +13,7 @@
  * `tint` / `emissive`: recolore o modelo (materiais copiados só para a espécie).
  * Espécie sem entrada aqui (suricato) usa o corpo procedural.
  */
-const base = `${import.meta.env.BASE_URL}assets/models/animals/`;
+const base = `${(import.meta.env?.BASE_URL ?? "/")}assets/models/animals/`;
 const file = (id) => ({ glb: `${base}${id}.glb`, glbJson: `${base}${id}.glb.json` });
 
 /** Clipes dos animais animados da Quaternius (mesmo esqueleto "AnimalArmature"). */
@@ -29,7 +29,7 @@ const QUATERNIUS = { idle: 'Idle', walk: 'Walk', run: 'Gallop', attack: 'Attack'
 const Q = { kind: 'quadruped' };
 
 /** Carregador: pasta do decodificador Draco (copiado de three/examples/jsm/libs/draco/gltf). */
-export const ANIMAL_LOADER = { dracoPath: `${import.meta.env.BASE_URL}draco/` };
+export const ANIMAL_LOADER = { dracoPath: `${(import.meta.env?.BASE_URL ?? "/")}draco/` };
 
 /*
  * COMO ADICIONAR O MODELO DE UMA ESPÉCIE NOVA (camelo, víbora, girafa, urso,

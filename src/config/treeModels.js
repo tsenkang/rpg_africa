@@ -8,7 +8,7 @@
  * Unidades do modelo: metros, eixo Z para cima, base do tronco na origem.
  * Alturas: Small ~5 m, Medium ~10-12 m, Big ~19-21 m, Large ~22-28 m.
  */
-const base = `${import.meta.env.BASE_URL}assets/models/oak/`;
+const base = `${(import.meta.env?.BASE_URL ?? "/")}assets/models/oak/`;
 
 export const OAK_FILES = {
   glb: `${base}oaks.glb`,
@@ -23,7 +23,7 @@ export const OAK_FILES = {
   billboard: (name) => `${base}bb_${name}.webp`,
 };
 
-const acaciaBase = `${import.meta.env.BASE_URL}assets/models/acacia/`;
+const acaciaBase = `${(import.meta.env?.BASE_URL ?? "/")}assets/models/acacia/`;
 
 /**
  * Acácias 3D (modelo "free acacia african"): 4 árvores já em metros, Y para

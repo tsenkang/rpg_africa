@@ -4,8 +4,11 @@ import { AnimalBrain } from './AnimalBrain.js';
 import { AnimalBody } from './AnimalBody.js';
 import { WORLD } from '../config/worldConfig.js';
 import { slopeTilt } from './anim/AnimMath.js';
+import { SLOPE } from '../config/physics.js';
+import { surfaceNormal, isUnwalkable, SlideState, steerAroundSlope } from '../systems/physics/SlopePhysics.js';
 
 const _to = new THREE.Vector3();
+const _steer = { x: 0, z: 0, blocked: false };
 const _box = new THREE.Box3();
 const _size = new THREE.Vector3();
 const _center = new THREE.Vector3();
@@ -44,6 +47,10 @@ export class Animal {
     this.addHitbox();
     this.home = new THREE.Vector3(x, 0, z);
     this.leapT = 0; // leopardo: tempo restante do salto
+    /** Limite de inclinação: normal sob as patas e escorregão (SLIDING). */
+    this.normal = { x: 0, y: 1, z: 0 };
+    this.slide = new SlideState();
+    this.sliding = false;
     this.circleA = rng() * Math.PI * 2; // arara: ângulo no círculo
     this.altitude = 0; // arara: altura atual do voo
     this.wanderTarget = new THREE.Vector3(x, 0, z);
@@ -216,8 +223,17 @@ export class Animal {
       const diff = Math.atan2(Math.sin(heading - cur), Math.cos(heading - cur));
       this.root.rotation.y = cur + diff * Math.min(1, dt * (speed > spec.walk * 2 ? 6 : 3));
     }
+    const onFoot = state !== 'fly' && state !== 'circle' && state !== 'burrow' && !spec.aquatic && this.altitude < 0.05;
+    if (this.sliding) speed = 0; // escorregando: perdeu o controle das patas
     if (speed > 0) {
-      const yaw = this.root.rotation.y;
+      let yaw = this.root.rotation.y;
+      // Encosta > 45° à frente: contorna (fuga/caça/passeio) em vez de escalar.
+      if (onFoot && this.leapT <= 0) {
+        const fx = Math.sin(yaw), fz = Math.cos(yaw);
+        steerAroundSlope(this.groundAt, p.x, p.z, fx, fz, SLOPE, _steer);
+        if (_steer.blocked) { speed = 0; if (state === 'wander') this.pickWanderTarget(); }
+        else if (_steer.x !== fx || _steer.z !== fz) { yaw = Math.atan2(_steer.x, _steer.z); this.root.rotation.y = yaw; }
+      }
       let nx = p.x + Math.sin(yaw) * speed * dt;
       let nz = p.z + Math.cos(yaw) * speed * dt;
       // Terrestres contornam a água; aquáticos (jacaré) não saem dela.
@@ -230,6 +246,14 @@ export class Animal {
       p.x = nx;
       p.z = nz;
     }
+    // Pisou (ou foi empurrado) numa encosta > 45°: escorrega até o chão firme.
+    if (onFoot && this.alive) {
+      surfaceNormal(this.groundAt, p.x, p.z, SLOPE.normalSample, this.normal);
+      const d = this.slide.update(dt, this.normal, isUnwalkable(this.normal));
+      if (this.slide.sliding && !this.blocked(p.x + d.dx, p.z + d.dz)) { p.x += d.dx; p.z += d.dz; }
+      else if (this.slide.sliding) this.slide.reset(); // não escorrega para dentro d'água
+      this.sliding = this.slide.sliding;
+    } else { this.sliding = false; this.slide.reset(); }
     this.speed = speed;
     this.swimming = false;
     if (state !== 'burrow') {
@@ -257,6 +281,10 @@ export class Animal {
     this._yaw = yaw;
     const grounded = !this.swimming && this.altitude < 0.05 && state !== 'fly' && state !== 'burrow' && this.leapT <= 0;
     const tilt = grounded ? slopeTilt(this.groundAt, p.x, p.z, yaw, this.halfLen ?? 0.5, this.halfWid ?? 0.25) : this._tilt;
+    if (this.sliding && grounded) { // desequilíbrio: o corpo balança de lado e empina enquanto desce
+      tilt.roll += Math.sin(this.stateTime * 11) * 0.22;
+      tilt.pitch += 0.12;
+    }
     const toPlayer = Math.atan2(playerPos.x - p.x, playerPos.z - p.z);
     const look = Math.atan2(Math.sin(toPlayer - yaw), Math.cos(toPlayer - yaw));
     this.body.update(dt, speed, state, this.stateTime, { swimming: this.swimming, tilt, yawRate, leaping: this.leapT > 0, look });

@@ -7,7 +7,7 @@
  * shader divide pela média para que a foto vire só "detalhe" sobre a cor
  * de cada bioma/espécie.
  */
-const base = `${import.meta.env.BASE_URL}assets/textures/`;
+const base = `${(import.meta.env?.BASE_URL ?? "/")}assets/textures/`;
 
 export const PHOTO_TEXTURES = {
   ground: { url: `${base}ground_albedo.jpg`, mean: [0.211, 0.165, 0.119] },

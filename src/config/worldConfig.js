@@ -34,7 +34,7 @@ export const WORLD = {
  *   mantendo os detalhes finos de cada bioma.
  */
 export const REFERENCE_MAP = {
-  imageUrl: `${import.meta.env.BASE_URL}assets/maps/continente-referencia.png`,
+  imageUrl: `${(import.meta.env?.BASE_URL ?? "/")}assets/maps/continente-referencia.png`,
   useAsBiomeMask: false,
   heightmapUrl: null, // ex.: '/assets/maps/heightmap.png'
   heightmapScale: 260, // altura (m) do branco puro

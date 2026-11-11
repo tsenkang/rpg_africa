@@ -19,7 +19,7 @@
 ```bash
 npm install
 npm run dev        # http://localhost:5173 (gera o mundo em ~10 s)
-npm test           # node --test "tests/**/*.test.js" — 288 testes (1 instável conhecido: ver §6)
+npm test           # node --test "tests/**/*.test.js" — 303 testes (1 instável conhecido: ver §6)
 npm run build      # build de produção em dist/
 ```
 
@@ -51,6 +51,7 @@ npm run build      # build de produção em dist/
 | **Mundo vivo — Etapa A**: 280 moradores (40/vila), famílias com sobrenome e casa, rotina de 24 h, energia/cansaço, roupas por bioma, reação ao clima, LOD de IA, portas trancadas à noite | `systems/npc/NPCManager.js`, `entities/NPCAgent.js`, `systems/npc/Routine.js`, `Population.js`, `NPCVisualBuilder.js`, `config/npcLife.js` | — |
 | **Mundo vivo — Etapa B**: diálogo contextual (Fala = F(profissão, humor, cansaço, hora, clima, bioma, família, jogador, memória)), menu Saudar/Provocar/Perguntar/Comerciar, percepção do jogador (armado/ensanguentado/insano/correndo), conversa NPC-NPC com balões, memória e rancor familiar | `systems/npc/DialogueEngine.js`, `config/dialogues.js`, `ui/SpeechBubbles.js` | E |
 | **Lei — Etapa C**: crimes (agressão = nocaute, assassinato, invasão, roubo ao vasculhar), testemunhas (olho, corrida até a guarda, intimidar/subornar), PROCURADO por vila com zona de busca e fuga, IA dos guardas (reconhecer, perseguir, flanquear, atacar, apito), caçadores de recompensa com cães (≥ 1000), Comandante da Guarda (pagar limpa a ficha), parentes das vítimas | `systems/law/*`, `config/law.js`, `ui/WantedHUD.js`, `ui/WitnessMarkers.js`, `entities/BountyHunter.js` — ver `docs/LAW-SYSTEM.md` | E / clique |
+| **Limite de inclinação 45°** (jogador, animais, moradores, caçadores): bloqueia subida, escorregão até chão firme, IA contorna montanhas, som de derrapagem | `systems/physics/SlopePhysics.js`, `config/physics.js` (`SLOPE`) — ver `docs/SLOPE-PHYSICS.md` | — |
 
 Outras teclas: **T** câmera 1ª/3ª pessoa, **M** mapa, **G** gráficos, **F** viagem rápida, **V** voo (debug), **H** poção.
 

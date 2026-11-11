@@ -660,3 +660,15 @@ svg.i.lg { width: 1.6em; height: 1.6em; }
 .village.compact > :not(h3):not(.region):not(.gate) { display: none; }
 .village.compact { padding: 9px 14px; width: auto; max-width: 310px; }
 .village.compact .region { margin-bottom: 0; }
+
+/* ---------------- Encosta íngreme (ui/SlopeHint.js) ---------------- */
+.slope-hint {
+  position: absolute; left: 50%; bottom: 168px; transform: translate(-50%, 6px);
+  display: flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px;
+  background: rgba(18, 16, 14, 0.78); border: 1px solid rgba(242, 184, 75, 0.55);
+  color: #f3e7dc; font: 600 12px/1 system-ui, sans-serif; letter-spacing: 0.02em;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.slope-hint.show { opacity: 1; transform: translate(-50%, 0); }
+.slope-hint svg.i { color: #f2b84b; width: 15px; height: 15px; }
+@media (prefers-reduced-motion: reduce) { .slope-hint { transition: none; } }
