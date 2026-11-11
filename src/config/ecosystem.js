@@ -47,3 +47,26 @@ export const ECOSYSTEM = {
   detailRadius: 55,
   stat: { baseRate: 0.06 },
 };
+
+/**
+ * Bandos (Etapa F3): matilhas que caçam juntas e manadas com vigia.
+ * @example PACKS.pack.species.includes('lobo') // true
+ */
+export const PACKS = {
+  pack: {
+    species: ['lobo', 'hiena'],
+    interceptShare: 0.5, // fração da matilha (sem o líder) que vira interceptadora
+    leadSeconds: 1.6, // interceptador mira onde a presa estará daqui a isto (velocidade de fuga)
+    strikeDist: 6, // perto disto o interceptador abandona o ponto e morde
+    howlRadius: 120, // som do uivo
+  },
+  herd: {
+    species: ['zebra', 'capivara', 'suricato', 'avestruz'],
+    sentinelScale: 1.6, // vigia percebe predadores a alarmRadius × isto
+    circleSpecies: ['zebra', 'capivara'], // fazem círculo defensivo em volta dos filhotes
+    circleAgainstLevel: 2, // só contra matilhas/mesopredadores (contra leão: debandada)
+    circleRadius: 2.6,
+    stampedeSpread: 0.25, // desvio (rad) de cada um em relação ao rumo comum
+  },
+  young: { chance: 0.35, scale: 0.6, speed: 0.8, health: 0.5 },
+};
