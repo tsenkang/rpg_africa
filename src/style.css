@@ -613,3 +613,19 @@ svg.i.lg { width: 1.6em; height: 1.6em; }
 .bio-watch .mi-water { color: #4aa8e0; }
 .bio-conds .cond svg.i { width: 13px; height: 13px; vertical-align: -2px; }
 .nb-tabs button svg.i, .bp-head svg.i, .rb-head svg.i, .inspect-top svg.i { opacity: 0.8; margin-right: 2px; }
+
+/* ---------------- Testemunhas (ui/WitnessMarkers.js) ---------------- */
+.witness-marks { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.witness-mark { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.wm-badge {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(18, 16, 14, 0.82); color: #f2b84b;
+  border: 1.5px solid rgba(242, 184, 75, 0.85);
+  box-shadow: 0 0 0 4px rgba(242, 184, 75, 0.12), 0 4px 12px rgba(0, 0, 0, 0.35);
+  animation: wm-pulse 1.4s ease-in-out infinite;
+}
+.wm-badge svg.i { width: 17px; height: 17px; }
+.wm-dist { font: 600 10px/1 system-ui, sans-serif; letter-spacing: 0.04em; color: #f6eedd; background: rgba(18, 16, 14, 0.7); padding: 2px 6px; border-radius: 6px; }
+@keyframes wm-pulse { 50% { box-shadow: 0 0 0 7px rgba(242, 184, 75, 0.05), 0 4px 12px rgba(0, 0, 0, 0.35); } }
+@media (prefers-reduced-motion: reduce) { .wm-badge { animation: none; } }
+.dlg-witness { color: #f2b84b; letter-spacing: 0.03em; }

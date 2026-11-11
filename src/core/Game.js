@@ -102,6 +102,8 @@ import { Skeletons } from '../render/Skeletons.js';
 import { PhantomSounds } from '../audio/PhantomSounds.js';
 import { LAW } from '../config/law.js';
 import { CrimeLog, humanZone, rollLoot, TrespassTracker } from '../systems/law/Crimes.js';
+import { findWitnesses, WitnessSystem } from '../systems/law/Witness.js';
+import { WitnessMarkers } from '../ui/WitnessMarkers.js';
 
 /**
  * Orquestra o jogo: gera o mundo (terreno → vilas → malha → água →
@@ -767,6 +769,8 @@ export class Game {
     this.crimes = new CrimeLog(LAW.crimes);
     this.crimes.onCrime = (c) => console.info(`[lei] ${c.label} em ${c.villageId} (+${c.bounty} se testemunhado)`);
     this.trespass = new TrespassTracker(LAW.trespass.graceSeconds);
+    this.witnesses = new WitnessSystem(LAW.witness);
+    this.witnessMarks = new WitnessMarkers(this.ui.root);
     /** Casa alheia onde o jogador está agora: { home, vs, residents } ou null. */
     this._alienHome = null;
     this.npcManager.onModelBuilt = (a) => this.combat.register({
@@ -784,9 +788,119 @@ export class Game {
     this.houseLoot = loot;
   }
 
-  /** Registra um crime na vila do morador/lugar. */
+  /** Registra um crime na vila do morador/lugar e procura quem viu (C2). */
   reportCrime(type, village, at, victim = null, details = {}) {
-    return this.crimes.report({ type, villageId: village.config.id, x: at.x, z: at.z, time: this.time, victimId: victim?.id ?? null, details });
+    const crime = this.crimes.report({ type, villageId: village.config.id, x: at.x, z: at.z, time: this.time, victimId: victim?.id ?? null, details });
+    this.lookForWitnesses(crime, village);
+    return crime;
+  }
+
+  /** Moradores da vila que viram o crime: guarda denuncia na hora; civil corre gritando até a guarda. */
+  lookForWitnesses(crime, village) {
+    const vs = this.npcManager.villages.find((v) => v.village === village);
+    if (!vs?.active) return;
+    const W = LAW.witness;
+    // Crime dentro de casa: só vê quem está dentro da mesma casa.
+    const home = crime.homeId ? vs.homes.find((h) => h.id === crime.homeId) : null;
+    const filter = home ? (a) => Math.hypot(a.pos.x - home.x, a.pos.z - home.z) <= home.half + 0.3 : undefined;
+    const seen = findWitnesses(vs.agents, crime, W, filter);
+    const { reportedNow, runners } = this.witnesses.addCrime(crime, seen);
+    for (const a of runners) {
+      const lines = W.shouts[crime.type] ?? W.shouts.agressao;
+      this.bubbles.say(a, lines[Math.floor(this.random() * lines.length)], 3, 'medo');
+    }
+    if (reportedNow) {
+      const g = seen.find((a) => a.person.profession === 'guarda');
+      g.react('FACE', 4, this.player.position, 'point');
+      this.bubbles.say(g, 'Parado aí! Eu vi isso!', 3, 'alerta');
+      this.onCrimeWitnessed(crime, g, true);
+    }
+  }
+
+  /** Guarda mais perto da testemunha (vivo; se estiver em casa, vai até a porta dele). */
+  guardFor(a) {
+    const vs = this.npcManager.villages.find((v) => v.village === a.village);
+    let best = null, bd = Infinity;
+    for (const g of vs?.agents ?? []) {
+      if (g.person.profession !== 'guarda' || g.down) continue;
+      const p = g.indoors ? g.home.door : g.pos;
+      const d = Math.hypot(p.x - a.pos.x, p.z - a.pos.z);
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best;
+  }
+
+  /**
+   * Um crime chegou à guarda (por um guarda que viu ou por uma testemunha que correu até ele).
+   * Gancho da Etapa C3 (BountyManager): hoje só avisa o jogador.
+   */
+  onCrimeWitnessed(crime, by, direct) {
+    const vname = this.villages[crime.villageId]?.config.name ?? crime.villageId;
+    this.ui.toast(direct ? `Um guarda de ${vname} viu: ${crime.label}.` : `${by.name} denunciou você à guarda de ${vname}: ${crime.label}.`);
+  }
+
+  /** Testemunhas correndo; denúncias; marcadores de olho. */
+  updateWitnesses(dt) {
+    for (const e of this.witnesses.entries.values()) if (e.paused && !this.ui.dialogue.isOpen) e.paused = false;
+    const reports = this.witnesses.update(dt, { guardFor: (a) => this.guardFor(a) });
+    for (const { agent, crimes } of reports) {
+      const L = LAW.witness.reportLines;
+      this.bubbles.say(agent, L[Math.floor(this.random() * L.length)], 3, 'alerta');
+      for (const c of crimes) this.onCrimeWitnessed(c, agent, false);
+    }
+    this.witnessMarks.root.style.display = this.bubbles.root.style.display;
+    this.witnessMarks.update(this.camera, this.witnesses.entries.keys(), this.player.position);
+  }
+
+  /** Testemunha com boneco mais perto do jogador, até `radius` m (para interceptar com E). */
+  nearestWitness(radius) {
+    const p = this.player.position;
+    let best = null, bd = radius;
+    for (const a of this.witnesses.entries.keys()) {
+      if (!a.rendered) continue;
+      const d = Math.hypot(a.pos.x - p.x, a.pos.z - p.z);
+      if (d < bd) { bd = d; best = a; }
+    }
+    return best;
+  }
+
+  /** E numa testemunha correndo: Intimidar / Subornar / Deixar ir. Nocautear = soco (é agressão). */
+  interceptWitness(a) {
+    const e = this.witnesses.entryOf(a);
+    if (!e) return;
+    const W = LAW.witness, armed = this.playerPerceptionState(1 / 60).armed;
+    const bounty = e.crimes.reduce((s, c) => s + c.bounty, 0);
+    const cost = Math.round(W.bribe.base + bounty * W.bribe.perBounty);
+    const chance = Math.min(0.95, W.intimidate.chance + (armed ? W.intimidate.armedBonus : 0));
+    e.paused = true;
+    a.react('FACE', 30, this.player.position);
+    const pick = (l) => l[Math.floor(this.random() * l.length)];
+    const silenced = (how) => {
+      this.witnesses.silence(a, how);
+      this.ui.dialogue.close();
+      this.bubbles.say(a, pick(W.silencedLines[how]), 3, 'medo');
+      a.react('FLEE', 6, this.player.position);
+      this.npcManager.remember(a, 'provocado');
+    };
+    const options = [];
+    if (!e.intimidateFailed) options.push({ label: `Intimidar · ${Math.round(chance * 100)}% de chance${armed ? ' (armado)' : ''}`, onSelect: () => {
+      if (this.random() < chance) { silenced('intimidar'); return; }
+      e.intimidateFailed = true;
+      e.paused = false;
+      this.ui.dialogue.close();
+      this.bubbles.say(a, pick(W.intimidateFailLines), W.intimidate.failShoutSeconds, 'medo');
+    } });
+    options.push({ label: `Subornar · ${cost} moedas${this.state.coins < cost ? ' (sem moedas)' : ''}`, onSelect: () => {
+      if (!this.state.spend(cost)) { this.ui.toast('Moedas insuficientes.'); return; }
+      silenced('suborno');
+    } });
+    options.push({ label: 'Deixar ir', onSelect: () => { e.paused = false; } });
+    this.ui.dialogue.open({
+      speaker: a.name,
+      title: '<span class="dlg-mood dlg-witness">Testemunha · correndo até a guarda</span>',
+      text: `Viu: ${e.crimes.map((c) => c.label.toLowerCase()).join(', ')}. Se chegar a um guarda, você vira procurado. Socar a testemunha também cala, mas conta como agressão.`,
+      options,
+    });
   }
 
   /** Soco num morador: nocaute (~20 s deitado), rancor da família e crime de agressão. */
@@ -847,16 +961,17 @@ export class Game {
   updateLivingWorld(dt) {
     this.npcManager.update(dt);
     this.updateLaw(dt);
+    this.updateWitnesses(dt);
     if (this.areaId === 'overworld') this.npcManager.updateSocial(dt, this.playerPerceptionState(dt));
     // Balões somem atrás de diálogos e painéis (não tampam a caixa de texto).
     this.bubbles.root.style.display = this.ui.dialogue.isOpen || this.backpack.open || this.notebookUI.open || this.recipeBook.open || this.inspection.active ? 'none' : '';
     this.bubbles.update(this.camera, dt);
-    const a = this.areaId === 'overworld' ? this.npcManager.nearest(this.player.position) : null;
+    const a = this.areaId === 'overworld' ? (this.nearestWitness(LAW.witness.interceptRadius) ?? this.npcManager.nearest(this.player.position)) : null;
     this._talkAgent = a;
     this.npcTalk.enabled = !!a;
     if (a) {
       this.npcTalk.pos = a.model.root.position;
-      this.npcTalk.label = `Falar com ${a.name} (${PROFESSIONS[a.person.profession]?.name ?? (a.person.age === 'child' ? 'Criança' : 'Morador')})`;
+      this.npcTalk.label = this.witnesses.entryOf(a) ? `Interceptar ${a.name} (testemunha)` : `Falar com ${a.name} (${PROFESSIONS[a.person.profession]?.name ?? (a.person.age === 'child' ? 'Criança' : 'Morador')})`;
     }
   }
 
@@ -890,6 +1005,7 @@ export class Game {
    */
   talkToAgent(a, reply = null) {
     if (!a) return;
+    if (this.witnesses?.entryOf(a)) { this.interceptWitness(a); return; }
     const nm = this.npcManager;
     const ctx = nm.contextFor(a, this.playerTagsFor(a));
     const text = reply ?? (ctx.player.some((t) => t !== 'procurado') ? DialogueEngine.line('react', ctx, this.random) : DialogueEngine.line('greet', ctx, this.random));

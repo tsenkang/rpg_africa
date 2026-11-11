@@ -384,7 +384,7 @@ export class NPCManager {
     if (this._perceiveT <= 0) {
       this._perceiveT = 0.25;
       for (const a of list) {
-        if (a.reactCooldown > 0 || a.reaction?.kind === 'FLEE') continue;
+        if (a.reactCooldown > 0 || a.reaction?.kind === 'FLEE' || a.reaction?.kind === 'RUN_TO') continue;
         const dx = a.pos.x - player.x, dz = a.pos.z - player.z, dist = Math.hypot(dx, dz);
         const sp = Math.hypot(player.vx, player.vz) || 1;
         const towardDot = dist > 0.01 ? (player.vx * dx + player.vz * dz) / (sp * dist) : 1;

@@ -21,6 +21,27 @@ export const LAW = {
   hitZones: { headAbove: 1.5, legsBelow: 0.8 },
   /** Invasão: tempo dentro de uma casa alheia até contar como crime (s). */
   trespass: { graceSeconds: 1.5 },
+  /** Testemunhas (C2): quem vê o crime corre até o guarda mais próximo. */
+  witness: {
+    radius: 24, // até onde enxerga (m)
+    fovDot: 0.2, // cone de visão: cos do meio-ângulo (0,2 ≈ 156° no total)
+    hearRadius: 7, // perto assim ouve/percebe mesmo de costas
+    reportRadius: 2.2, // chegou a esta distância do guarda = denunciou
+    noGuardReportAfter: 25, // vila sem guarda alcançável: denuncia depois de gritar este tempo (s)
+    maxRunSeconds: 90, // corrida longa demais: denuncia mesmo assim
+    interceptRadius: 2.8, // E perto da testemunha abre a interceptação
+    intimidate: { chance: 0.5, armedBonus: 0.3, failShoutSeconds: 3 },
+    bribe: { base: 30, perBounty: 0.5 }, // custo = base + metade da recompensa dos crimes vistos
+    shouts: {
+      agressao: ['Socorro! Guardas!', 'Ele bateu num vizinho!', 'Chamem a guarda!'],
+      assassinato: ['Assassino! Guardas!', 'Mataram alguém! Socorro!', 'Ele matou! Chamem a guarda!'],
+      invasao: ['Ladrão dentro de casa!', 'Invasor! Guardas!'],
+      roubo: ['Ladrão! Pega ladrão!', 'Roubaram a nossa casa!'],
+    },
+    reportLines: ['Guarda! Eu vi tudo, venha comigo!', 'Guarda, um crime! Lá atrás!'],
+    silencedLines: { intimidar: ['Tá bom, tá bom… eu não vi nada.', 'Não me machuque!'], suborno: ['Não vi nada. Nada mesmo.', 'Moedas falam mais alto…'] },
+    intimidateFailLines: ['Não tenho medo de você! GUARDAS!', 'Sai daqui! SOCORRO!'],
+  },
   /** Roubo: vasculhar uma casa alheia. Cada casa pode ser roubada uma vez por intervalo. */
   theft: {
     cooldownHours: 24,

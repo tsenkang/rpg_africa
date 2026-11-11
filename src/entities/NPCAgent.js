@@ -59,7 +59,7 @@ export class NPCAgent {
     this._leisurePick = Math.floor(rng() * 1000);
     /**
      * Reação que interrompe a rotina por alguns segundos:
-     * { kind: 'FLEE'|'FACE'|'CHAT', until: s, x, z (de quem foge / para quem olha), gesture }
+     * { kind: 'FLEE'|'FACE'|'CHAT'|'RUN_TO' (corre até x,z — testemunha), until: s, x, z (de quem foge / para quem olha), gesture }
      */
     this.reaction = null;
     this.reactCooldown = 0;
@@ -209,6 +209,7 @@ export class NPCAgent {
         this.speed = 0;
         const dx = this.pos.x - r.x, dz = this.pos.z - r.z, d = Math.hypot(dx, dz) || 1;
         if (r.kind === 'FLEE') this.step(dx / d, dz / d, POPULATION.runSpeed * dt, detailed, move);
+        else if (r.kind === 'RUN_TO') { if (d > 0.3) this.step(-dx / d, -dz / d, Math.min(d, POPULATION.runSpeed * dt), detailed, move); }
         else this.yaw = turn(this.yaw, Math.atan2(-dx, -dz), 0.2);
         return;
       }
@@ -319,7 +320,7 @@ export class NPCAgent {
 
   /** Gesto do momento (prioridade: clima > trabalho/descanso > cansaço). */
   gestureNow(env) {
-    if (this.reaction) return this.reaction.gesture ?? (this.reaction.kind === 'FLEE' ? 'panic' : this.reaction.kind === 'CHAT' ? 'talk' : null);
+    if (this.reaction) return this.reaction.gesture ?? (this.reaction.kind === 'FLEE' || this.reaction.kind === 'RUN_TO' ? 'panic' : this.reaction.kind === 'CHAT' ? 'talk' : null);
     if (env.shelter && !this.indoors) return 'coverHead';
     if (this.wipeT > 0) return 'wipe';
     if (this.state === 'WORKING') return this.goal.gesture;
