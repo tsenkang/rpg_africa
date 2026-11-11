@@ -110,7 +110,9 @@ export class Player {
 
     const ground = this.groundAt(this.position.x, this.position.z, this.position.y);
     const underground = this.isUnderground();
-    const surfaceY = WORLD.waterLevel - GAMEPLAY.swimming.surfaceDepth; // pés boiando na superfície
+    // nível da água sob o jogador: as ondas (GPU) quando há oceano FFT, senão o nível fixo
+    const level = this.waterHeight ? this.waterHeight() : WORLD.waterLevel;
+    const surfaceY = level - GAMEPLAY.swimming.surfaceDepth; // pés boiando na superfície
     // Entra na água quando o fundo fica mais baixo que a altura de boiar.
     this.swimming = !underground && ground < surfaceY - 0.05 && this.position.y <= surfaceY + 0.3;
     if (this.swimming) { this.slide.reset(); return this.updateSwimming(dt, input, move, camera, surfaceY); }
@@ -259,7 +261,7 @@ export class Player {
     this.velocity.set(0, 0, 0);
     this.grounded = false;
     this.sprinting = false;
-    this.submerged = this.position.y < WORLD.waterLevel - cfg.submergedDepth;
+    this.submerged = this.position.y < surfaceY + cfg.surfaceDepth - cfg.submergedDepth;
     this.speed = moving ? speed : 0;
     this.model.update(dt, this.speed, { swimming: true });
   }

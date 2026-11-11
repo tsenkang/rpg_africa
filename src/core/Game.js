@@ -115,6 +115,7 @@ import { HunterDirector, ambushPoint } from '../systems/law/Hunters.js';
 import { payQuote } from '../systems/law/Redemption.js';
 import { grudgeReaction } from '../systems/law/Grudge.js';
 import { BountyHunter } from '../entities/BountyHunter.js';
+import { BoatController } from '../systems/boat/BoatController.js';
 
 /**
  * Orquestra o jogo: gera o mundo (terreno → vilas → malha → água →
@@ -393,6 +394,13 @@ export class Game {
     this.setupLivingWorld();
     const ren = this.villages.renascimento;
     this.player.teleport(ren.x + 3, ren.z + 17, Math.PI); // borda sul da praça, olhando para o poço e a igreja
+    // Barco de pesca pilotável, ancorado na água funda mais perto da vila (Etapa A3).
+    this.boat = new BoatController(this);
+    // Nado acompanha as ondas: altura da água sob o jogador vem da GPU (slot próprio).
+    if (this.water.query) {
+      this._playerWaterSlot = this.water.query.alloc();
+      this.player.waterHeight = () => this.water.query.height(this._playerWaterSlot, this.water.ocean.time);
+    }
     this.cameraRig = new CameraRig(this.camera, { groundAt: (x, z, feetY) => this.groundHeight(x, z, feetY) });
     this.cameraRig.reach = (focus, cam) => (this.areaId === 'overworld'
       ? this.interiors.cameraReach(focus, cam, this.player.position, CAMERA.third.interior.margin)
@@ -1471,7 +1479,7 @@ export class Game {
   /** Um quadro de caça/coleta (depois da fauna). */
   updateHunting(dt) {
     const H = this.hunt, pos = this.player.position;
-    if (this.areaId !== 'overworld') { for (const it of Object.values(H)) it.enabled = false; return; }
+    if (this.areaId !== 'overworld' || this.boat?.piloting) { for (const it of Object.values(H)) it.enabled = false; return; }
     // Recursos em volta e o colhível mais perto.
     this.resources.update(pos, this.time);
     this.resourceMeshes.sync(this.resources);
@@ -1738,7 +1746,10 @@ export class Game {
     if (input.pressed('Escape') && !ui.worldMap.classList.contains('hidden')) ui.toggleWorldMap(false);
     if (!busy) {
       if (input.pressed('KeyT')) this.cameraRig.toggleMode();
-      if (input.pressed('KeyE')) this.interactions.interact(this);
+      // Barco antes do jogador: pilotando, o E sai do barco (e não aciona outras coisas).
+      const wasPiloting = !!this.boat?.piloting;
+      this.boat?.update(dt, input);
+      if (input.pressed('KeyE') && !wasPiloting && !this.boat?.piloting) this.interactions.interact(this);
       if (input.pressed('KeyH')) this.state.usePotion();
       // 1–8 escolhem o slot. No quadro em que um diálogo fecha, o número
       // foi a resposta do diálogo, não troca de slot.
@@ -1753,7 +1764,7 @@ export class Game {
     const inspecting = this.inspection.active;
     if (busy) { if (!inspecting) this.player.model.update(dt, 0); } // na inspeção a pose é da BodyInspection
     else {
-      this.player.update(dt, input, this.cameraRig);
+      if (!this.boat?.piloting) this.player.update(dt, input, this.cameraRig);
       this.slopeHint ??= new SlopeHint(ui.root);
       this.slopeHint.update(this.player.slope, this.player.status);
       // Em 1ª pessoa o corpo acompanha para onde se olha (o soco sai daí).
@@ -1779,7 +1790,7 @@ export class Game {
       this.killPlayer('Você se afogou');
     }
     ui.setOxygen(this.oxygen.fraction, this.player.swimming || this.oxygen.fraction < 0.999, GAMEPLAY.swimming.warnFraction);
-    ui.setUnderwater(this.areaId === 'overworld' && this.camera.position.y < WORLD.waterLevel - 0.05);
+    ui.setUnderwater(this.areaId === 'overworld' && (this.water.fft ? this.water.underwater : this.camera.position.y < WORLD.waterLevel - 0.05));
 
     const item = this.interactions.update(this.player.position, this.player.facing, this.areaId);
     ui.setPrompt(item);
@@ -1802,6 +1813,7 @@ export class Game {
       this.vegetation.update(this.camera.position, true);
       this.grass.update(pos, !this.player.fastTravel && pos.y - this.terrain.heightAt(pos.x, pos.z) < 40);
       this.water.update(this.time, this.environment, this.camera);
+      if (this._playerWaterSlot) this.water.query.set(this._playerWaterSlot, this.player.position.x, this.player.position.z);
       if (this.weather.group) this.weather.group.visible = !this.water.underwater; // chuva não cai debaixo d'água
       let near = null;
       for (const v of Object.values(this.villages)) {
