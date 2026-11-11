@@ -22,6 +22,9 @@ const SHORE_COLORS = {
  * de física, vegetação e ambientação) e constrói a malha com cores por
  * vértice + textura de detalhe em escala real.
  */
+/** Lado do bloco de terreno em células (~273 m): recorte de visão sem emendas. */
+const TERRAIN_TILE = 64;
+
 export class Terrain {
   constructor(generator) {
     this.gen = generator;
@@ -170,9 +173,41 @@ export class Terrain {
       roughness: 0.96,
       metalness: 0,
     });
-    this.mesh = new THREE.Mesh(geo, material);
-    this.mesh.receiveShadow = true;
-    this.mesh.name = 'terrain';
+    // Blocos para o recorte de visão: a malha do mapa inteiro (1 milhão de triângulos) era
+    // desenhada sempre. Os blocos compartilham os MESMOS atributos (uma cópia na GPU, normais
+    // contínuas, sem emenda); cada um tem só o próprio índice e a própria esfera envolvente.
+    const T = TERRAIN_TILE, group = new THREE.Group();
+    group.name = 'terrain';
+    const pos = geo.attributes.position.array;
+    for (let tj = 0; tj < this.nz; tj += T) {
+      for (let ti = 0; ti < this.nx; ti += T) {
+        const j1 = Math.min(this.nz, tj + T), i1 = Math.min(this.nx, ti + T);
+        const idx = new Uint32Array((j1 - tj) * (i1 - ti) * 6);
+        let q = 0, ymin = Infinity, ymax = -Infinity;
+        for (let j = tj; j < j1; j++) {
+          for (let i = ti; i < i1; i++) {
+            const a = j * cols + i, b = a + 1, d = a + cols, e = d + 1;
+            idx[q++] = a; idx[q++] = d; idx[q++] = b; idx[q++] = b; idx[q++] = d; idx[q++] = e;
+            const y = pos[a * 3 + 1]; if (y < ymin) ymin = y; if (y > ymax) ymax = y;
+          }
+        }
+        const tile = new THREE.BufferGeometry();
+        for (const name of Object.keys(geo.attributes)) tile.setAttribute(name, geo.attributes[name]);
+        tile.setIndex(new THREE.BufferAttribute(idx, 1));
+        const x0 = pos[(tj * cols + ti) * 3], z0 = pos[(tj * cols + ti) * 3 + 2];
+        const x1 = pos[(j1 * cols + i1) * 3], z1 = pos[(j1 * cols + i1) * 3 + 2];
+        tile.boundingBox = new THREE.Box3(new THREE.Vector3(Math.min(x0, x1), ymin - 1, Math.min(z0, z1)), new THREE.Vector3(Math.max(x0, x1), ymax + 1, Math.max(z0, z1)));
+        tile.boundingSphere = tile.boundingBox.getBoundingSphere(new THREE.Sphere());
+        const m = new THREE.Mesh(tile, material);
+        m.receiveShadow = true;
+        m.matrixAutoUpdate = false;
+        m.name = 'terrain-tile';
+        group.add(m);
+      }
+    }
+    this.material = material;
+    group.material = material; // compatibilidade: quem lia terrain.mesh.material
+    this.mesh = group;
     return this.mesh;
   }
 

@@ -64,17 +64,19 @@ export class BoatController {
    */
   waterAt(x, z) {
     const q = this.game.water.query;
-    if (!q || !q.valid) return { h: WORLD.waterLevel, vy: 0 };
+    const r = this._wq ??= { h: 0, vy: 0 }; // reutilizado: chamado ~2600×/s pela física
+    if (!q || !q.valid) { r.h = WORLD.waterLevel; r.vy = 0; return r; }
     let best = -1, bd = Infinity;
     for (let i = 0; i < this.points.length; i++) {
       const p = this.points[i];
       const d = (p.x - x) ** 2 + (p.z - z) ** 2;
       if (d < bd) { bd = d; best = i; }
     }
-    if (best < 0) return { h: WORLD.waterLevel, vy: 0 };
+    if (best < 0) { r.h = WORLD.waterLevel; r.vy = 0; return r; }
     const slot = best < this.slots.length ? this.slots[best] : this.propSlot;
     const t = this.game.water.ocean.time;
-    return { h: q.height(slot, t), vy: Math.max(-4, Math.min(4, q.rates[slot])) };
+    r.h = q.height(slot, t); r.vy = Math.max(-4, Math.min(4, q.rates[slot]));
+    return r;
   }
 
   /** Pede a altura da água nos pontos onde o casco estará quando a resposta chegar. */
@@ -149,7 +151,7 @@ export class BoatController {
     if (this.wake && this.idleT > 30) {
       u.uWakeOn.value = 0;
       this.wake.started = false; // acorda com a janela zerada
-      this.spray.update(dt, this.physics, (x, z) => this.waterAt(x, z).h);
+      this.spray.update(dt, this.physics, this._sprayWater ??= (x, z) => this.waterAt(x, z).h);
       return;
     }
     if (this.wake) {
@@ -161,7 +163,7 @@ export class BoatController {
       u.uWakeRect.value.set(this.wake.origin.x * c, this.wake.origin.y * c, this.wake.size, this.wake.size);
       u.uWakeOn.value = 1;
     }
-    this.spray.update(dt, this.physics, (x, z) => this.waterAt(x, z).h);
+    this.spray.update(dt, this.physics, this._sprayWater ??= (x, z) => this.waterAt(x, z).h);
   }
 
   /** Copia a pose interpolada para o modelo. */

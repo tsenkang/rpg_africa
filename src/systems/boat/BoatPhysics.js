@@ -66,6 +66,28 @@ export class BoatPhysics {
     this.sway = 0;
     this.thrust = 0;
     this._t = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), F: new THREE.Vector3(), T: new THREE.Vector3(), qi: new THREE.Quaternion() };
+    // rascunhos reutilizados: o passo roda a 120 Hz e não aloca nada (sem engasgos do coletor de lixo)
+    this._P = new THREE.Vector3(); this._VP = new THREE.Vector3(); this._f = new THREE.Vector3(); this._arm = new THREE.Vector3();
+    this._wb = new THREE.Vector3(); this._Tb = new THREE.Vector3(); this._pos = new THREE.Vector3(); this._dq = new THREE.Quaternion();
+    this._euler = new THREE.Euler(); this._ang = { yaw: 0, pitch: 0, roll: 0 };
+    this._keelPts = cfg.keel.stations.map(([zs]) => new THREE.Vector3(0, cfg.keel.forceY, zs));
+    this._ePos = new THREE.Vector3(...cfg.engine.position);
+    this._rPos = new THREE.Vector3(...cfg.rudder.position);
+    this._rApp = new THREE.Vector3(cfg.rudder.position[0], 0.1, cfg.rudder.position[2]);
+  }
+
+  /** Soma força (mundo) e o torque dela em relação ao centro de massa (ponto local). */
+  _addForce = (f, local) => {
+    this._t.F.add(f);
+    if (local) this._t.T.add(this._arm.copy(local).sub(this.comLocal).applyQuaternion(this.q).cross(f));
+  };
+
+  /** Força no referencial do barco → mundo (em `_f`, reutilizado). */
+  _bodyForce = (x, y, z) => this._f.set(x, y, z).applyQuaternion(this.q);
+
+  /** Origem do barco no mundo, sem alocar (escreve em `out`). */
+  positionInto(out) {
+    return out.copy(this.comLocal).applyQuaternion(this.q).negate().add(this.com);
   }
 
   /** Origem do barco (linha d'água de projeto, meio do casco) no mundo. */
@@ -86,8 +108,10 @@ export class BoatPhysics {
 
   /** Ângulos (rad): pitch (proa para cima +), roll (bombordo para baixo +), yaw. */
   angles() {
-    const e = new THREE.Euler().setFromQuaternion(this.q, 'YXZ');
-    return { yaw: e.y, pitch: -e.x, roll: e.z };
+    // objeto reutilizado: leia os campos na hora (não guarde a referência)
+    const e = this._euler.setFromQuaternion(this.q, 'YXZ'), a = this._ang;
+    a.yaw = e.y; a.pitch = -e.x; a.roll = e.z;
+    return a;
   }
 
   /**
@@ -100,13 +124,13 @@ export class BoatPhysics {
     const h = this.cfg.step;
     this.acc = Math.min(this.acc + dt, h * this.cfg.maxSubsteps);
     while (this.acc >= h) {
-      this.prevPos.copy(this.position);
+      this.positionInto(this.prevPos);
       this.prevQ.copy(this.q);
       this.step(h, input, env);
       this.acc -= h;
     }
     const a = this.acc / h;
-    this.renderPosition.copy(this.prevPos).lerp(this.position, a);
+    this.renderPosition.copy(this.prevPos).lerp(this.positionInto(this._pos), a);
     this.renderQuaternion.copy(this.prevQ).slerp(this.q, a);
   }
 
@@ -115,14 +139,11 @@ export class BoatPhysics {
     const cfg = this.cfg, t = this._t, rho = cfg.rho, g = cfg.gravity;
     const F = t.F.set(0, -cfg.mass * g, 0), T = t.T.set(0, 0, 0);
     const qi = t.qi.copy(this.q).invert();
-    const addForce = (f, local) => {
-      F.add(f);
-      if (local) T.add(t.b.copy(local).sub(this.comLocal).applyQuaternion(this.q).cross(f));
-    };
+    const addForce = this._addForce, bodyForce = this._bodyForce; // métodos fixos (nada de função nova por passo)
     // ---- hidrostática + amortecimento vertical por ponto
     let wetVol = 0;
     this.grounded = false;
-    const P = new THREE.Vector3(), VP = new THREE.Vector3(), f = new THREE.Vector3();
+    const P = this._P, VP = this._VP, f = this._f;
     for (const s of this.samples) {
       this.toWorld(s.local, P);
       const wq = env.water(P.x, P.z);
@@ -150,7 +171,7 @@ export class BoatPhysics {
 
     // velocidades no referencial do barco
     const vb = t.a.copy(this.v).applyQuaternion(qi);
-    const wb = t.c.copy(this.w).applyQuaternion(qi).clone();
+    const wb = this._wb.copy(this.w).applyQuaternion(qi);
     const u = vb.z;
     this.speed = u;
     this.sway = vb.x;
@@ -159,31 +180,32 @@ export class BoatPhysics {
     const R = cfg.resistance, au = Math.abs(u);
     const hump = 1 + R.hump * Math.exp(-(((au - 1.15 * R.hullSpeed) / (0.45 * R.hullSpeed)) ** 2));
     const drag = -Math.sign(u) * (R.k * u * u * hump * wet + R.air * u * u);
-    addForce(t.b.set(0, 0, drag).applyQuaternion(this.q).clone(), this.comLocal);
+    addForce(bodyForce(0, 0, drag), this.comLocal);
     // deriva lateral e vertical (casco largo) — arrasto simples no centro
     // ---- quilha: arrasto cruzado + sustentação do casco por estação
     const K = cfg.keel;
-    for (const [zs, A] of K.stations) {
+    for (let ki = 0; ki < K.stations.length; ki++) {
+      const zs = K.stations[ki][0], A = K.stations[ki][1];
       const vlat = vb.x + wb.y * (zs - this.comLocal.z) - wb.z * (K.depth - this.comLocal.y);
       const fx = -(0.5 * rho * K.cd * A * Math.abs(vlat) * vlat + 0.5 * rho * K.lift * A * au * vlat) * wet;
       // a deriva também inclina o casco para dentro da curva (pressão no fundo do lado de fora),
       // então a força age perto do centro de massa: sobra só uma banda leve para fora [Tidewater]
-      addForce(t.b.set(fx, 0, 0).applyQuaternion(this.q).clone(), new THREE.Vector3(0, K.forceY, zs));
+      addForce(bodyForce(fx, 0, 0), this._keelPts[ki]);
     }
     // ---- motor e hélice
     const E = cfg.engine, thr = Math.max(-1, Math.min(1, input.throttle ?? 0));
     const rate = Math.abs(thr) > Math.abs(this.rpm) ? 1 / E.spoolUp : 1 / E.spoolDown;
     this.rpm += Math.max(-rate * dt, Math.min(rate * dt, thr - this.rpm));
-    const ePos = new THREE.Vector3(...E.position);
+    const ePos = this._ePos;
     this.toWorld(ePos, P);
     const propWet = Math.min(1, Math.max(0, (env.water(P.x, P.z).h - P.y) * 4));
     const fall = this.rpm >= 0 ? Math.max(0, 1 - u / E.pitchSpeed) : Math.max(0, 1 + u / (E.pitchSpeed * 0.5));
     this.thrust = E.thrust * this.rpm * (this.rpm >= 0 ? 1 : E.reverse) * fall * propWet;
-    addForce(t.b.set(0, 0, this.thrust).applyQuaternion(this.q).clone(), ePos);
+    addForce(bodyForce(0, 0, this.thrust), ePos);
     // ---- leme na esteira da hélice
     const Rd = cfg.rudder, target = Math.max(-1, Math.min(1, input.steer ?? 0)) * Rd.maxAngle;
     this.rudder += Math.max(-Rd.rate * dt, Math.min(Rd.rate * dt, target - this.rudder));
-    const rPos = new THREE.Vector3(...Rd.position);
+    const rPos = this._rPos;
     const vr = vb.x + wb.y * (rPos.z - this.comLocal.z);
     // esteira da hélice (disco atuador, ~0,24 m²); só parte dela bate no leme
     const race2 = u * Math.abs(u) + Rd.race * (2 * Math.abs(this.thrust)) / (rho * 0.24) * Math.sign(u + 1e-3);
@@ -194,12 +216,12 @@ export class BoatPhysics {
     const cl = Rd.liftSlope * Math.max(-Rd.stall, Math.min(Rd.stall, alpha)) * (Math.abs(alpha) > Rd.stall ? 0.7 : 1);
     // + leme → força para estibordo (−X) na popa → proa para bombordo (guinada +)
     const fr = -0.5 * rho * Rd.area * ur2 * cl * Math.sign(u + 1e-3) * propWet;
-    addForce(t.b.set(fr, 0, 0).applyQuaternion(this.q).clone(), new THREE.Vector3(rPos.x, 0.1, rPos.z));
+    addForce(bodyForce(fr, 0, 0), this._rApp);
     // arrasto do leme na curva
-    addForce(t.b.set(0, 0, -Rd.drag * Math.abs(fr) * Math.abs(Math.sin(this.rudder)) * Math.sign(u)).applyQuaternion(this.q).clone(), this.comLocal);
+    addForce(bodyForce(0, 0, -Rd.drag * Math.abs(fr) * Math.abs(Math.sin(this.rudder)) * Math.sign(u)), this.comLocal);
 
     // ---- torques no referencial do barco: trim dinâmico e amortecimento angular
-    const Tb = t.b.copy(T).applyQuaternion(qi).clone();
+    const Tb = this._Tb.copy(T).applyQuaternion(qi);
     const trimMom = cfg.trim.k * u * Math.abs(u) * hump * wet;
     const pitchNow = this.angles().pitch;
     if (pitchNow < cfg.trim.max) Tb.x -= trimMom; // −X ergue a proa (+Z)
@@ -220,7 +242,7 @@ export class BoatPhysics {
     wb.y += (Tb.y / (I.y * mi * (1 + Am.yaw * wet))) * dt;
     wb.z += (Tb.z / (I.z * mi * (1 + Am.roll * wet))) * dt;
     this.w.copy(wb).applyQuaternion(this.q);
-    const wq = new THREE.Quaternion(this.w.x * 0.5 * dt, this.w.y * 0.5 * dt, this.w.z * 0.5 * dt, 0).multiply(this.q);
+    const wq = this._dq.set(this.w.x * 0.5 * dt, this.w.y * 0.5 * dt, this.w.z * 0.5 * dt, 0).multiply(this.q);
     this.q.set(this.q.x + wq.x, this.q.y + wq.y, this.q.z + wq.z, this.q.w + wq.w).normalize();
     // rede de segurança: nunca deixa a simulação explodir
     if (!Number.isFinite(this.com.x) || this.v.length() > 60) { this.v.set(0, 0, 0); this.w.set(0, 0, 0); this.com.copy(this.prevPos).add(this.comLocal); }

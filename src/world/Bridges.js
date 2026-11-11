@@ -74,7 +74,6 @@ export class Bridges {
   build(materials, collisions) {
     const group = new THREE.Group();
     group.name = 'bridges';
-    const batch = new StaticBatcher();
     const plank = new THREE.BoxGeometry(DECK_WIDTH, 0.12, 0.28);
     const beam = new THREE.BoxGeometry(0.25, 0.3, 1);
     const post = new THREE.BoxGeometry(0.16, 1.15, 0.16);
@@ -82,6 +81,9 @@ export class Bridges {
     const pile = new THREE.CylinderGeometry(0.22, 0.26, 1, 8);
 
     for (const b of this.list) {
+      // um agrupamento por ponte: antes eram todas fundidas (malhas do tamanho do mapa,
+      // nunca recortadas pela câmera nem pela sombra)
+      const batch = new StaticBatcher();
       const rot = Math.atan2(b.bx - b.ax, b.bz - b.az);
       const sideX = Math.cos(rot), sideZ = -Math.sin(rot);
       const steps = Math.ceil(b.length / 0.32);
@@ -134,8 +136,8 @@ export class Bridges {
           0.3, 'bridge-rail',
         );
       }
+      batch.build(group);
     }
-    batch.build(group);
     this.group = group;
     return group;
   }

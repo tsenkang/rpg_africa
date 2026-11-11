@@ -257,7 +257,7 @@ export class Game {
     this.scene.add(this.terrain.buildMesh(this.materials.textures, paints, this.photos));
 
     this.water = new Water({ renderer: this.renderer, terrain: this.terrain });
-    this.water.installUnderwater(this.terrain.mesh.material); // cáusticas e luz debaixo d'água no fundo
+    this.water.installUnderwater(this.terrain.material); // cáusticas e luz debaixo d'água no fundo
     if (this.water.fft) this.scene.add(this.water.buildOceanFloor(this.terrain)); // fundo além da borda do mapa
     this.scene.add(this.water.mesh);
     this.environment = new Environment(this.scene, this.renderer);
@@ -1858,7 +1858,8 @@ export class Game {
     if (this.areaId === 'overworld') this.interiors.update(dt, pos);
     if (this.areaId === 'overworld') {
       this.physics.update(dt, pos); // transmite + simula (passo fixo 1/60)
-      this.propMeshes.sync(this.physics.props); // corpo → InstancedMesh
+      // corpo → InstancedMesh, só os visíveis ou que fazem sombra (recorte por instância)
+      this.propMeshes.cull(this.physics.props, this.camera, this.environment.sun.target.position, this.environment.shadowRange ?? 80);
     }
     for (const d of this.dummies) d.update(dt);
     this.fauna.update(dt, this.player.position, { active: this.areaId === 'overworld', playerAlive: !this.dead });
