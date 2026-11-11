@@ -18,6 +18,9 @@ export class CollisionWorld {
     c.enabled = true;
     c.cells = [];
     this.all.push(c);
+    // Folga de 1 m na grade: um corpo com centro na célula vizinha ainda
+    // encosta neste colisor (antes, perto da borda da célula, ele sumia).
+    minX -= 1; minZ -= 1; maxX += 1; maxZ += 1;
     const i0 = Math.floor(minX / this.cell), i1 = Math.floor(maxX / this.cell);
     const j0 = Math.floor(minZ / this.cell), j1 = Math.floor(maxZ / this.cell);
     for (let i = i0; i <= i1; i++) {
@@ -94,6 +97,29 @@ export class CollisionWorld {
       }
     }
     return false;
+  }
+
+  /**
+   * Anda (dx, dz) colidindo em sub-passos de no máximo `fraction × radius`:
+   * correndo ou em viagem rápida o corpo não "pula" um poste ou cerca fina
+   * num único quadro (tunneling).
+   * @param {{x:number, y:number, z:number}} pos pés (alterado no lugar)
+   * @param {number} dx deslocamento do quadro em X
+   * @param {number} dz deslocamento do quadro em Z
+   * @param {number} radius raio do corpo
+   * @param {{fraction:number, maxSteps:number}} cfg MOVE_SUBSTEP
+   * @returns {number} sub-passos usados
+   */
+  move(pos, dx, dz, radius, cfg) {
+    const dist = Math.hypot(dx, dz);
+    const steps = Math.min(cfg.maxSteps, Math.max(1, Math.ceil(dist / (radius * cfg.fraction))));
+    const sx = dx / steps, sz = dz / steps;
+    for (let i = 0; i < steps; i++) {
+      pos.x += sx;
+      pos.z += sz;
+      this.resolve(pos, radius);
+    }
+    return steps;
   }
 
   /** Empurra `pos` (Vector3) para fora de qualquer colisor. */

@@ -9,6 +9,8 @@ import { PHYSICS, PROP_TYPES } from '../config/physics.js';
  * - Estáticos: cada colisor do CollisionWorld (paredes de casas, muros,
  *   cercas, rochas, poços, troncos…) e cada superfície andável (plataformas,
  *   pontes, palafitas) vira um corpo estático enquanto estiver no raio.
+ *   Os colisores gerados por `applyWorldPhysics` (WorldColliders.js) entram
+ *   num raio menor (`PHYSICS.staticRadius`): são milhares de peças pequenas.
  * - Dinâmicos: barris, caixotes, tábuas, toras, sacos, lanternas, galhos
  *   (`props`) com massa, gravidade e atrito; dormem quando param.
  * - Jogador: corpo CINEMÁTICO que segue o controle do personagem e empurra
@@ -26,6 +28,9 @@ import { PHYSICS, PROP_TYPES } from '../config/physics.js';
  * propMeshes.sync(physics.props);         // copia posição/rotação para os InstancedMesh
  */
 export class PhysicsWorld {
+  /** Longe do mapa: onde ficam os props do estoque (peças de carcaça) fora de uso. */
+  static POOL = { x: 100000, y: -1000, z: 100000 };
+
   /**
    * @param {object} o
    * @param {(x:number, z:number) => number} o.groundAt altura do terreno
@@ -112,7 +117,13 @@ export class PhysicsWorld {
 
     // Estáticos: entra o que está no raio, sai o que ficou longe.
     const want = new Set();
-    for (const c of this.collisions.all) if (c.enabled !== false && near(c.x, c.z, c.r ?? Math.hypot(c.hw, c.hd))) want.add(c);
+    // Colisores automáticos (WorldColliders) são muitos e pequenos: só no raio menor `staticRadius`.
+    const S = PHYSICS.staticRadius;
+    const nearAuto = (c) => (c.x - pos.x) ** 2 + (c.z - pos.z) ** 2 < (S + (c.r ?? Math.hypot(c.hw, c.hd))) ** 2;
+    for (const c of this.collisions.all) {
+      if (c.enabled === false) continue;
+      if (c.auto ? nearAuto(c) : near(c.x, c.z, c.r ?? Math.hypot(c.hw, c.hd))) want.add(c);
+    }
     if (this.surfaces) {
       for (const s of this.surfaces.all) {
         const cx = s.type === 'segment' ? (s.ax + s.bx) / 2 : s.x, cz = s.type === 'segment' ? (s.az + s.bz) / 2 : s.z;
@@ -185,6 +196,30 @@ export class PhysicsWorld {
     }
     this.world.addBody(body);
     return body;
+  }
+
+  /**
+   * Solta um objeto do estoque em (x, y, z) com um empurrão: nasce ativo e acordado.
+   * @param {object} p registro de addProp
+   * @param {{x:number, y:number, z:number}} at
+   * @param {{x:number, y:number, z:number}} [vel]
+   */
+  placeProp(p, { x, y, z }, vel = null) {
+    p.pos.x = x; p.pos.y = y; p.pos.z = z;
+    const b = p.body ?? this.makeBody(p);
+    b.position.set(x, y, z);
+    b.velocity.set(vel?.x ?? 0, vel?.y ?? 0, vel?.z ?? 0);
+    b.angularVelocity.set(0, 0, 0);
+    if (!p.active) { this.world.addBody(b); p.active = true; }
+    b.wakeUp();
+    p.moved = true;
+  }
+
+  /** Guarda de volta no estoque (pegou do chão): sai do mundo e vai para longe. */
+  storeProp(p) {
+    if (p.active) { this.world.removeBody(p.body); p.active = false; }
+    p.pos.x = PhysicsWorld.POOL.x; p.pos.y = PhysicsWorld.POOL.y; p.pos.z = PhysicsWorld.POOL.z;
+    p.moved = true;
   }
 
   // ------------------------------------------------------------ agentes (animais)

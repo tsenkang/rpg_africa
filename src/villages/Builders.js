@@ -301,7 +301,8 @@ export function house(ctx, { x, z, rot = 0, w = 7, d = 5.5, h = 3, wall, roof = 
     // Vigas de madeira aparentes (torons), típicas da arquitetura do Sahel.
     for (let i = -w / 2 + 0.6; i < w / 2; i += 1.2) {
       P(G.cyl6, M.woodDark, { lx: i, lz: d / 2 + 0.25, ly: base + h - 0.15, w: 0.07, h: 0.6, d: 0.07, rx: Math.PI / 2 });
-      P(G.cyl6, M.woodDark, { lx: i + 0.6, lz: d / 2 + 0.25, ly: base + h * 0.45, w: 0.07, h: 0.6, d: 0.07, rx: Math.PI / 2 });
+      // A fileira de baixo fica na altura da cabeça: nada de viga saindo na frente da porta.
+      if (Math.abs(i + 0.6) > doorW / 2 + 0.2) P(G.cyl6, M.woodDark, { lx: i + 0.6, lz: d / 2 + 0.25, ly: base + h * 0.45, w: 0.07, h: 0.6, d: 0.07, rx: Math.PI / 2 });
     }
   }
 
@@ -317,17 +318,33 @@ export function house(ctx, { x, z, rot = 0, w = 7, d = 5.5, h = 3, wall, roof = 
     P(G.box, M.stone, { lz: d / 2 + pd / 2, ly: 0.12, w: 3.4, h: 0.24, d: pd + 0.2 });
   }
 
-  // Potes de barro junto à porta e pilha de lenha na lateral.
+  // Potes de barro junto à porta e pilha de lenha na lateral. Nas vilas
+  // (ctx.props) são objetos DINÂMICOS: tombam, rolam e voam com o soco.
+  const prop = (type, lx, lz, o = {}) => ctx.props.push({ type, ...local(x, z, rot, lx, lz), ...o });
   if (r() < 0.7) {
     const side = r() < 0.5 ? -1 : 1;
-    P(G.sphere, M.pottery, { lx: side * 1.1, lz: d / 2 + 0.45, ly: 0.33, w: 0.28, h: 0.33, d: 0.28 });
-    P(G.cyl, M.pottery, { lx: side * 1.1, lz: d / 2 + 0.45, ly: 0.68, w: 0.1, h: 0.12, d: 0.1 });
-    if (r() < 0.6) P(G.sphere, M.pottery, { lx: side * 1.55, lz: d / 2 + 0.4, ly: 0.26, w: 0.2, h: 0.24, d: 0.2 });
+    const second = r() < 0.6;
+    if (ctx.props) {
+      prop('pot', side * 1.1, d / 2 + 0.45, { rot });
+      if (second) prop('pot', side * 1.55, d / 2 + 0.4, { rot, scale: 0.72 });
+    } else {
+      P(G.sphere, M.pottery, { lx: side * 1.1, lz: d / 2 + 0.45, ly: 0.33, w: 0.28, h: 0.33, d: 0.28 });
+      P(G.cyl, M.pottery, { lx: side * 1.1, lz: d / 2 + 0.45, ly: 0.68, w: 0.1, h: 0.12, d: 0.1 });
+      if (second) P(G.sphere, M.pottery, { lx: side * 1.55, lz: d / 2 + 0.4, ly: 0.26, w: 0.2, h: 0.24, d: 0.2 });
+    }
   }
   if (r() < 0.4) {
     const side = r() < 0.5 ? -1 : 1;
     for (let i = 0; i < 6; i++) {
-      P(G.cyl6, M.log, { lx: side * (w / 2 + 0.3 + (i % 3) * 0.23), lz: -d / 2 + 1.1, ly: 0.36 + Math.floor(i / 3) * 0.2, w: 0.11, h: 1.4, d: 0.11, rx: Math.PI / 2 });
+      const lx = side * (w / 2 + 0.3 + (i % 3) * 0.23), lz = -d / 2 + 1.1;
+      if (ctx.props) prop('log', lx, lz, { rot, scale: 0.8, lift: Math.floor(i / 3) * 0.24 });
+      else P(G.cyl6, M.log, { lx, lz, ly: 0.36 + Math.floor(i / 3) * 0.2, w: 0.11, h: 1.4, d: 0.11, rx: Math.PI / 2 });
+    }
+    // Ferramenta largada e pedras soltas perto da lenha (rng próprio: não muda o resto da vila).
+    if (ctx.props) {
+      const rr = mulberry32(siteSeed(x, z) + 7);
+      if (rr() < 0.5) prop('tool', side * (w / 2 + 1.1), -d / 2 + 2.2, { rot: rot + rr() * 3 });
+      for (let k = 0, n = Math.floor(rr() * 3); k < n; k++) prop('stone', side * (w / 2 + 0.8 + rr()), -d / 2 + 0.2 - rr(), { rot: rr() * 3, scale: 0.7 + rr() * 0.6 });
     }
   }
 

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Humanoid } from './Humanoid.js';
 import { PLAYER, WORLD } from '../config/worldConfig.js';
-import { CLIMB } from '../config/physics.js';
+import { CLIMB, MOVE_SUBSTEP } from '../config/physics.js';
 import { wantsSprint, resolveMoveSpeed } from './Locomotion.js';
 import { GAMEPLAY } from '../config/gameplay.js';
 import { swimVerticalSpeed } from './Swimming.js';
@@ -21,6 +21,8 @@ export class Player {
     /** Escadas de mão (Ladders): W anda contra ela → sobe. */
     this.ladders = ladders;
     this.climbing = null;
+    /** Opcional: `{ canSprint(): boolean }` (Survival) — sem stamina, não corre. */
+    this.stamina = null;
     this.collisions = collisions;
     this.state = state;
     this.isUnderground = isUnderground;
@@ -43,6 +45,8 @@ export class Player {
     this._move = new THREE.Vector3();
     this._fwd = new THREE.Vector3();
     this._right = new THREE.Vector3();
+    /** Chão sob um ponto, na altura atual dos pés (IK dos pés / inclinação na rampa). */
+    this._ground = (x, z) => this.groundAt(x, z, this.position.y + 0.3);
   }
 
   teleport(x, z, facing = 0, y) {
@@ -91,7 +95,8 @@ export class Player {
     this.submerged = false;
 
     const moving = move.lengthSq() > 0;
-    this.sprinting = wantsSprint(input, moving, { swimming: this.swimming });
+    // Stamina (Survival): zerada, não corre até recuperar.
+    this.sprinting = wantsSprint(input, moving, { swimming: this.swimming }) && (this.stamina?.canSprint() ?? true);
     const speed = resolveMoveSpeed(PLAYER, {
       sprinting: this.sprinting,
       swimming: this.swimming,
@@ -104,9 +109,8 @@ export class Player {
       this.facing.lerp(move, 1 - Math.exp(-12 * dt)).normalize();
       this.root.rotation.y = Math.atan2(this.facing.x, this.facing.z);
     }
-    this.position.x += move.x * speed * dt;
-    this.position.z += move.z * speed * dt;
-    this.collisions.resolve(this.position, PLAYER.radius);
+    // Sub-passos: correndo ou em viagem rápida não atravessa poste/cerca fina.
+    this.collisions.move(this.position, move.x * speed * dt, move.z * speed * dt, PLAYER.radius, MOVE_SUBSTEP);
 
     // Vertical
     const g = this.groundAt(this.position.x, this.position.z, this.position.y);
@@ -134,7 +138,7 @@ export class Player {
     }
 
     this.speed = moving ? speed : 0;
-    this.model.update(dt, Math.min(this.speed, PLAYER.runSpeed), { swimming: this.swimming, sprinting: this.sprinting, grounded: this.grounded });
+    this.model.update(dt, Math.min(this.speed, PLAYER.runSpeed), { swimming: this.swimming, sprinting: this.sprinting, grounded: this.grounded, ground: this._ground });
   }
 
   /**
@@ -184,9 +188,8 @@ export class Player {
       pitch: camera.isFirstPerson ? camera.firstPitch : 0,
       speed,
     });
-    this.position.x += move.x * speed * dt;
-    this.position.z += move.z * speed * dt;
-    this.collisions.resolve(this.position, PLAYER.radius);
+    // Sub-passos: correndo ou em viagem rápida não atravessa poste/cerca fina.
+    this.collisions.move(this.position, move.x * speed * dt, move.z * speed * dt, PLAYER.radius, MOVE_SUBSTEP);
     const floor = this.groundAt(this.position.x, this.position.z, this.position.y);
     this.position.y = Math.min(surfaceY, Math.max(floor, this.position.y + vy * dt));
     this.velocity.set(0, 0, 0);
@@ -260,6 +263,6 @@ export class Player {
     this.grounded = false;
     this.speed = 0;
     this.sprinting = false;
-    this.model.update(dt, 0, { swimming: true }); // pose "deitada" de nado = voo
+    this.model.update(dt, 0, { flying: true }); // corpo esticado, braços à frente
   }
 }

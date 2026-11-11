@@ -69,6 +69,12 @@ export function createMaterials(timeUniform = { value: 0 }) {
 
     // Detalhes
     iron: mat({ color: 0x2b2b2e, roughness: 0.45, metalness: 0.8 }, 1),
+    // Peças de carcaça (esfolamento).
+    meat: mat({ color: 0x9a2424, roughness: 0.55 }, 1),
+    hide: mat({ color: 0x6e4a2a, roughness: 0.95 }, 1),
+    bone: mat({ color: 0xe6dcc6, roughness: 0.7 }, 1),
+    gut: mat({ color: 0xb86a7a, roughness: 0.4 }, 1),
+    feather: mat({ color: 0xd8d0c2, roughness: 0.9 }, 1),
     brass: mat({ color: 0xb08a3c, roughness: 0.35, metalness: 0.9 }, 1),
     darkOpening: mat({ color: 0x14100c, roughness: 1 }, 1),
     glass: mat({ color: 0x23313a, roughness: 0.15, metalness: 0.2 }, 1),

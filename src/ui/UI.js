@@ -49,9 +49,9 @@ export class UI {
     this.prompt = el('div', 'prompt hidden', this.root);
     this.toasts = el('div', 'toasts', this.root);
     this.help = el('div', 'help', this.root,
-      '<b>WASD</b> mover · <b>Shift</b> correr · <b>Espaço</b> pular · <b>ALT</b> trava câmera · <b>C</b> 1ª/3ª pessoa · <b>Roda</b> zoom · '
+      '<b>WASD</b> mover · <b>Shift</b> correr · <b>Espaço</b> pular · <b>ALT</b> trava câmera · <b>T</b> 1ª/3ª pessoa · <b>C</b> corpo · <b>Roda</b> zoom · '
       + '<b>E</b> interagir · <b>H</b> poção · <b>M</b> mapa · <b>F</b> viagem rápida · <b>V</b> voar · '
-      + '<b>1–8</b> slot · <b>Clique</b> bater · <b>G</b> gráficos');
+      + '<b>1–8</b> slot · <b>Clique</b> bater/arremessar · <b>I</b> mochila · <b>N</b> caderneta · <b>G</b> gráficos');
     this.speedTag = el('div', 'speed-tag hidden', this.root, 'VIAGEM RÁPIDA');
     this.sickOverlay = el('div', 'sick-overlay', this.root);
     // Água: tinta azul debaixo d'água + barra de fôlego (só aparece na água).
@@ -164,7 +164,11 @@ export class UI {
     q('.coins').textContent = s.coins;
     q('.relic').textContent = `${Math.round(s.relicPower * 100)}%`;
     q('.trust').textContent = `${s.trust.bussola}/100`;
-    q('.inventory').innerHTML = [...s.inventory].map(([id, n]) => `<span class="item" title="${ITEMS[id]?.description ?? ''}">${ITEMS[id]?.name ?? id} ×${n}</span>`).join('');
+    // Aqui só os itens de missão; o resto vive na mochila (I).
+    const key = [...s.inventory].filter(([id]) => (ITEMS[id]?.kind ?? 'key') === 'key');
+    const rest = [...s.inventory].reduce((n, [id, c]) => n + ((ITEMS[id]?.kind ?? 'key') === 'key' ? 0 : c), 0);
+    q('.inventory').innerHTML = key.map(([id, n]) => `<span class="item" title="${ITEMS[id]?.description ?? ''}">${ITEMS[id]?.name ?? id} ×${n}</span>`).join('')
+      + (rest ? `<span class="item dim">🎒 Mochila: ${rest} itens · <b>I</b></span>` : '');
     this.refreshEffects();
   }
 
@@ -201,8 +205,8 @@ export class UI {
   setCameraStatus({ locked, firstPerson }) {
     const view = firstPerson ? '1ª pessoa' : '3ª pessoa';
     this.lockHint.innerHTML = locked
-      ? `<b>Câmera travada</b> · ALT ou Esc solta · ${view} · <b>C</b> alterna`
-      : `Pressione <b>ALT</b> para travar/destravar a câmera · ${view} · <b>C</b> alterna`;
+      ? `<b>Câmera travada</b> · ALT ou Esc solta · ${view} · <b>T</b> alterna`
+      : `Pressione <b>ALT</b> para travar/destravar a câmera · ${view} · <b>T</b> alterna`;
     this.lockHint.classList.toggle('locked', locked);
     this.crosshair.classList.toggle('hidden', !firstPerson);
   }

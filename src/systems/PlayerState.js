@@ -1,9 +1,11 @@
 import { GAMEPLAY, STATUS_EFFECTS } from '../config/gameplay.js';
+import { ITEM_CATALOG } from '../config/items.js';
 
-/** Itens do inventário. */
+/** Itens do inventário: os de missão + o catálogo de sobrevivência (mochila). */
 export const ITEMS = {
-  pocao_cura_total: { name: 'Poção de Cura Total', description: 'Restaura toda a vida. Não cura doenças.' },
-  carta_recomendacao: { name: 'Carta de Recomendação', description: 'Escrita pelo Senhor da Vila Renascimento. O prefeito da Bússola do Sul confia nele.' },
+  pocao_cura_total: { name: 'Poção de Cura Total', icon: '🧪', kind: 'key', description: 'Restaura toda a vida. Não cura doenças.' },
+  carta_recomendacao: { name: 'Carta de Recomendação', icon: '✉️', kind: 'key', description: 'Escrita pelo Senhor da Vila Renascimento. O prefeito da Bússola do Sul confia nele.' },
+  ...ITEM_CATALOG,
 };
 
 /**
@@ -61,7 +63,7 @@ export class PlayerState {
 
   addItem(id, n = 1) {
     this.inventory.set(id, (this.inventory.get(id) ?? 0) + n);
-    this.emit('change');
+    this.emit('item-added', { id, n }); // (também dispara 'change')
   }
 
   hasItem(id) {

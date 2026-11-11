@@ -100,7 +100,7 @@ export const FAUNA = {
   wanderTime: [3, 7], // s passeando
   wanderRadius: 14, // m em volta do ponto onde nasceu
   fleeTime: 6, // s fugindo antes de se acalmar
-  corpseSeconds: 8,
+  corpseSeconds: 120, // tempo para chegar e esfolar
   burrowSeconds: 1.2, // s afundando no chão
 };
 

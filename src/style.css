@@ -315,3 +315,185 @@ kbd {
 
 /* Clarão do relâmpago. */
 .ov-flash { background: rgb(232, 240, 255); mix-blend-mode: screen; }
+
+/* ===== Sobrevivência: relógio biométrico de pulso ===== */
+.bio-watch {
+  position: absolute; right: 14px; bottom: 40px; display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px 10px 8px; border-radius: 70px 14px 14px 70px;
+  background: var(--panel); border: 1px solid var(--edge); backdrop-filter: blur(6px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35); font-size: 12px;
+}
+.bio-watch.alarm { border-color: rgba(200, 67, 47, 0.75); box-shadow: 0 0 18px rgba(200, 67, 47, 0.35); }
+.bio-watch .dial { width: 124px; height: 124px; }
+.bio-watch circle { fill: none; stroke-width: 9; stroke-linecap: round; }
+.bio-watch circle.track { stroke: rgba(255, 255, 255, 0.1); }
+.bio-watch circle.arc { transition: stroke-dasharray 0.4s ease; }
+.bio-watch circle.arc.low { animation: arcBlink 1s steps(2) infinite; }
+@keyframes arcBlink { 50% { stroke: #ff3a2a; } }
+.bio-watch circle.face { fill: rgba(10, 8, 6, 0.85); stroke: rgba(232, 184, 90, 0.5); stroke-width: 2; }
+.bio-watch .macro-icon { font-size: 13px; text-anchor: middle; }
+.bio-watch .sanity-val { fill: var(--ink); font: 700 22px system-ui; text-anchor: middle; }
+.bio-watch .sanity-val.low { fill: #b07aff; }
+.bio-watch .sanity-label { fill: var(--ink-dim); font: 9px system-ui; text-anchor: middle; letter-spacing: 0.08em; }
+.bio-rows { width: 170px; display: grid; gap: 5px; }
+.bio-row { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 6px; color: var(--ink-dim); }
+.bio-row .meter { transition: width 0.4s; }
+.fill.stamina { background: linear-gradient(90deg, #3a8a4a, #8ad86a); }
+.fill.stamina.exhausted { background: #8a3a2a; }
+.fill.dirt { background: linear-gradient(90deg, #6a5232, #9a7a4a); }
+.fill.dirt.dirty { background: linear-gradient(90deg, #6a4a22, #c88a3a); }
+.bio-macros { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
+.bio-macros .low { color: #ff6a50; font-weight: 700; }
+.bio-conds { display: flex; flex-wrap: wrap; gap: 4px; min-height: 22px; }
+.bio-conds .cond { padding: 1px 5px; border-radius: 8px; background: rgba(200, 67, 47, 0.25); border: 1px solid rgba(200, 67, 47, 0.5); }
+.bio-conds .cond.bandaged { background: rgba(111, 207, 138, 0.18); border-color: rgba(111, 207, 138, 0.45); }
+.bio-conds .cond.fever { background: rgba(216, 178, 58, 0.25); border-color: rgba(216, 178, 58, 0.6); }
+
+/* Pop-ups de condição médica (lupa = inspecionar o corpo). */
+.med-alerts { position: absolute; right: 14px; bottom: 192px; display: grid; gap: 6px; width: 300px; }
+.med-alert {
+  display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center; padding: 7px 10px;
+  border-radius: 10px; background: rgba(40, 10, 8, 0.85); border: 1px solid rgba(200, 67, 47, 0.6);
+  animation: toastIn 0.3s ease; transition: opacity 0.6s, transform 0.6s;
+}
+.med-alert.out { opacity: 0; transform: translateX(12px); }
+.med-alert .med-icon { font-size: 24px; text-align: center; }
+.med-alert b { color: #ffb4a0; }
+.med-alert p { color: var(--ink-dim); font-size: 11.5px; margin-top: 1px; }
+.med-alert .lupa { font-size: 22px; display: grid; justify-items: center; animation: lupa 1.2s ease-in-out infinite; }
+.med-alert .lupa kbd { font-size: 10px; }
+@keyframes lupa { 50% { transform: scale(1.18); } }
+
+/* Alucinação (sanidade baixa), sussurros e desmaio. */
+.halluc {
+  position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 1.5s;
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(60, 20, 90, 0.55) 100%);
+  backdrop-filter: hue-rotate(40deg) saturate(1.4); animation: halluc 7s ease-in-out infinite;
+}
+@keyframes halluc { 50% { backdrop-filter: hue-rotate(-30deg) saturate(1.8) blur(1px); } }
+.whispers { position: absolute; inset: 0; pointer-events: none; }
+.whisper {
+  position: absolute; max-width: 320px; font: italic 17px Georgia, serif; color: #d8c0ff;
+  text-shadow: 0 0 12px #6a2aa8, 0 1px 3px #000; animation: whisper 4.2s ease forwards;
+}
+@keyframes whisper { 0% { opacity: 0; filter: blur(4px); } 20%, 70% { opacity: 0.9; filter: blur(0); } 100% { opacity: 0; transform: translateY(-14px); } }
+.faint {
+  position: absolute; inset: 0; display: grid; place-items: center; background: #000;
+  opacity: 0; pointer-events: none; transition: opacity 0.8s;
+}
+.faint.on { opacity: 1; }
+.faint span { font: italic 20px Georgia, serif; color: #8a7a6a; }
+
+@media (prefers-reduced-motion: reduce) {
+  .halluc, .med-alert .lupa, .bio-watch circle.arc.low { animation: none; }
+  .whisper { animation-duration: 0.01s; animation-fill-mode: none; opacity: 0.9; }
+}
+@media (max-width: 760px) {
+  .bio-watch { transform: scale(0.8); transform-origin: bottom right; }
+  .med-alerts { width: calc(100% - 28px); }
+}
+
+/* ===== Sobrevivência: inspeção corporal, mochila, caderneta ===== */
+.ui .inspect, .ui .backpack, .ui .notebook { pointer-events: auto; }
+.inspect { position: absolute; inset: 0; cursor: grab; z-index: 6; }
+.inspect:active { cursor: grabbing; }
+.inspect.over-wound { cursor: pointer; }
+.inspecting .village, .inspecting .help, .inspecting .lock-hint, .inspecting .med-alerts { display: none; }
+.inspect-top {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%); max-width: 820px; padding: 8px 16px; text-align: center;
+  border-radius: 10px; background: var(--panel); border: 1px solid var(--edge); font-size: 12.5px; color: var(--ink-dim);
+}
+.inspect-top b { color: var(--gold); }
+.inspect-limbs { position: absolute; left: 14px; top: 190px; display: grid; gap: 6px; width: 190px; }
+.inspect-limbs button, .inspect-popup button, .bp-actions button, .bp-craft-actions button, .nb-tabs button {
+  font: 13px system-ui; color: var(--ink); background: rgba(255, 255, 255, 0.08); border: 1px solid var(--edge); border-radius: 8px;
+  padding: 7px 10px; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 8px;
+}
+.inspect-limbs button:hover, .inspect-popup button:hover, .bp-actions button:hover, .nb-tabs button:hover { background: rgba(232, 184, 90, 0.2); }
+.inspect-limbs button.active, .nb-tabs button.active { border-color: var(--gold); background: rgba(232, 184, 90, 0.25); }
+.inspect-limbs button.hurt em { background: var(--hp); color: #fff; }
+.inspect-limbs em { margin-left: auto; font-style: normal; min-width: 20px; text-align: center; border-radius: 10px; padding: 1px 6px; background: rgba(255, 255, 255, 0.12); }
+.inspect-tip { position: absolute; padding: 6px 10px; border-radius: 8px; background: rgba(16, 12, 8, 0.92); border: 1px solid var(--edge); font-size: 12.5px; pointer-events: none; max-width: 260px; }
+.inspect-popup { position: absolute; width: 320px; padding: 10px 12px; border-radius: 10px; background: rgba(16, 12, 8, 0.94); border: 1px solid var(--edge); font-size: 13px; z-index: 2; }
+.inspect-popup .head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.inspect-popup .head .close { margin-left: auto; padding: 0 8px; }
+.inspect-popup p { color: var(--ink-dim); font-size: 12px; margin-bottom: 8px; }
+.inspect-popup .warn { color: #ffb070; font-size: 12px; margin-bottom: 8px; }
+.inspect-popup .opts { display: grid; gap: 5px; }
+.inspect-popup button[disabled] { opacity: 0.45; cursor: default; }
+
+/* Mochila */
+.backpack { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.5); z-index: 7; }
+.bp-card { width: min(900px, 94vw); max-height: 86vh; display: flex; flex-direction: column; padding: 14px 16px; border-radius: 12px; background: rgba(16, 12, 8, 0.94); border: 1px solid var(--edge); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); }
+.bp-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 10px; font: 600 18px Georgia, serif; color: var(--gold); }
+.bp-hint { font: 12px system-ui; color: var(--ink-dim); }
+.bp-body { display: grid; grid-template-columns: 1fr 300px; gap: 14px; min-height: 0; }
+.bp-items { overflow: auto; min-height: 220px; max-height: 62vh; padding-right: 4px; }
+.bp-group-title { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-dim); margin: 8px 0 4px; }
+.bp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; }
+.bp-chip { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.07); border: 1px solid var(--edge); font-size: 12px; cursor: grab; user-select: none; }
+.bp-chip:hover, .bp-chip:focus { background: rgba(232, 184, 90, 0.18); outline: none; }
+.bp-chip.sel { border-color: var(--gold); }
+.bp-chip .ic { font-size: 18px; }
+.bp-chip .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bp-chip .ct { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.bp-empty { color: var(--ink-dim); }
+.bp-side { display: grid; grid-template-rows: auto 1fr; gap: 10px; }
+.bp-detail { padding: 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--edge); font-size: 13px; min-height: 90px; }
+.bp-detail-head { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+.bp-detail-head .ic { font-size: 20px; }
+.bp-detail p { color: var(--ink-dim); font-size: 12px; }
+.bp-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.bp-craft { padding: 10px; border-radius: 8px; background: rgba(232, 184, 90, 0.07); border: 1px dashed rgba(232, 184, 90, 0.45); }
+.bp-craft-title { font: 600 14px Georgia, serif; color: var(--gold); }
+.bp-craft-title small { display: block; font: 11px system-ui; color: var(--ink-dim); }
+.bp-table { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 8px 0; }
+.bp-slot { height: 54px; display: grid; place-items: center; border-radius: 8px; border: 1px dashed var(--edge); background: rgba(0, 0, 0, 0.3); font-size: 11px; text-align: center; cursor: pointer; }
+.bp-slot.filled { border-style: solid; border-color: var(--gold); }
+.bp-slot .ic { font-size: 18px; }
+.bp-slot .plus { font-size: 22px; color: var(--ink-dim); }
+.bp-craft-actions { display: flex; gap: 6px; }
+.bp-craft-btn { background: var(--gold) !important; color: #1a1208 !important; font-weight: 700 !important; }
+.bp-craft-msg { margin-top: 6px; font-size: 12px; color: #ffb070; min-height: 16px; }
+.bp-craft-msg.ok { color: var(--buff); }
+.bp-ghost { position: fixed; z-index: 100; padding: 5px 10px; border-radius: 8px; background: rgba(232, 184, 90, 0.9); color: #1a1208; font: 600 12px system-ui; pointer-events: none; }
+/* Modo dock (inspeção): coluna à direita, sem a mesa. */
+.backpack.dock { inset: auto 14px 200px auto; top: 60px; width: 290px; display: block; background: none; z-index: 8; }
+.backpack.dock .bp-card { width: 100%; max-height: 100%; padding: 10px 12px; }
+.backpack.dock .bp-body { grid-template-columns: 1fr; }
+.backpack.dock .bp-craft, .backpack.dock .bp-hint { display: none; }
+.backpack.dock .bp-items { max-height: calc(100vh - 420px); min-height: 120px; }
+.backpack.dock .bp-grid { grid-template-columns: 1fr; }
+.backpack.dock .bp-head::after { content: "arraste o remédio sobre a ferida"; font: 11px system-ui; color: var(--ink-dim); }
+.item.dim { opacity: 0.8; }
+
+/* Caderneta */
+.notebook { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.55); z-index: 7; }
+.nb-book { display: grid; grid-template-columns: 1fr 1fr; width: min(960px, 94vw); height: min(600px, 86vh); border-radius: 8px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7); overflow: hidden; }
+.nb-page { padding: 26px 28px; background: linear-gradient(180deg, #efe3c4, #e2d2ab); color: #3a2a1a; font-family: Georgia, serif; overflow: auto; display: flex; flex-direction: column; }
+.nb-left { border-right: 3px solid #8a6a40; box-shadow: inset -24px 0 30px rgba(90, 60, 20, 0.25); }
+.nb-right { box-shadow: inset 24px 0 30px rgba(90, 60, 20, 0.22); background: repeating-linear-gradient(180deg, transparent 0 27px, rgba(120, 90, 50, 0.18) 27px 28px), linear-gradient(180deg, #efe3c4, #e2d2ab); }
+.nb-title { font: 700 26px Georgia, serif; color: #4a2e14; }
+.nb-sub { font-style: italic; color: #7a5a3a; margin-bottom: 18px; }
+.nb-tabs { display: grid; gap: 8px; }
+.nb-tabs button { color: #3a2a1a; background: rgba(120, 80, 30, 0.08); border-color: rgba(120, 80, 30, 0.35); font: 15px Georgia, serif; }
+.nb-tabs button.active { background: rgba(120, 80, 30, 0.2); border-color: #7a4a1a; }
+.nb-tabs em { margin-left: auto; font-style: normal; font-size: 12px; color: #7a5a3a; }
+.nb-foot { margin-top: auto; padding-top: 20px; font-size: 12px; color: #7a5a3a; }
+.nb-foot kbd { color: #3a2a1a; border-color: #8a6a40; background: transparent; }
+.nb-entry { margin-bottom: 14px; line-height: 28px; }
+.nb-entry b { font-size: 17px; color: #4a2e14; }
+.nb-entry p { font-size: 14px; color: #5a4028; }
+.nb-entry small { color: #7a5a3a; }
+.nb-todo { margin-top: 10px; font-style: italic; color: #8a6a4a; font-size: 13px; }
+@media (max-width: 760px) {
+  .bp-body { grid-template-columns: 1fr; }
+  .nb-book { grid-template-columns: 1fr; height: 90vh; }
+  .nb-left { border-right: 0; }
+  .inspect-limbs { top: auto; bottom: 200px; width: 150px; }
+}
+
+/* Segurar E (esfolar): barra de progresso dentro do prompt. */
+.prompt .hold { display: inline-block; width: 90px; height: 7px; margin-left: 8px; vertical-align: middle; border-radius: 4px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.prompt .hold i { display: block; height: 100%; background: var(--gold); }
+

@@ -19,6 +19,8 @@ const _s = new THREE.Vector3();
 export class StaticBatcher {
   constructor() {
     this.buckets = new Map();
+    /** Peças originais (geometria + matriz) por material: viram colisores (WorldColliders). */
+    this.pieces = new Map();
   }
 
   /** Adiciona `geometry` com transformação direta. */
@@ -30,6 +32,8 @@ export class StaticBatcher {
   }
 
   addMatrix(geometry, material, matrix) {
+    if (!this.pieces.has(material)) this.pieces.set(material, []);
+    this.pieces.get(material).push({ geometry, matrix: matrix.clone() });
     let g = geometry.index ? geometry.toNonIndexed() : geometry.clone();
     for (const name of Object.keys(g.attributes)) {
       if (name !== 'position' && name !== 'normal' && name !== 'uv') g.deleteAttribute(name);
@@ -45,7 +49,12 @@ export class StaticBatcher {
     this.buckets.get(material).push(g);
   }
 
-  /** Cria os meshes finais dentro de `parent`. */
+  /**
+   * Cria os meshes finais dentro de `parent`. Cada mesh leva em
+   * `userData.colliderPieces` as peças que o formaram, para o gerador de
+   * colisores (applyWorldPhysics) criar um colisor POR PEÇA — um bloco único
+   * por material fecharia portas e vãos.
+   */
   build(parent, { castShadow = true, receiveShadow = true } = {}) {
     const meshes = [];
     for (const [material, geos] of this.buckets) {
@@ -57,10 +66,12 @@ export class StaticBatcher {
       mesh.castShadow = castShadow;
       mesh.receiveShadow = receiveShadow;
       mesh.matrixAutoUpdate = false;
+      mesh.userData.colliderPieces = this.pieces.get(material) ?? [];
       parent.add(mesh);
       meshes.push(mesh);
     }
     this.buckets.clear();
+    this.pieces.clear();
     return meshes;
   }
 }

@@ -45,6 +45,7 @@ import { FireLights } from '../render/FireLights.js';
 import { Surfaces } from '../world/Surfaces.js';
 import { Ladders } from '../world/Ladders.js';
 import { PhysicsWorld } from '../physics/PhysicsWorld.js';
+import { applyWorldPhysics } from '../physics/WorldColliders.js';
 import { PropMeshes } from '../physics/PropMeshes.js';
 import { InteriorManager } from '../render/Interiors.js';
 import { BIOME_STYLE } from '../config/interiors.js';
@@ -64,6 +65,27 @@ import { GRAPHICS_PRESETS, LOW_FPS_HINT } from '../config/graphics.js';
 import { GraphicsStore, FpsMeter, presetById, stepPreset, applyGraphics } from '../render/GraphicsSettings.js';
 
 import { yieldToBrowser as nextFrame } from './yieldToBrowser.js';
+import { Survival } from '../systems/Survival.js';
+import { WoundVisuals } from '../render/WoundVisuals.js';
+import { SurvivalHUD } from '../ui/SurvivalHUD.js';
+import { DIRT, HAZARDS, INSPECTION, LIMBS } from '../config/survival.js';
+import { STARTER_KIT } from '../config/items.js';
+import { SPECIES } from '../config/fauna.js';
+import { ITEMS } from '../systems/PlayerState.js';
+import { Notebook } from '../systems/Notebook.js';
+import { Crafting } from '../systems/Crafting.js';
+import { BackpackUI } from '../ui/BackpackUI.js';
+import { NotebookUI } from '../ui/NotebookUI.js';
+import { BodyInspection } from '../ui/BodyInspection.js';
+import { Projectiles, classifyZone, zoneDamage } from '../systems/Projectiles.js';
+import { Resources } from '../systems/Resources.js';
+import { Skinning, lootFor } from '../systems/Skinning.js';
+import { Trails } from '../render/Trails.js';
+import { ResourceMeshes } from '../render/ResourceMeshes.js';
+import { ProjectileMeshes } from '../render/ProjectileMeshes.js';
+import { WEAPONS, ZONE_EFFECTS, BLEED, SKINNING, COOKING, WATER, PROJECTILE } from '../config/hunting.js';
+import { RESOURCES } from '../config/resources.js';
+import { PROP_TYPES } from '../config/physics.js';
 
 /**
  * Orquestra o jogo: gera o mundo (terreno → vilas → malha → água →
@@ -259,6 +281,23 @@ export class Game {
       }
     }
 
+    // FÍSICA UNIVERSAL: varre a cena e dá colisor a toda peça sólida que ainda
+    // não tem (WorldColliders). Fora da varredura, cada um com física própria:
+    // terreno (heightfield), água, capim, nuvens, vegetação (TREE_COLLIDERS)
+    // e o que se mexe (NPCs, animais, portões, chamas — grupos `dynamic`).
+    for (const o of [this.terrain.mesh, this.water.mesh, this.grass.mesh, this.clouds.mesh, this.vegetation.group, this.environment.sky, this.weather.group, this.weather.lantern]) {
+      if (o) o.userData.noCollide = true;
+    }
+    for (const v of Object.values(this.villages)) v.dynamic.userData.noCollide = true;
+    for (const a of Object.values(this.areas)) a.group.userData.floorY = a.floorY; // subterrâneos: chão fixo
+    const auto = applyWorldPhysics(this.scene, {
+      collisions: this.collisions,
+      groundAt: (x, z) => this.terrain.heightAt(x, z),
+      surfaceAt: (x, z, feetY) => this.surfaces.heightAt(x, z, feetY),
+      ladders: this.ladders,
+    });
+    console.info(`[física] ${auto.added} colisores automáticos de ${auto.pieces} peças`, auto.skipped);
+
     // Física (cannon-es): objetos dinâmicos das vilas + estáticos transmitidos em volta do jogador.
     // O terreno físico ignora plataformas altas (feetY = −∞): só chão, pontes e píeres.
     this.physics = new PhysicsWorld({ groundAt: (x, z) => this.groundHeight(x, z, -Infinity), collisions: this.collisions, surfaces: this.surfaces });
@@ -267,6 +306,12 @@ export class Game {
         const base = p.y ?? this.groundHeight(p.x, p.z, -Infinity) + (p.lift ?? 0);
         this.physics.addProp(p.type, { x: p.x, z: p.z, y: base, rot: p.rot ?? 0, scale: p.scale ?? 1 });
       }
+    }
+    // Estoque de peças de carcaça (esfolamento): nascem longe do mapa e vêm quando um animal é esfolado.
+    this.lootPool = {};
+    for (const type of ['carne', 'pele', 'osso', 'tripas', 'pena']) {
+      this.lootPool[type] = [];
+      for (let k = 0; k < SKINNING.poolPerType; k++) this.lootPool[type].push(this.physics.addProp(type, { ...PhysicsWorld.POOL }));
     }
     this.propMeshes = new PropMeshes(this.physics.byType, this.materials);
     this.propMeshes.sync(this.physics.props);
@@ -280,19 +325,44 @@ export class Game {
 
     await step(0.97, 'Acordando os moradores…');
     this.player = new Player({
-      groundAt: (x, z) => this.groundHeight(x, z),
+      // Repassa a altura do pé: sem ela valia a superfície MAIS ALTA (laje do 2º
+      // andar, degrau do topo, plataforma acima) e o jogador "teleportava" para lá.
+      groundAt: (x, z, feetY) => this.groundHeight(x, z, feetY),
       collisions: this.collisions,
       state: this.state,
       isUnderground: () => this.areaId !== 'overworld',
       ladders: this.ladders,
     });
     this.scene.add(this.player.root);
+
+    // Sobrevivência avançada: corpo (ferimentos por membro), macros, stamina,
+    // sanidade, sujeira. Ferimentos aparecem na malha do personagem.
+    this.survival = new Survival({ state: this.state, rng: this.random });
+    this.player.stamina = this.survival;
+    this.woundVisuals = new WoundVisuals(this.player.model, this.survival.body);
+    this.survivalHUD = new SurvivalHUD(ui.root);
+    this.survival.on('alert', (a) => this.survivalHUD.alert(a));
+    this.survival.on('whisper', (t) => this.survivalHUD.whisper(t));
+    this.survival.on('message', (t) => ui.toast(t));
+    this.survival.on('faint', () => ui.toast('Fraqueza: você desmaiou. Coma e beba algo.'));
+    // Caderneta, mochila (I) com mesa de crafting livre e inspeção corporal 3D (C).
+    this.notebook = new Notebook();
+    this.notebook.on('entry', ({ section, id }) => ui.toast(`📓 Caderneta: ${notebookLabel(section, id)}`));
+    this.crafting = new Crafting();
+    this.state.on('item-added', ({ id }) => { if (ITEMS[id]?.plant) this.notebook.record('plantas', id); });
+    for (const [id, n] of Object.entries(STARTER_KIT)) this.state.addItem(id, n);
+    this.backpack = new BackpackUI(this);
+    this.notebookUI = new NotebookUI(this);
+    this.setupHunting();
     const ren = this.villages.renascimento;
     this.player.teleport(ren.x + 3, ren.z + 17, Math.PI); // borda sul da praça, olhando para o poço e a igreja
-    this.cameraRig = new CameraRig(this.camera, { groundAt: (x, z) => this.groundHeight(x, z) });
-    this.cameraRig.confine = (cam) => this.interiors?.confineCamera(cam, this.player.position);
+    this.cameraRig = new CameraRig(this.camera, { groundAt: (x, z, feetY) => this.groundHeight(x, z, feetY) });
+    this.cameraRig.reach = (focus, cam) => (this.areaId === 'overworld'
+      ? this.interiors.cameraReach(focus, cam, this.player.position, CAMERA.third.interior.margin)
+      : 1);
     this.cameraRig.yaw = Math.PI;
     this.setupCamera();
+    this.inspection = new BodyInspection(this); // precisa da câmera, do braço de 1ª pessoa e da mochila
     this.setupCombat();
     // Animais: cache já cheio (preloader acima); espécie sem modelo usa o corpo procedural.
     await animalsReady;
@@ -303,7 +373,7 @@ export class Game {
     this.ready = true;
     ui.setLoading(1, 'Pronto! Pressione ALT para travar a câmera no mouse.');
     ui.hideLoading();
-    ui.toast('Bem-vindo à Vila Renascimento. ALT trava/destrava a câmera · C alterna 1ª/3ª pessoa.');
+    ui.toast('Bem-vindo à Vila Renascimento. ALT trava/destrava a câmera · T alterna 1ª/3ª pessoa · C examina o corpo.');
   }
 
   /**
@@ -331,10 +401,11 @@ export class Game {
       this.fpArm.root.visible = first && this.inventory.maosLivres;
       this.ui.setCameraStatus({ locked: this.input.locked, firstPerson: first });
     };
+    this.applyCameraMode = applyMode;
     this.cameraRig.onModeChange((mode) => {
       if (mode === 'first') this.player.faceDirection(this.cameraRig.forward(this._camFwd));
       applyMode();
-      this.ui.toast(mode === 'first' ? 'Câmera em 1ª pessoa (C volta)' : 'Câmera em 3ª pessoa (C volta)');
+      this.ui.toast(mode === 'first' ? 'Câmera em 1ª pessoa (T volta)' : 'Câmera em 3ª pessoa (T volta)');
     });
     this.input.onLockChange((locked, error) => {
       this.ui.setCameraStatus({ locked, firstPerson: this.cameraRig.isFirstPerson });
@@ -406,6 +477,7 @@ export class Game {
     this.player.startPunch(dir, punch.duration);
     if (this.cameraRig.isFirstPerson) this.fpArm.punch(punch.duration);
     const { hit } = this.combat.punch(origin, dir, this.time);
+    this.survival.addDirt(DIRT.perPunch);
     const prop = this.areaId === 'overworld' ? this.physics.punch(origin, dir) : null;
     if (!hit && prop) {
       this.cameraRig.kick(punch.cameraKick * 0.7);
@@ -424,8 +496,9 @@ export class Game {
     }
   }
 
-  /** Usa o item do slot ativo (`ITEM_USES`); se ele for gasto, sai da hotbar. */
+  /** Usa o item do slot ativo (`ITEM_USES`); se ele for gasto, sai da hotbar. Armas de caça arremessam/atiram. */
   useEquipped(item) {
+    if (WEAPONS[item.id]) { this.throwWeapon(item); return; }
     const use = ITEM_USES[item.id];
     if (!use) {
       this.ui.showHit(`${item.nome}: ainda sem uso`, false);
@@ -439,9 +512,10 @@ export class Game {
    * @param {number} amount
    * @param {string} source quem causou (vai na mensagem de morte)
    */
-  damagePlayer(amount, source) {
+  damagePlayer(amount, source, speciesId = null) {
     if (this.dead) return;
     this.state.damage(amount);
+    if (speciesId) this.survival.onAnimalHit(speciesId); // garra/presa/picada → ferimento num membro
     this.player.model.flinch();
     this.cameraRig.kick(0.05);
     this.ui.flashDamage(`-${amount} · ${source}`);
@@ -468,6 +542,7 @@ export class Game {
     this.player.swimming = false;
     this.player.submerged = false;
     this.state.healFull();
+    this.survival.respawn();
     this.oxygen.reset();
     this.fauna.clear();
     this.cameraRig.yaw = Math.PI;
@@ -556,6 +631,7 @@ export class Game {
   applyWeatherDebuffs(dt) {
     const pos = this.player.position, r2 = DEBUFF_RULES.fireRadius ** 2;
     const nearFire = this.fireLights.sources.some((f) => f.warm && (f.x - pos.x) ** 2 + (f.z - pos.z) ** 2 < r2);
+    this._nearFire = nearFire;
     const d = this.dead || this.player.flying ? null : computeDebuffs(this.weather.climates, DEBUFFS, DEBUFF_RULES, { nearFire });
     this.debuffs = d;
     this.state.setEnvironmentModifiers(d ? { speed: d.speed, jump: d.jump } : null);
@@ -570,6 +646,300 @@ export class Game {
       this._weatherExposure = (this._weatherExposure ?? 0) + d.exposure * dt;
       if (this._weatherExposure >= 1) { this.state.addParanormalExposure(1); this._weatherExposure -= 1; }
     }
+  }
+
+  /**
+   * Sobrevivência no loop: monta o ambiente do quadro (movimento, água,
+   * clima na pele, fogo, vila, mata fechada), avança corpo/nutrição/sanidade,
+   * mata se a vida zerou e sincroniza HUD e malhas dos ferimentos.
+   */
+  updateSurvival(dt) {
+    const p = this.player, over = this.areaId === 'overworld';
+    const fx = this.weather.overlays;
+    const r = this.survival.update(dt, {
+      paused: this.dead || p.flying,
+      moving: p.speed > 0,
+      sprinting: p.sprinting,
+      swimming: p.swimming,
+      freshWater: true, // rios e o lago central são de água doce
+      rain: over ? fx.rain : 0,
+      sand: over ? fx.sand : 0,
+      ash: over ? fx.ash : 0,
+      nearFire: !!this._nearFire,
+      inVillage: over && this.villageShelter(p.position) >= 1,
+      jungle: over && HAZARDS.jungleBiomes.includes(BIOMES[this._biome]?.id),
+    });
+    if (r.died && !this.dead) this.killPlayer(r.died);
+    this.ui.sickOverlay.classList.toggle('on', r.fever > 0 || this.state.effects.some((e) => e.def.kind === 'disease'));
+    this.survivalHUD.update(this.survival);
+    this.woundVisuals.update(dt, this.time);
+  }
+
+  /** Tira um item equipável da mochila e põe na hotbar (se houver vaga). */
+  equipFromBackpack(id) {
+    const d = ITEMS[id];
+    if (!d?.hotbar || !this.state.hasItem(id)) return false;
+    const slot = this.inventory.adicionarItem({ id, nome: d.name, icone: d.icon, tipo: d.kind });
+    if (slot < 0) { this.ui.toast('Hotbar cheia: o item fica na mochila.'); return false; }
+    this.state.removeItem(id);
+    this.ui.toast(`${d.name} na hotbar (slot ${slot + 1}).`);
+    return true;
+  }
+
+  /**
+   * Mesa livre (crafting por descoberta): tenta a combinação. Receita certa
+   * consome, entrega (armas vão para a hotbar) e anota na caderneta.
+   * @param {string[]} ids itens na mesa
+   * @returns {{ ok: boolean, message: string }}
+   */
+  craftFromTable(ids) {
+    const recipe = this.crafting.match(ids);
+    if (!recipe) {
+      const known = this.crafting.partial(ids).filter((r) => this.notebook.has('receitas', r.id));
+      return {
+        ok: false,
+        message: known.length
+          ? `Falta algo — parece o começo de: ${known.map((r) => ITEMS[Object.keys(r.out)[0]].name).join(', ')}.`
+          : ids.length ? 'Nada aconteceu. Essa combinação não dá em nada.' : 'Ponha até 4 itens na mesa.',
+      };
+    }
+    const r = this.crafting.apply(recipe, this.state);
+    if (!r.ok) return r;
+    const made = Object.entries(recipe.out).map(([id, n]) => `${ITEMS[id].icon} ${ITEMS[id].name}${n > 1 ? ` ×${n}` : ''}`).join(', ');
+    const isNew = this.notebook.record('receitas', recipe.id);
+    for (const id of Object.keys(recipe.out)) if (ITEMS[id].hotbar) this.equipFromBackpack(id);
+    return { ok: true, message: `Criado: ${made}${isNew ? ' · receita anotada na caderneta' : ''}` };
+  }
+
+  // ------------------------------------------------------------ caça, coleta, fogueira
+
+  /**
+   * Caça e coleta: projéteis (lança/arco), rastros, recursos coletáveis,
+   * esfolamento (segurar E) e os interagíveis dinâmicos (recurso, água,
+   * fogueira, peças no chão, projétil cravado, carcaça).
+   */
+  setupHunting() {
+    this.projectiles = new Projectiles();
+    this.projectileMeshes = new ProjectileMeshes(this.materials);
+    this.scene.add(this.projectileMeshes.group);
+    this.trails = new Trails();
+    this.scene.add(this.trails.group);
+    this.skinning = new Skinning();
+    const villageList = Object.values(this.villages);
+    this.resources = new Resources({
+      seed: WORLD.seed,
+      biomeAt: (x, z) => BIOMES[this.terrain.dominantBiome(x, z)]?.id,
+      groundAt: (x, z) => this.terrain.heightAt(x, z),
+      isBlocked: (x, z) => villageList.some((v) => Math.hypot(x - v.x, z - v.z) < v.radius + 6) || this.collisions.overlaps(x, z, 0.6) || this.bridges.distanceTo(x, z) < 4,
+      waterLevel: WORLD.waterLevel,
+    });
+    this.resourceMeshes = new ResourceMeshes();
+    this.scene.add(this.resourceMeshes.group);
+    this._hb = [];
+    this._ray = new THREE.Raycaster();
+    this._rayDir = new THREE.Vector3();
+    this._rayFrom = new THREE.Vector3();
+    this._local = new THREE.Vector3();
+    // Interagíveis dinâmicos: posição/rótulo mudam a cada quadro (updateHunting).
+    const dyn = (id, label, radius, onInteract) => {
+      const it = this.interactions.register({ id, label, radius, position: () => it.pos ?? Game.NOWHERE, onInteract });
+      it.enabled = false;
+      it.pos = null;
+      return it;
+    };
+    this.hunt = {
+      resource: dyn('resource', 'Colher', RESOURCES.reach + 0.2, (g) => g.harvestResource()),
+      water: dyn('water', 'Água do rio: beber · encher · lavar-se', WATER.reach + 1, (g) => g.useWater()),
+      fire: dyn('fire', 'Usar a fogueira (assar, ferver, cinza)', COOKING.radius + 0.2, (g) => g.useFire()),
+      loot: dyn('loot', 'Pegar', 2.4, (g) => g.pickLoot()),
+      projectile: dyn('projectile', 'Pegar', PROJECTILE.pickupRadius + 0.2, (g) => g.pickProjectile()),
+      corpse: dyn('corpse', 'Esfolar', SKINNING.radius + 0.2, () => {}), // segurar E: tratado no loop
+    };
+  }
+
+  /** Um quadro de caça/coleta (depois da fauna). */
+  updateHunting(dt) {
+    const H = this.hunt, pos = this.player.position;
+    if (this.areaId !== 'overworld') { for (const it of Object.values(H)) it.enabled = false; return; }
+    // Recursos em volta e o colhível mais perto.
+    this.resources.update(pos, this.time);
+    this.resourceMeshes.sync(this.resources);
+    const node = this.resources.nearest(pos);
+    H.resource.enabled = !!node; H.resource.pos = node;
+    if (node) H.resource.label = RESOURCES.types[node.type].label;
+    // Água doce à frente.
+    const f = this.player.facing, wx = pos.x + f.x * WATER.probe, wz = pos.z + f.z * WATER.probe;
+    const water = !this.player.swimming && this.terrain.heightAt(wx, wz) < WORLD.waterLevel - 0.05;
+    H.water.enabled = water;
+    if (water) { this._waterPos = this._waterPos ?? { x: 0, y: 0, z: 0 }; this._waterPos.x = wx; this._waterPos.y = pos.y; this._waterPos.z = wz; H.water.pos = this._waterPos; }
+    // Fogueira acesa perto.
+    let fire = null, fd = COOKING.radius;
+    for (const s of this.fireLights.sources) { if (!s.warm) continue; const d = Math.hypot(s.x - pos.x, s.z - pos.z); if (d < fd) { fd = d; fire = s; } }
+    H.fire.enabled = !!fire; H.fire.pos = fire; this._fire = fire;
+    // Peças de carcaça e projéteis cravados.
+    let loot = null, ld = 2.4;
+    for (const list of Object.values(this.lootPool)) for (const p of list) { if (!p.active) continue; const d = Math.hypot(p.pos.x - pos.x, p.pos.z - pos.z); if (d < ld) { ld = d; loot = p; } }
+    H.loot.enabled = !!loot; H.loot.pos = loot?.pos ?? null; this._loot = loot;
+    if (loot) H.loot.label = `Pegar ${ITEMS[PROP_TYPES[loot.type].item].name}`;
+    const pj = this.projectiles.nearestLanded(pos);
+    H.projectile.enabled = !!pj; H.projectile.pos = pj?.pos ?? null; this._projectile = pj;
+    if (pj) H.projectile.label = `Pegar ${ITEMS[pj.item].name}`;
+    // Carcaça: segurar E com uma faca equipada.
+    let corpse = null, cd = SKINNING.radius;
+    for (const a of this.fauna.animals) { if (a.alive || a.skinned) continue; const d = Math.hypot(a.root.position.x - pos.x, a.root.position.z - pos.z); if (d < cd) { cd = d; corpse = a; } }
+    const knife = Skinning.hasKnife(this.inventory.equipado.id);
+    H.corpse.enabled = !!corpse; H.corpse.pos = corpse?.root.position ?? null;
+    const holding = !!corpse && knife && this.input.isDown('KeyE') && this.interactions.current === H.corpse;
+    if (this.skinning.hold(dt, holding, corpse)) this.skinCorpse(corpse);
+    if (corpse) {
+      H.corpse.label = knife
+        ? `Segure para esfolar ${corpse.spec.nome}<span class="hold"><i style="width:${Math.round(this.skinning.progress * 100)}%"></i></span>`
+        : `Esfolar ${corpse.spec.nome}: precisa de uma faca equipada`;
+    }
+    // Projéteis em voo → acertos.
+    const events = this.projectiles.step(dt, { groundAt: (x, z) => this.groundHeight(x, z, -Infinity), hitTest: (a, b) => this.projectileHit(a, b) });
+    for (const { p, hit } of events) {
+      if (p.gone) { this.projectiles.remove(p); continue; }
+      if (hit) {
+        this.onAnimalShot(hit, p);
+        if (this.random() < WEAPONS[p.weapon].breakChance) { this.projectiles.remove(p); this.ui.toast(`${ITEMS[p.item].name} quebrou no impacto.`); }
+      }
+    }
+    this.projectileMeshes.sync(this.projectiles.list);
+    // Rastro de sangue e pegadas dos animais feridos.
+    for (const a of this.fauna.animals) {
+      if (!a.bleeding || !a.alive || a.trailAcc < BLEED.trailEvery) continue;
+      a.trailAcc = 0;
+      const q = a.root.position, y = this.groundHeight(q.x, q.z, -Infinity), yaw = a.root.rotation.y;
+      this.trails.add('blood', q.x + (this.random() - 0.5) * 0.4, y, q.z + (this.random() - 0.5) * 0.4, this.time);
+      const side = (a.printSide = -(a.printSide ?? 1)), w = (a.halfWid ?? 0.3) * 0.8;
+      this.trails.add('print', q.x + Math.cos(yaw) * side * w, y, q.z - Math.sin(yaw) * side * w, this.time, yaw);
+    }
+    this.trails.update(this.time);
+  }
+
+  /** Segmento (a → b) do projétil contra as hitboxes dos animais vivos: { animal, zone, point } ou null. */
+  projectileHit(a, b) {
+    this._hb.length = 0;
+    for (const an of this.fauna.animals) if (an.alive && an.hitbox) this._hb.push(an.hitbox);
+    if (!this._hb.length) return null;
+    this._rayDir.set(b.x - a.x, b.y - a.y, b.z - a.z);
+    const len = this._rayDir.length();
+    if (len < 1e-6) return null;
+    this._rayDir.divideScalar(len);
+    this._ray.set(this._rayFrom.set(a.x, a.y, a.z), this._rayDir);
+    this._ray.near = 0; this._ray.far = len + 0.2;
+    const hits = this._ray.intersectObjects(this._hb, false);
+    if (!hits.length) return null;
+    const hb = hits[0].object, animal = hb.userData.animal;
+    animal.root.worldToLocal(this._local.copy(hits[0].point));
+    const zone = classifyZone(this._local, hb.position, hb.scale);
+    return { animal, zone, point: { x: hits[0].point.x, y: hits[0].point.y, z: hits[0].point.z } };
+  }
+
+  /** Projétil acertou um animal: dano por zona, sangue no ponto, aviso na tela. */
+  onAnimalShot({ animal, zone, point }, p) {
+    const dmg = zoneDamage(p.weapon, zone);
+    const len = Math.hypot(p.vel.x, p.vel.z) || 1;
+    animal.takeHit({ damage: dmg === Infinity ? animal.health + 1 : dmg, direction: { x: p.vel.x / len, z: p.vel.z / len }, zone });
+    const y = this.groundHeight(point.x, point.z, -Infinity);
+    for (let i = 0; i < BLEED.bloodAtHit; i++) this.trails.add('blood', point.x + (this.random() - 0.5) * 0.5, y, point.z + (this.random() - 0.5) * 0.5, this.time);
+    this.notebook.record('fauna', animal.speciesId);
+    const hp = animal.alive ? ` · ${Math.max(0, Math.round(animal.health))}/${animal.spec.health}` : ' · abatido';
+    this.ui.showHit(`Acertou: ${animal.spec.nome} · ${ZONE_EFFECTS[zone].label}${hp}`, true);
+  }
+
+  /** Clique com lança (arremessa a própria) ou arco (gasta uma flecha da mochila). */
+  throwWeapon(item) {
+    if (this.player.flying || this.player.swimming || this.areaId !== 'overworld') return;
+    const w = WEAPONS[item.id];
+    let flying = item.id;
+    if (w.ammo) {
+      if (!this.state.removeItem(w.ammo)) { this.ui.showHit(`Sem ${ITEMS[w.ammo].name} na mochila`, false); return; }
+      flying = w.ammo;
+    } else this.inventory.removerItem(this.inventory.selected);
+    const dir = this.cameraRig.forward(new THREE.Vector3());
+    const o = this.player.punchOrigin();
+    this.player.startPunch(dir, 0.35);
+    if (this.cameraRig.isFirstPerson) this.fpArm.punch(0.35);
+    this.projectiles.launch({ weapon: item.id, item: flying, x: o.x + dir.x * 0.6, y: o.y + 0.2, z: o.z + dir.z * 0.6, dx: dir.x, dy: dir.y, dz: dir.z });
+    this.cameraRig.kick(0.04);
+  }
+
+  harvestResource() {
+    const node = this.resources.nearest(this.player.position);
+    if (!node) return;
+    const got = this.resources.harvest(node, this.time, this.random);
+    this.state.addItem(got.item, got.n);
+    if (got.also) this.state.addItem(got.also, 1);
+    if (got.dirt) this.survival.addDirt(got.dirt);
+    this.ui.toast(`${ITEMS[got.item].icon} ${ITEMS[got.item].name} ×${got.n}${got.also ? ` + ${ITEMS[got.also].name}` : ''} na mochila.`);
+  }
+
+  useWater() {
+    this.ui.dialogue.open({
+      speaker: 'Rio', text: 'Água doce e corrente. Fria.',
+      options: [
+        { label: 'Beber direto (pode ter parasitas)', onSelect: () => this.ui.toast(`Você bebeu: ${this.survival.consume('agua_rio')}`) },
+        { label: 'Encher o cantil (Água do Rio — ferver na fogueira)', onSelect: () => { this.state.addItem('agua_rio'); this.ui.toast('Água do Rio na mochila.'); } },
+        { label: 'Lavar-se (tira a sujeira da pele)', onSelect: () => { this.survival.dirt = 0; this.ui.toast('Você se lavou. Pele limpa.'); } },
+        { label: 'Sair' },
+      ],
+    });
+  }
+
+  useFire() {
+    const fire = this._fire;
+    if (!fire) return;
+    const opts = [];
+    for (const [raw, cooked] of Object.entries(COOKING.recipes)) {
+      if (!this.state.hasItem(raw) || raw === cooked) continue;
+      opts.push({
+        label: `${raw.startsWith('agua') ? 'Ferver' : 'Assar'} ${ITEMS[raw].name} → ${ITEMS[cooked].name}`,
+        onSelect: () => { this.state.removeItem(raw); this.state.addItem(cooked); this.ui.toast(`${ITEMS[cooked].name}: pronto.`); this.useFire(); },
+      });
+    }
+    const cool = this.time - (fire.ashAt ?? -Infinity) < COOKING.ashCooldown;
+    opts.push({ label: cool ? 'Recolher cinza (ainda quente…)' : 'Recolher cinza', disabled: cool, onSelect: () => { fire.ashAt = this.time; this.state.addItem('cinza'); this.ui.toast('Cinza de Fogueira na mochila.'); } });
+    opts.push({ label: 'Sair' });
+    this.ui.dialogue.open({ speaker: 'Fogueira', text: opts.length > 2 ? 'O fogo crepita. O que você quer preparar?' : 'O fogo crepita. Nada para assar ou ferver na mochila.', options: opts });
+  }
+
+  pickLoot() {
+    const p = this._loot;
+    if (!p || !p.active) return; // já guardada neste quadro
+    const item = PROP_TYPES[p.type].item;
+    this.physics.storeProp(p);
+    this.state.addItem(item);
+    this.ui.toast(`${ITEMS[item].icon} ${ITEMS[item].name} na mochila.`);
+  }
+
+  pickProjectile() {
+    const p = this._projectile;
+    if (!p) return;
+    this.projectiles.remove(p);
+    this.state.addItem(p.item);
+    if (!ITEMS[p.item].hotbar || !this.equipFromBackpack(p.item)) this.ui.toast(`${ITEMS[p.item].name}: recuperada.`);
+    this.projectileMeshes.sync(this.projectiles.list);
+  }
+
+  /** Esfolou: a carcaça vira peças físicas no chão (carne, pele, ossos, tripas/penas). */
+  skinCorpse(a) {
+    const loot = lootFor(a.spec), q = a.root.position, count = {};
+    for (const [type, n] of Object.entries(loot)) {
+      for (let k = 0; k < n; k++) {
+        const list = this.lootPool[type], p = list.find((x) => !x.active) ?? list[0];
+        const ang = this.random() * Math.PI * 2, r = 0.4 + this.random() * 0.8;
+        this.physics.placeProp(p, { x: q.x + Math.cos(ang) * r, y: q.y + 0.6 + this.random() * 0.4, z: q.z + Math.sin(ang) * r },
+          { x: Math.cos(ang) * SKINNING.tossSpeed, y: 1.5, z: Math.sin(ang) * SKINNING.tossSpeed });
+        const item = PROP_TYPES[type].item;
+        count[item] = (count[item] ?? 0) + 1;
+      }
+    }
+    a.skinned = true;
+    this.fauna.remove(a);
+    this.survival.addDirt(SKINNING.dirt);
+    this.ui.toast(`Esfolado: ${Object.entries(count).map(([id, n]) => `${ITEMS[id].name} ×${n}`).join(', ')}. As peças estão no chão (E para pegar).`);
   }
 
   /**
@@ -624,14 +994,29 @@ export class Game {
       if (input.pressed('ArrowRight')) this.setGraphics(stepPreset(this.graphics.id, 1).id);
       if (input.pressed('Escape')) ui.toggleGraphics(false);
     }
-    const busy = this.dead || ui.dialogue.isOpen || ui.graphicsOpen || !ui.worldMap.classList.contains('hidden');
+    const panels = this.inspection.active || this.backpack.open || this.notebookUI.open;
+    const busy = this.dead || this.survival.fainted || panels || ui.dialogue.isOpen || ui.graphicsOpen || !ui.worldMap.classList.contains('hidden');
+    // Painéis de sobrevivência: C inspeção, I mochila, N caderneta, Esc fecha.
+    if (!this.dead && !ui.dialogue.isOpen && !ui.graphicsOpen) {
+      if (input.pressed('KeyC')) { if (this.inspection.active) this.inspection.close(); else if (!busy) this.inspection.open(); }
+      if (input.pressed('KeyI') && !this.inspection.active && !this.notebookUI.open) this.backpack.toggle();
+      if (input.pressed('KeyN') && !this.inspection.active) { this.backpack.hide(); this.notebookUI.toggle(); }
+      if (input.pressed('Escape')) { this.inspection.close(); this.backpack.hide(); this.notebookUI.toggle(false); }
+      if (this.inspection.active) {
+        [...Object.keys(LIMBS), null].forEach((id, i) => { if (input.pressed(`Digit${i + 1}`) || input.pressed(`Numpad${i + 1}`)) this.inspection.selectLimb(id); });
+      }
+      if (this.notebookUI.open) {
+        if (input.pressed('ArrowLeft')) this.notebookUI.step(-1);
+        if (input.pressed('ArrowRight')) this.notebookUI.step(1);
+      }
+    }
     if (this.dead && this.time >= this.respawnAt) this.respawn();
 
     if (input.pressed('KeyM')) ui.toggleWorldMap();
     if (input.pressed('KeyV') && this.areaId === 'overworld') ui.toast(this.player.flying ? 'Modo voo desligado.' : 'Modo voo: Espaço sobe · Ctrl desce · Shift acelera · roda afasta a câmera · V sai');
     if (input.pressed('Escape') && !ui.worldMap.classList.contains('hidden')) ui.toggleWorldMap(false);
     if (!busy) {
-      if (input.pressed('KeyC')) this.cameraRig.toggleMode();
+      if (input.pressed('KeyT')) this.cameraRig.toggleMode();
       if (input.pressed('KeyE')) this.interactions.interact(this);
       if (input.pressed('KeyH')) this.state.usePotion();
       // 1–8 escolhem o slot. No quadro em que um diálogo fecha, o número
@@ -644,19 +1029,26 @@ export class Game {
     this._wasBusy = busy;
     ui.hotbarWrap.classList.toggle('dim', busy);
 
-    if (busy) this.player.model.update(dt, 0);
+    const inspecting = this.inspection.active;
+    if (busy) { if (!inspecting) this.player.model.update(dt, 0); } // na inspeção a pose é da BodyInspection
     else {
       this.player.update(dt, input, this.cameraRig);
       // Em 1ª pessoa o corpo acompanha para onde se olha (o soco sai daí).
       if (this.cameraRig.isFirstPerson) this.player.faceDirection(this.cameraRig.forward(this._camFwd));
     }
-    this.cameraRig.update(dt, this.player.position, busy ? null : input, {
+    if (inspecting) this.inspection.update(dt, input);
+    else this.cameraRig.update(dt, this.player.position, busy ? null : input, {
       flying: this.player.flying,
       underground: this.areaId !== 'overworld',
       sprinting: !busy && this.player.sprinting,
       speed: busy ? 0 : this.player.speed,
       grounded: this.player.grounded,
     });
+    // 3ª pessoa num cômodo apertado: câmera colada na cabeça esconde o corpo
+    // (senão a tela mostra o interior do personagem).
+    if (!this.cameraRig.isFirstPerson && !inspecting) {
+      this.player.root.visible = this.camera.position.distanceTo(this.cameraRig.focus) > CAMERA.third.interior.hidePlayerDistance;
+    }
     this.state.update(dt);
 
     // Fôlego: só aparece na água; zerou → afogou.
@@ -682,6 +1074,8 @@ export class Game {
       let best = 0;
       for (let i = 1; i < w.length; i++) if (w[i] > w[best]) best = i;
       ui.setBiome(best);
+      this._biome = best;
+      this.notebook.record('biomas', BIOMES[best].id);
       this.vegetation.update(this.camera.position, true);
       this.grass.update(pos, !this.player.fastTravel && pos.y - this.terrain.heightAt(pos.x, pos.z) < 40);
       this.water.update(this.time, this.environment);
@@ -711,6 +1105,7 @@ export class Game {
       if (this._villageKey !== 'under') { this._villageKey = 'under'; ui.setVillage(null); }
     }
     this.applyWeatherDebuffs(dt);
+    this.updateSurvival(dt);
     ui.setWeather(this.gameClock.label(), this.weather.status, this.weather.overlays, this.weather.flash, this.debuffs);
     this.dungeons.update(dt, this.time, this.areaId);
     this.fireLights.update(this.time, this.areaId === 'overworld' ? pos : Game.NOWHERE);
@@ -721,6 +1116,14 @@ export class Game {
     }
     for (const d of this.dummies) d.update(dt);
     this.fauna.update(dt, this.player.position, { active: this.areaId === 'overworld', playerAlive: !this.dead });
+    // Caderneta: animal avistado de perto entra na seção Fauna.
+    this._nbTimer = (this._nbTimer ?? 0) + dt;
+    if (this._nbTimer > 0.5) {
+      this._nbTimer = 0;
+      const R2 = INSPECTION.fauna.discoverRadius ** 2;
+      for (const a of this.fauna.animals) if (a.alive && (a.root.position.x - pos.x) ** 2 + (a.root.position.z - pos.z) ** 2 < R2) this.notebook.record('fauna', a.speciesId);
+    }
+    this.updateHunting(dt);
     if (this.cameraRig.isFirstPerson) this.fpArm.update(dt, busy ? 0 : this.player.speed, this.player.sprinting);
     ui.update(dt);
 
@@ -728,4 +1131,12 @@ export class Game {
     if (this.areaId === 'overworld') this.minimap.render(this.player.position, ui.minimapRect(), { viewMeters: this.minimapViewMeters() });
     input.endFrame();
   }
+}
+
+/** Nome legível de uma anotação da caderneta (aviso na tela). */
+function notebookLabel(section, id) {
+  if (section === 'biomas') return `bioma ${BIOMES.find((b) => b.id === id)?.name ?? id}`;
+  if (section === 'fauna') return `fauna ${SPECIES[id]?.nome ?? id}`;
+  if (section === 'plantas') return `planta ${ITEMS[id]?.name ?? id}`;
+  return `receita ${ITEMS[id]?.name ?? id}`;
 }

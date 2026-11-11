@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { BLEED } from '../config/hunting.js';
 import { AnimalBrain } from './AnimalBrain.js';
 import { AnimalBody } from './AnimalBody.js';
 import { WORLD } from '../config/worldConfig.js';
+import { slopeTilt } from './anim/AnimMath.js';
 
 const _to = new THREE.Vector3();
 const _box = new THREE.Box3();
@@ -35,7 +37,7 @@ export class Animal {
     this.group = group;
     this.groundAt = groundAt;
     this.brain = new AnimalBrain(spec, fauna, rng);
-    this.body = new AnimalBody(spec, model);
+    this.body = new AnimalBody(spec, model, speciesId);
     this.root = this.body.root;
     this.root.position.set(x, groundAt(x, z), z);
     this.root.rotation.y = rng() * Math.PI * 2;
@@ -46,10 +48,20 @@ export class Animal {
     this.altitude = 0; // arara: altura atual do voo
     this.wanderTarget = new THREE.Vector3(x, 0, z);
     this.health = spec.health;
+    /** Caça: sangrando (tiro no corpo), mancando (pernas), metros andados desde a última gota. */
+    this.bleeding = false;
+    this.limpT = 0;
+    this.trailAcc = 0;
+    this.skinned = false;
     this.speed = 0;
     this.stateTime = 0;
     this.deadTime = 0;
     this._lastState = this.brain.state;
+    /** s até o impacto do bote em andamento (-1 = nenhum): o dano sai no impacto. */
+    this.pendingStrike = -1;
+    this.swimming = false;
+    this._yaw = this.root.rotation.y;
+    this._tilt = { pitch: 0, roll: 0 };
   }
 
   /**
@@ -75,9 +87,13 @@ export class Animal {
     hit.name = 'hitbox';
     this.root.add(hit);
     this.hitbox = hit;
+    hit.userData.animal = this;
     /** Raio/altura do corpo (física: corpo cinemático que empurra objetos). */
     this.bodyRadius = Math.max(0.2, Math.min(_size.x, _size.z) * 0.5);
     this.bodyHeight = Math.max(0.3, _size.y);
+    /** Onde as patas tocam o chão (para inclinar o corpo na rampa). */
+    this.halfLen = Math.max(0.15, _size.z * 0.38);
+    this.halfWid = Math.max(0.1, _size.x * 0.4);
   }
 
   get position() {
@@ -88,13 +104,23 @@ export class Animal {
     return this.brain.state !== 'dead';
   }
 
-  /** Levou um soco: perde vida, recua um pouco e reage (foge ou ataca). */
-  takeHit({ damage, direction }) {
+  /**
+   * Levou um golpe: perde vida, recua um pouco e reage.
+   * `zone` (caça): 'head' = abate na hora; 'body' = sangra e foge deixando
+   * rastro; 'legs' = manca. Sem zona (soco): foge ou ataca.
+   */
+  takeHit({ damage, direction, zone = null }) {
     if (!this.alive) return;
-    this.health -= damage;
+    if (zone === 'head') this.health = 0;
+    else {
+      this.health -= damage;
+      if (zone === 'body') this.bleeding = true;
+      if (zone === 'legs') this.limpT = BLEED.slowSeconds;
+    }
     this.root.position.x += direction.x * 0.3;
     this.root.position.z += direction.z * 0.3;
     if (this.health <= 0) this.brain.die();
+    else if (zone === 'body' || zone === 'legs') this.brain.startFleeing(); // ferido de longe: foge
     else this.brain.hurt();
   }
 
@@ -113,7 +139,8 @@ export class Animal {
    * @param {number} dt
    * @param {THREE.Vector3} playerPos
    * @param {boolean} playerAlive
-   * @returns {{ strike: boolean, state: string }}
+   * @returns {{ strike: boolean, state: string }} `strike` = o golpe ACERTA agora
+   *   (no meio do impacto da animação, não quando a IA decide atacar)
    */
   update(dt, playerPos, playerAlive = true) {
     const spec = this.spec;
@@ -122,7 +149,14 @@ export class Animal {
     const fromHome = Math.hypot(playerPos.x - this.home.x, playerPos.z - this.home.z);
     const atHome = Math.hypot(p.x - this.home.x, p.z - this.home.z) < 3;
     const prev = this.brain.state;
-    const { state, strike } = this.brain.tick(dt, dist, { fromHome, atHome });
+    const { state, strike: decided } = this.brain.tick(dt, dist, { fromHome, atHome });
+    // Antecipação → impacto: a IA decide, a animação começa, o dano sai no impacto.
+    let strike = false;
+    if (decided) this.pendingStrike = this.body.startAttack();
+    if (this.pendingStrike >= 0) {
+      this.pendingStrike -= dt;
+      if (this.pendingStrike < 0) strike = this.alive && dist <= (spec.attackRange ?? 1.5) * 1.5;
+    }
     // Leopardo: o fim da tocaia vira um salto em arco sobre o jogador.
     if (spec.leap && prev === 'stalk' && state === 'chase') this.leapT = 0.6;
     if (state !== this._lastState) {
@@ -175,6 +209,7 @@ export class Animal {
         break;
     }
     if (this.leapT > 0) { this.leapT -= dt; speed = spec.run * 1.5; }
+    if (this.limpT > 0) { this.limpT -= dt; speed *= BLEED.slowFactor; } // tiro nas pernas: manca
 
     if (heading !== null) {
       const cur = this.root.rotation.y;
@@ -196,9 +231,11 @@ export class Animal {
       p.z = nz;
     }
     this.speed = speed;
+    this.swimming = false;
     if (state !== 'burrow') {
       const g = this.groundAt(p.x, p.z);
-      p.y = spec.swims && g < WORLD.waterLevel - spec.size * 0.6 ? WORLD.waterLevel - spec.size * 0.6 : g;
+      this.swimming = !!spec.swims && g < WORLD.waterLevel - spec.size * 0.6;
+      p.y = this.swimming ? WORLD.waterLevel - spec.size * 0.6 : g;
       // Arara: sobe/desce suave até a altura do voo; leopardo: arco do salto.
       const [h0, h1] = spec.soarHeight ?? [0, 0];
       const targetAlt = state === 'circle' ? (dist < spec.sense * 2 ? h1 : h0) : 0;
@@ -207,7 +244,22 @@ export class Animal {
       if (this.leapT > 0) p.y += Math.sin((1 - this.leapT / 0.6) * Math.PI) * 1.6 * spec.size;
     }
     if (!this.alive) this.deadTime += dt;
-    this.body.update(dt, speed, state, this.stateTime);
+    // Sangrando: perde vida até cair; continua fugindo; acumula distância para o rastro.
+    if (this.bleeding && this.alive) {
+      this.health -= BLEED.healthPerSecond * dt;
+      this.trailAcc += speed * dt;
+      if (this.brain.state === 'flee') this.brain.timer = Math.max(this.brain.timer, 1.5);
+      if (this.health <= 0) this.brain.die();
+    }
+    // Contexto da animação: rampa sob as patas, velocidade da curva, olhar.
+    const yaw = this.root.rotation.y;
+    const yawRate = Math.atan2(Math.sin(yaw - this._yaw), Math.cos(yaw - this._yaw)) / Math.max(dt, 1e-4);
+    this._yaw = yaw;
+    const grounded = !this.swimming && this.altitude < 0.05 && state !== 'fly' && state !== 'burrow' && this.leapT <= 0;
+    const tilt = grounded ? slopeTilt(this.groundAt, p.x, p.z, yaw, this.halfLen ?? 0.5, this.halfWid ?? 0.25) : this._tilt;
+    const toPlayer = Math.atan2(playerPos.x - p.x, playerPos.z - p.z);
+    const look = Math.atan2(Math.sin(toPlayer - yaw), Math.cos(toPlayer - yaw));
+    this.body.update(dt, speed, state, this.stateTime, { swimming: this.swimming, tilt, yawRate, leaping: this.leapT > 0, look });
     return { strike, state };
   }
 

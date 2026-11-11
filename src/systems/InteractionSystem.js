@@ -14,9 +14,11 @@ export class InteractionSystem {
     this._v = new THREE.Vector3();
   }
 
+  /** @returns {object} o registro (mude `label`, `enabled` e `position` nele a qualquer hora) */
   register(item) {
-    this.items.push({ radius: 2.5, area: 'overworld', enabled: true, ...item });
-    return item;
+    const it = { radius: 2.5, area: 'overworld', enabled: true, ...item };
+    this.items.push(it);
+    return it;
   }
 
   posOf(item) {
