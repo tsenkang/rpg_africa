@@ -66,7 +66,7 @@ export class AnimalModels {
       if (cfg.rig && !cfg.clips) {
         const rigged = autoRig(template, cfg.rig);
         if (rigged) ({ object: template, rig } = rigged);
-        else console.warn(`AutoRig não reconheceu "${id}"; o modelo fica estático.`);
+        else console.warn(`AutoRig não reconheceu "${id}" (${autoRig.reason ?? 'sem motivo'}); o modelo fica estático.`);
       }
       let skinned = false;
       template.traverse((o) => {

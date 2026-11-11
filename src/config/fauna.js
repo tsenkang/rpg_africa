@@ -16,7 +16,8 @@
  *
  * Extras: `threat` (s batendo no peito antes de atacar — gorila), `leap` (salta
  * no jogador no fim da tocaia — leopardo), `laughs` (risada do bando — hiena),
- * `aquatic` (só nasce/vive na água — jacaré).
+ * `aquatic` (nasce na água — jacaré). Com `landSpeed` ele sobe na margem, andando a
+ * essa fração da velocidade, mas só até `shoreRange` m da água (rios e beiras).
  *
  * `swims`: pode entrar na água (capivara). Os outros evitam rios e lagos.
  * `model`: forma do placeholder procedural (sem modelo 3D em `src/config/animalModels.js`).
@@ -62,7 +63,7 @@ export const SPECIES = {
     walk: 0.5, run: 8, health: 4, sense: 7, soarRadius: 11, soarHeight: [9, 16], group: [2, 5] },
   avestruz: { nome: 'Avestruz', behavior: 'flee', model: 'ostrich', size: 1.3, color: 0x1e1a18,
     walk: 1.4, run: 15, health: 30, sense: 16, group: [2, 4] },
-  jacare: { nome: 'Jacaré do Rio', behavior: 'ambush', model: 'croc', size: 0.45, color: 0x3a4228, swims: true, aquatic: true,
+  jacare: { nome: 'Jacaré do Rio', behavior: 'ambush', model: 'croc', size: 0.45, color: 0x3a4228, swims: true, aquatic: true, landSpeed: 0.3, shoreRange: 9,
     walk: 0.7, run: 6, health: 70, damage: 24, attackRange: 1.9, strikeRange: 5, attackCooldown: 1.6, sense: 9, giveUp: 12, group: [1, 2] },
   cerbero: { nome: 'Cérbero', behavior: 'guardian', model: 'cerberus', size: 1.25, color: 0x18141a, glow: 0xff3a2a,
     walk: 1.4, run: 10, health: 160, damage: 28, attackRange: 2.2, attackCooldown: 1.2, sense: 26, guardRadius: 70, giveUp: 90, group: [1, 1] },

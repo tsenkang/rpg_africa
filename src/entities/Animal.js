@@ -211,9 +211,18 @@ export class Animal {
     return this.groundAt(x, z) < WORLD.waterLevel - 0.15;
   }
 
+  /** Há água a até `r` m deste ponto? (jacaré em terra: só na beira) */
+  nearWater(x, z, r) {
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2, cx = Math.cos(a), cz = Math.sin(a);
+      if (this.isWater(x + cx * r, z + cz * r) || this.isWater(x + cx * r * 0.5, z + cz * r * 0.5)) return true;
+    }
+    return false;
+  }
+
   /** Lugar onde o animal não pode ir: água (terrestres) ou terra (aquáticos). */
   blocked(x, z) {
-    if (this.spec.aquatic) return !this.isWater(x, z);
+    if (this.spec.aquatic) return !this.isWater(x, z) && !(this.spec.landSpeed && this.nearWater(x, z, this.spec.shoreRange));
     return !this.spec.swims && this.isWater(x, z);
   }
 
@@ -354,6 +363,7 @@ export class Animal {
     }
     if (this.leapT > 0) { this.leapT -= dt; speed = spec.run * 1.5; }
     if (this.limpT > 0) { this.limpT -= dt; speed *= BLEED.slowFactor; } // tiro nas pernas: manca
+    if (spec.landSpeed && !this.isWater(p.x, p.z)) speed *= spec.landSpeed; // jacaré fora d'água: arrasta-se devagar
     if (immobile || this.pendingKick >= 0) speed = 0; // coice: planta as patas da frente durante o golpe
     else speed *= this.status.speedFactor; // mordida no calcanhar: lento
 
@@ -362,7 +372,7 @@ export class Animal {
       const diff = Math.atan2(Math.sin(heading - cur), Math.cos(heading - cur));
       this.root.rotation.y = cur + diff * Math.min(1, dt * (speed > spec.walk * 2 ? 6 : 3));
     }
-    const onFoot = state !== 'fly' && state !== 'circle' && state !== 'burrow' && !spec.aquatic && this.altitude < 0.05;
+    const onFoot = state !== 'fly' && state !== 'circle' && state !== 'burrow' && (!spec.aquatic || !this.isWater(p.x, p.z)) && this.altitude < 0.05;
     if (this.sliding) speed = 0; // escorregando: perdeu o controle das patas
     if (speed > 0) {
       let yaw = this.root.rotation.y;

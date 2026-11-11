@@ -225,7 +225,7 @@ function analyzeLegged(S, box, cfg, kind, opts) {
   // Pés: amostras baixas (bichos de patas abertas — jacaré — só as laterais).
   let low = select(S, (x, y) => y < cfg.footBand * H && (!opts.lateralLegs || Math.abs(x) > halfW * 0.45));
   if (low.length < 8) low = select(S, (x, y) => y < cfg.footBand * H * 2);
-  if (low.length < 8) return null;
+  if (low.length < 8) { autoRig.reason = `só ${low.length} amostras de pés`; return null; }
   // Frente/trás pelos VÃOS em z: agrupa as amostras dos pés e fica com os 2
   // grupos maiores (patas da frente e de trás). Grupos pequenos — ponta da
   // cauda encostada no chão, focinho rente ao solo — ficam de fora.
@@ -238,12 +238,29 @@ function analyzeLegged(S, box, cfg, kind, opts) {
       runs[runs.length - 1].push(sorted[k]);
     }
     if (runs.length >= 2) {
-      const [a, b] = [...runs].sort((x, y) => y.length - x.length).slice(0, 2).sort((x, y) => S[x[0] + 2] - S[y[0] + 2]);
-      zMid = (S[a[a.length - 1] + 2] + S[b[0] + 2]) / 2;
-      const keep = new Set([...a, ...b]);
-      low = low.filter((i) => keep.has(i));
+      // Pose de passada (patas desalinhadas em z) rende 3–4 grupos: descarta os
+      // pequenos (cauda/focinho no chão) e corta frente/trás no MAIOR vão.
+      const big = Math.max(...runs.map((r) => r.length));
+      const kept = runs.filter((r) => r.length >= big * 0.15);
+      if (kept.length >= 2) {
+        let cut = 1, gap = -Infinity;
+        for (let k = 1; k < kept.length; k++) {
+          const d = S[kept[k][0] + 2] - S[kept[k - 1][kept[k - 1].length - 1] + 2];
+          if (d > gap) { gap = d; cut = k; }
+        }
+        zMid = (S[kept[cut - 1][kept[cut - 1].length - 1] + 2] + S[kept[cut][0] + 2]) / 2;
+        const keep = new Set(kept.flat());
+        low = low.filter((i) => keep.has(i));
+      }
     }
   }
+  // Centro lateral de cada metade (frente/trás): a pose pode deslocar as patas de x = 0.
+  const xMidOf = (sz) => {
+    let lo = Infinity, hi = -Infinity;
+    for (const i of low) if (nLegs !== 4 || Math.sign((S[i + 2] - zMid) || 1e-9) === sz) { lo = Math.min(lo, S[i]); hi = Math.max(hi, S[i]); }
+    return hi - lo > W * 0.12 ? (lo + hi) / 2 : 0;
+  };
+  const xMid = { '-1': xMidOf(-1), 1: xMidOf(1), 0: xMidOf(0) };
   // k-means (3 iterações) a partir dos quadrantes.
   let cents = nLegs === 4
     ? [[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([sx, sz]) => ({ x: sx * halfW * 0.4, z: zMid + sz * L * 0.25, sx, sz }))
@@ -256,7 +273,7 @@ function analyzeLegged(S, box, cfg, kind, opts) {
       // Mantém o lado e a frente/trás de cada quadrante (sem trocar patas).
       let best = -1, bd = Infinity;
       cents.forEach((c, k) => {
-        if (Math.sign(x || 1e-9) !== c.sx) return;
+        if (Math.sign((x - xMid[c.sz]) || 1e-9) !== c.sx) return;
         if (nLegs === 4 && Math.sign((z - zMid) || 1e-9) !== c.sz) return;
         const d = (x - c.x) ** 2 + (z - c.z) ** 2;
         if (d < bd) { bd = d; best = k; }
@@ -265,7 +282,16 @@ function analyzeLegged(S, box, cfg, kind, opts) {
     }
     cents = cents.map((c, k) => (groups[k].length ? { ...c, x: centroid(S, groups[k]).x, z: centroid(S, groups[k]).z } : c));
   }
-  if (groups.some((g) => g.length < 3)) return null;
+  // Pata erguida na pose (fora da faixa dos pés): espelha a irmã do outro lado.
+  for (let k = 0; k < cents.length; k++) {
+    if (groups[k].length >= 3) continue;
+    const sib = cents.findIndex((c, j) => j !== k && c.sz === cents[k].sz && groups[j].length >= 3);
+    if (sib < 0) { autoRig.reason = `patas não encontradas: ${groups.map((g) => g.length).join('/')}`; return null; }
+    const mx = xMid[cents[k].sz];
+    cents[k] = { ...cents[k], x: 2 * mx - cents[sib].x, z: cents[sib].z };
+    groups[k] = groups[sib];
+    cents[k].mirrorOf = sib;
+  }
 
   const front = nLegs === 4 ? cents.filter((c) => c.sz > 0) : cents;
   const back = nLegs === 4 ? cents.filter((c) => c.sz < 0) : cents;
@@ -328,7 +354,8 @@ function analyzeLegged(S, box, cfg, kind, opts) {
   // Pernas.
   const legs = cents.map((c, k) => {
     const g = groups[k];
-    const r = quantile(g.map((i) => Math.hypot(S[i] - c.x, S[i + 2] - c.z)), 0.9);
+    const rc = c.mirrorOf !== undefined ? cents[c.mirrorOf] : c;
+    const r = quantile(g.map((i) => Math.hypot(S[i] - rc.x, S[i + 2] - rc.z)), 0.9);
     // Eixo da perna: do pé até o centro da perna logo abaixo da barriga.
     const up = select(S, (x, y, z) => Math.abs(y - legTop * 0.82) < H * 0.04 && Math.hypot(x - c.x, z - c.z) < Math.max(r * 2.5, L * 0.08));
     const top = up.length ? centroid(S, up) : new THREE.Vector3(c.x, legTop, c.z);

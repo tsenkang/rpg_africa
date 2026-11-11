@@ -53,3 +53,14 @@ test('wolf_chasing_approachesFromBehindVictim', () => {
   // Não foi reto para o focinho: desviou para o lado para contornar até as costas.
   assert.ok(Math.abs(wolf.position.x) > 0.5, `x=${wolf.position.x.toFixed(2)}`);
 });
+
+test('crocodile_onShore_walksSlowAndStaysNearWater', async () => {
+  const { Animal } = await import('../../../src/entities/Animal.js');
+  const { SPECIES, FAUNA } = await import('../../../src/config/fauna.js');
+  // Água em x < 0 (fundo -2), terra plana em x >= 0 (altura 1).
+  const groundAt = (x) => (x < 0 ? -2 : 1);
+  const croc = new Animal({ spec: SPECIES.jacare, speciesId: 'jacare', x: 2, z: 0, groundAt, fauna: FAUNA, rng: () => 0.5 });
+  assert.equal(croc.blocked(5, 0), false); // margem: pode
+  assert.equal(croc.blocked(30, 0), true); // longe da água: não
+  assert.equal(croc.blocked(-5, 0), false); // água: pode
+});
