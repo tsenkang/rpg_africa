@@ -255,6 +255,7 @@ export class Game {
     this.scene.add(this.terrain.buildMesh(this.materials.textures, paints, this.photos));
 
     this.water = new Water({ renderer: this.renderer, terrain: this.terrain });
+    this.water.installUnderwater(this.terrain.mesh.material); // cáusticas e luz debaixo d'água no fundo
     this.scene.add(this.water.mesh);
     this.environment = new Environment(this.scene, this.renderer);
     // Clima por bioma + névoa paranormal (roda depois do Environment no loop).
@@ -1801,6 +1802,7 @@ export class Game {
       this.vegetation.update(this.camera.position, true);
       this.grass.update(pos, !this.player.fastTravel && pos.y - this.terrain.heightAt(pos.x, pos.z) < 40);
       this.water.update(this.time, this.environment, this.camera);
+      if (this.weather.group) this.weather.group.visible = !this.water.underwater; // chuva não cai debaixo d'água
       let near = null;
       for (const v of Object.values(this.villages)) {
         v.update(dt, pos);

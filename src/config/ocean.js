@@ -39,6 +39,26 @@ export const OCEAN = {
   mesh: { segments: 192, innerSpacing: 0.5, farRadius: 6000 },
   /** Textura de profundidade do fundo (m por texel) [jogo]. */
   depthTexel: 8,
+  /**
+   * Ótica (Etapa A2).
+   * - `absorption`: coeficiente de Beer-Lambert por canal (1/m) [jogo: água costeira tropical, o vermelho
+   *   some em ~2 m, o azul atravessa ~25 m];
+   * - `scatter`: cor que a coluna d'água espalha de volta (o "corpo" da água funda);
+   * - `refraction`: deslocamento da imagem do fundo pela normal (fração da tela por m de profundidade);
+   * - `reflection`: 'planar' (reflexo do cenário, custa um 2º desenho da cena a meia resolução) ou 'sky';
+   * - `causticStrength`: 0..1; `shoreFoam`: largura da faixa de espuma na beira (m de profundidade).
+   */
+  optics: {
+    ior: 1.333,
+    absorption: [0.45, 0.075, 0.04],
+    scatter: [0.02, 0.09, 0.11],
+    refraction: 0.035,
+    reflection: 'planar',
+    reflectionScale: 0.5,
+    causticStrength: 0.85,
+    shoreFoam: 0.9,
+    underwaterFog: 0.06,
+  },
   /** Velocidade do tempo do oceano. */
   timeScale: 1,
 };

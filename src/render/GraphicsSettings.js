@@ -114,6 +114,7 @@ export function applyGraphics(game, preset, devicePixelRatio = globalThis.device
   game.postfx?.setEnabled(preset.bloom);
   game.postfx?.setSize();
   game.minimap?.setInterval(preset.minimapInterval);
+  game.water?.setReflection?.(preset.waterReflection ?? 'sky');
   const aa = r.getContextAttributes?.()?.antialias ?? preset.antialias;
   return { needsReload: aa !== preset.antialias };
 }
