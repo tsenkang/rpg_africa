@@ -60,7 +60,7 @@ export class NPC {
       const near = dx * dx + dz * dz < 36;
       this.turnTo(near ? Math.atan2(dx, dz) : this.baseFacing, dt * 3);
     }
-    this.model.update(dt, speed);
+    this.model.update(dt, speed, { ground: this.groundAt });
   }
 
   /**

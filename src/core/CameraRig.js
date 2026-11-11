@@ -25,7 +25,8 @@ import { approach } from '../entities/Locomotion.js';
 export class CameraRig {
   /**
    * @param {THREE.PerspectiveCamera} camera
-   * @param {{ groundAt?: (x: number, z: number) => number, config?: typeof CAMERA }} [deps]
+   * @param {{ groundAt?: (x: number, z: number, feetY?: number) => number, config?: typeof CAMERA }} [deps]
+   *   `groundAt` recebe a altura do pé do jogador (piso do andar dele).
    */
   constructor(camera, { groundAt = null, config = CAMERA } = {}) {
     this.camera = camera;
@@ -54,6 +55,14 @@ export class CameraRig {
     this.bobStrength = 0; // 0 parado → 1 andando (suavizado)
     this.bobOffset = new THREE.Vector3(); // deslocamento do balanço neste quadro
     this._right = new THREE.Vector3();
+    /**
+     * Recuo permitido (opcional): `(focus, cam) => fração 0..1` do caminho
+     * foco → câmera livre de paredes. Ex.: `InteriorManager.cameraReach`.
+     * @type {((focus: THREE.Vector3, cam: THREE.Vector3) => number) | null}
+     */
+    this.reach = null;
+    this.clipDistance = this.distance; // distância real (após o recuo)
+    this.clipped = false;
   }
 
   get isFirstPerson() {
@@ -188,11 +197,20 @@ export class CameraRig {
       this.focus.z - Math.cos(this.yaw) * cp * this.distance,
     );
     if (this.groundAt) {
-      const g = this.groundAt(cam.x, cam.z) + 0.4;
+      // Pé do jogador como referência: só conta o piso/plataforma do andar dele
+      // (senão, no térreo de um sobrado, a câmera subia para cima da laje).
+      const g = this.groundAt(cam.x, cam.z, target.y) + 0.4;
       if (cam.y < g) cam.y = g;
     }
-    // Dentro de casa: a câmera fica no cômodo (não atravessa parede/telhado).
-    this.confine?.(cam);
+    // Dentro de casa: a câmera recua até a parede/teto/divisória (sem atravessar),
+    // encurta na hora e volta a se afastar suavemente — nada de pulos na porta.
+    const reach = this.reach ? this.reach(this.focus, cam) : 1;
+    const full = Math.max(cam.distanceTo(this.focus), 1e-6);
+    const want = full * reach;
+    if (this.first || want <= this.clipDistance || !this.clipped) this.clipDistance = want;
+    else this.clipDistance = Math.min(want, approach(this.clipDistance, want, t.interior.returnSpeed, dt));
+    this.clipped = reach < 1 || this.clipDistance < want - 0.01;
+    if (this.clipDistance < full - 1e-6) cam.sub(this.focus).multiplyScalar(this.clipDistance / full).add(this.focus);
     cam.y += this.bobOffset.y;
     cam.addScaledVector(this._right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw)), this.bobOffset.x);
     this.camera.lookAt(this.focus);

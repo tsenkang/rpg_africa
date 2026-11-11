@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { autoRig } from './AutoRig.js';
 
 /**
  * Gerenciador de assets da fauna (preloader + cache): carrega, normaliza e
@@ -15,6 +16,9 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
  *   (cada um anima sozinho), `clone()` simples para os estáticos; geometria e
  *   materiais são compartilhados.
  * - Escala pela `THREE.Box3` (`normalize`): 1 unidade = 1 metro.
+ * - Modelo estático com `rig` no config ganha esqueleto do `AutoRig` (pernas,
+ *   coluna, pescoço, cauda dobram de verdade); se o AutoRig não reconhecer o
+ *   corpo, o modelo fica estático como antes.
  * - Espécie sem modelo (ou que falhou) usa o corpo procedural do AnimalBody.
  *
  * @example
@@ -56,20 +60,27 @@ export class AnimalModels {
     const cfg = this.config[id];
     try {
       const gltf = await this.fetchGltf(cfg);
-      const template = normalize(gltf.scene, cfg);
+      let template = normalize(gltf.scene, cfg);
       if (cfg.tint || cfg.emissive) recolor(template, cfg);
+      let rig = null;
+      if (cfg.rig && !cfg.clips) {
+        const rigged = autoRig(template, cfg.rig);
+        if (rigged) ({ object: template, rig } = rigged);
+        else console.warn(`AutoRig não reconheceu "${id}"; o modelo fica estático.`);
+      }
       let skinned = false;
       template.traverse((o) => {
         if (o.isSkinnedMesh) skinned = true;
         if (o.isMesh) {
           o.castShadow = true;
           o.receiveShadow = false;
-          o.frustumCulled = !o.isSkinnedMesh; // a caixa do skinned não segue a animação
+          // A esfera do AutoRig já tem folga para as patas; a dos clipes, não.
+          o.frustumCulled = !o.isSkinnedMesh || !!rig;
           // Pelo não é metal: sem mapa de ambiente, metalness > 0 só escurece o animal.
           for (const m of [o.material].flat()) if (m.metalness) m.metalness = 0;
         }
       });
-      this.ready.set(id, { template, clips: cleanClips(gltf.animations), skinned });
+      this.ready.set(id, { template, clips: cleanClips(gltf.animations), skinned, rig });
     } catch (err) {
       this.failed.add(id);
       console.warn(`Modelo do animal "${id}" não carregou; usando o procedural.`, err);
@@ -89,13 +100,14 @@ export class AnimalModels {
 
   /**
    * Cópia nova do modelo (geometria e materiais compartilhados).
-   * @returns {{ object: THREE.Object3D, clips: THREE.AnimationClip[], names: object } | null}
+   * @returns {{ object: THREE.Object3D, clips: THREE.AnimationClip[], names: object, rig: object|null } | null}
+   *   `rig`: nomes dos ossos do AutoRig (o AnimalBody busca os ossos desta cópia).
    */
   instance(id) {
     const m = this.ready.get(id);
     if (!m) return null;
     const object = m.skinned ? cloneSkinned(m.template) : m.template.clone();
-    return { object, clips: m.clips, names: this.config[id].clips ?? null };
+    return { object, clips: m.clips, names: this.config[id].clips ?? null, rig: m.rig ?? null };
   }
 }
 

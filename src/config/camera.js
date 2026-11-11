@@ -15,6 +15,12 @@ export const CAMERA = {
     distance: 6.5, minDistance: 2.5, maxDistance: 40, flyMaxDistance: 400, undergroundMaxDistance: 3.2,
     pitch: 0.32, minPitch: -0.35, maxPitch: 1.35, // rad (positivo = câmera acima, olhando para baixo)
     focusHeight: 1.55, // m acima dos pés (para onde a câmera olha)
+    /** Dentro de casa: a câmera recua até a parede/teto/divisória mais próxima. */
+    interior: {
+      margin: 0.25, // m de folga até a parede (o plano near não corta a parede)
+      returnSpeed: 3.5, // 1/s — ao sair do aperto a câmera volta a se afastar suavemente
+      hidePlayerDistance: 0.6, // m — câmera mais perto que isso da cabeça esconde o personagem
+    },
   },
   first: {
     eyeHeight: 1.66, // m acima dos pés (personagem de 1,80 m)

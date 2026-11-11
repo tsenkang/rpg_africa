@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { G, local } from '../villages/Builders.js';
 import { mulberry32 } from '../world/Noise.js';
 import { planInterior } from '../world/InteriorLayout.js';
+import { cameraReach } from '../world/InteriorCamera.js';
 import { FURNITURE, ROOM_FURNITURE, STYLE_SWAPS, INTERIOR_STYLES, INTERIOR_STREAM } from '../config/interiors.js';
 
 const CATALOG = { FURNITURE, ROOM_FURNITURE, STYLE_SWAPS, styles: INTERIOR_STYLES };
@@ -72,7 +73,7 @@ class FurniturePools {
  * const interiors = new InteriorManager({ scene, M: materials, collisions, fireLights });
  * interiors.add(descDaCasa, 'rustic');
  * interiors.update(dt, player.position);      // no loop
- * interiors.confineCamera(camera.position, player.position);
+ * interiors.cameraReach(rig.focus, camera.position, player.position, 0.25);
  */
 export class InteriorManager {
   constructor({ scene, M, collisions, fireLights }) {
@@ -182,6 +183,8 @@ export class InteriorManager {
     }
     h.built = built;
     h.plan = plan;
+    // Divisórias por andar (para a câmera não passar para o cômodo vizinho).
+    h.partsByFloor = floors.map((_, f) => plan.partitions.filter((pt) => pt.floor === f));
     this.generatedCount++;
   }
 
@@ -197,6 +200,7 @@ export class InteriorManager {
     for (const l of h.built.lights) this.fireLights?.remove(l);
     h.built = null;
     h.plan = null;
+    h.partsByFloor = null;
   }
 
   /**
@@ -221,25 +225,38 @@ export class InteriorManager {
   }
 
   /**
-   * Mantém a câmera de 3ª pessoa dentro do cômodo quando o jogador está numa
-   * casa (senão ela fica do lado de fora, atrás da parede).
-   * @param {THREE.Vector3} cam posição da câmera (modificada)
+   * Até onde a câmera de 3ª pessoa pode recuar sem sair do cômodo em que o
+   * jogador está: fração (0..1) do caminho foco → câmera. Considera as paredes
+   * INTERNAS (descontada a espessura `t`), piso, teto do andar e divisórias;
+   * pelo vão da porta a câmera pode sair.
+   * @param {THREE.Vector3} focus cabeça do jogador (para onde a câmera olha)
+   * @param {THREE.Vector3} cam posição desejada da câmera
    * @param {THREE.Vector3} player pés do jogador
-   * @returns {boolean} true se a câmera foi confinada
+   * @param {number} margin folga até paredes/teto (m)
+   * @returns {number} 1 = livre (fora de casa)
+   * @example const k = interiors.cameraReach(rig.focus, camera.position, player.position, 0.25);
    */
-  confineCamera(cam, player) {
+  cameraReach(focus, cam, player, margin) {
     const at = this.insideAt(player);
-    if (!at) return false;
+    if (!at || !at.house.plan) return 1;
     const h = at.house;
     const c = Math.cos(h.rot), s = Math.sin(h.rot);
-    const dx = cam.x - h.x, dz = cam.z - h.z;
-    let lx = dx * c - dz * s, lz = dx * s + dz * c;
-    const mx = h.w / 2 - 0.3, mz = h.d / 2 - 0.3;
-    lx = THREE.MathUtils.clamp(lx, -mx, mx);
-    lz = THREE.MathUtils.clamp(lz, -mz, mz);
-    cam.x = h.x + lx * c + lz * s;
-    cam.z = h.z - lx * s + lz * c;
-    cam.y = THREE.MathUtils.clamp(cam.y, at.floorY + 0.5, at.ceilY - 0.2);
-    return true;
+    const toLocal = (p, out) => {
+      const dx = p.x - h.x, dz = p.z - h.z;
+      out.x = dx * c - dz * s;
+      out.z = dx * s + dz * c;
+      out.y = p.y;
+      return out;
+    };
+    const room = this._room ??= { partitions: null };
+    const t = h.t ?? 0;
+    room.hw = h.w / 2 - t;
+    room.hd = h.d / 2 - t;
+    room.y0 = at.floorY;
+    room.y1 = h.kind === 'ruin' ? at.ceilY + 30 : at.ceilY; // ruína não tem telhado
+    room.doorW = at.floor === 0 ? h.doorW : 0; // só o térreo tem porta
+    room.doorH = h.doorH;
+    room.partitions = h.partsByFloor?.[at.floor] ?? null;
+    return cameraReach(room, toLocal(focus, this._la ??= {}), toLocal(cam, this._lb ??= {}), margin);
   }
 }

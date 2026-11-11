@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Laboratório de Animação</title>
+    <style>
+      :root { --bg: #c9d4dc; --ink: #1d232a; --panel: rgba(255, 255, 255, 0.82); }
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px/1.4 system-ui, sans-serif; overflow: hidden; }
+      #hud { position: fixed; left: 12px; top: 12px; background: var(--panel); padding: 8px 12px; border-radius: 8px; max-width: 46ch; }
+      #hud b { font-weight: 600; }
+      #hud select, #hud button { font: inherit; margin: 2px 4px 2px 0; }
+    </style>
+  </head>
+  <body>
+    <div id="hud">
+      <b>Laboratório de Animação</b> — <span id="status">carregando…</span><br />
+      <label>Espécie <select id="species"></select></label>
+      <label>Estado <select id="state"></select></label><br />
+      <button id="attack">Atacar</button>
+      <button id="bones">Ossos</button>
+      <button id="grid">Todas</button>
+      <button id="human">Humano</button>
+    </div>
+    <script type="module">
+      /*
+       * Ferramenta de desenvolvimento (não entra no build do jogo).
+       * Mostra cada espécie com o mesmo AnimalBody/AnimalAnimationManager do jogo,
+       * sobre um chão com rampa e um lago, para conferir AutoRig, ciclos e
+       * transições. URL: /tools/anim-lab.html?species=leao&state=wander&bones=1
+       * API para testes automáticos: window.lab
+       */
+      import * as THREE from 'three';
+      import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+      import { AnimalModels } from '../src/render/AnimalModels.js';
+      import { ANIMAL_MODELS, ANIMAL_LOADER } from '../src/config/animalModels.js';
+      import { SPECIES } from '../src/config/fauna.js';
+      import { AnimalBody } from '../src/entities/AnimalBody.js';
+      import { Humanoid } from '../src/entities/Humanoid.js';
+      import { slopeTilt } from '../src/entities/anim/AnimMath.js';
+
+      const q = new URLSearchParams(location.search);
+      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.shadowMap.enabled = true;
+      document.body.appendChild(renderer.domElement);
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xc9d4dc);
+      const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.05, 400);
+      camera.position.set(4.5, 2.2, 5.5);
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.target.set(0, 0.8, 0);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x8a7a60, 1.6));
+      const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+      sun.position.set(6, 10, 4);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(2048, 2048);
+      Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20 });
+      scene.add(sun);
+
+      // Chão: plano em x < 6, rampa de 20° entre 6 e 14, lago em z < -8.
+      const groundAt = (x, z) => (x > 6 ? Math.min(x - 6, 8) * Math.tan(0.35) : 0) - (z < -8 ? 1.2 : 0);
+      const geo = new THREE.PlaneGeometry(60, 60, 120, 120).rotateX(-Math.PI / 2);
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) pos.setY(i, groundAt(pos.getX(i), pos.getZ(i)));
+      geo.computeVertexNormals();
+      const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xb8a57c, roughness: 1 }));
+      ground.receiveShadow = true;
+      scene.add(ground);
+      const water = new THREE.Mesh(new THREE.PlaneGeometry(60, 22).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x3a7aa8, transparent: true, opacity: 0.55 }));
+      water.position.set(0, -0.02, -19);
+      scene.add(water);
+
+      // O config usa caminhos relativos à raiz do jogo; aqui a página está em /tools/.
+      const abs = (p) => p.replace(/^\.\//, '/');
+      const CONFIG = Object.fromEntries(Object.entries(ANIMAL_MODELS).map(([id, c]) => [id, { ...c, glb: abs(c.glb), glbJson: abs(c.glbJson) }]));
+      const models = new AnimalModels(CONFIG, { dracoPath: abs(ANIMAL_LOADER.dracoPath) });
+      const STATES = ['idle', 'wander', 'chase', 'stalk', 'attack', 'threat', 'swim', 'dead', 'circle', 'fly'];
+      const actors = [];
+      let helpers = [];
+      let human = null;
+      const clock = new THREE.Clock();
+
+      function makeActor(id, x, z) {
+        const body = new AnimalBody(SPECIES[id], models.instance(id), id);
+        body.root.position.set(x, groundAt(x, z), z);
+        scene.add(body.root);
+        return { id, body, x, z, state: q.get('state') ?? 'idle', t: 0, attackEvery: 0 };
+      }
+
+      function clear() {
+        for (const a of actors) scene.remove(a.body.root);
+        actors.length = 0;
+        for (const h of helpers) scene.remove(h);
+        helpers = [];
+        if (human) { scene.remove(human.root); human = null; }
+      }
+
+      function showOne(id) {
+        clear();
+        const a = makeActor(id, 0, 0);
+        actors.push(a);
+        const size = new THREE.Box3().setFromObject(a.body.root).getSize(new THREE.Vector3());
+        const r = Math.max(size.x, size.y, size.z);
+        controls.target.set(0, size.y * 0.5, 0);
+        camera.position.set(r * 1.5, r * 0.75, r * 1.7);
+        if (q.get('bones') === '1') toggleBones(true);
+      }
+
+      function showGrid() {
+        clear();
+        const ids = Object.keys(SPECIES);
+        ids.forEach((id, i) => actors.push(makeActor(id, (i % 6) * 4 - 10, Math.floor(i / 6) * 5 - 4)));
+        controls.target.set(0, 0.6, 2);
+        camera.position.set(2, 14, 22);
+      }
+
+      function toggleBones(on = helpers.length === 0) {
+        for (const h of helpers) scene.remove(h);
+        helpers = [];
+        if (!on) return;
+        for (const a of actors) {
+          const h = new THREE.SkeletonHelper(a.body.root);
+          h.material.depthTest = false;
+          h.material.linewidth = 2;
+          scene.add(h);
+          helpers.push(h);
+        }
+      }
+
+      function speedFor(spec, state) {
+        if (state === 'wander') return spec.walk;
+        if (state === 'chase') return spec.run;
+        if (state === 'stalk') return spec.stalk ?? spec.walk;
+        if (state === 'swim') return spec.walk;
+        return 0;
+      }
+
+      function tick() {
+        const dt = Math.min(clock.getDelta(), 0.1);
+        for (const a of actors) {
+          a.t += dt;
+          const spec = a.body.spec;
+          const state = a.state === 'swim' ? 'wander' : a.state;
+          const speed = q.get('still') === '1' ? 0 : speedFor(spec, a.state);
+          // Anda em círculo no lugar (rampa em `ramp=1`): o chão é amostrado de verdade.
+          const swimming = a.state === 'swim';
+          const ramp = q.get('ramp') === '1';
+          const cx = ramp ? 10 : a.x, cz = swimming ? -14 : a.z;
+          const yaw = ramp ? Math.PI / 2 : a.body.root.rotation.y + (speed > 0 && !ramp ? dt * 0.25 : 0);
+          a.body.root.rotation.y = yaw;
+          a.body.root.position.set(cx, swimming ? -spec.size * 0.6 : groundAt(cx, cz), cz);
+          if (a.state === 'attack') {
+            a.attackEvery -= dt;
+            if (a.attackEvery <= 0) { a.body.startAttack(); a.attackEvery = 1.6; }
+          }
+          const tilt = swimming ? null : slopeTilt(groundAt, cx, cz, yaw, 0.6, 0.25);
+          a.body.update(dt, speed, state, a.t, { swimming, tilt, yawRate: speed > 0 && !ramp ? 0.25 : 0, look: 0.6 });
+        }
+        if (human) {
+          human.t += dt;
+          const h = human.h;
+          const swim = human.mode === 'swim' || human.mode === 'tread';
+          const speed = human.mode === 'walk' ? 1.4 : human.mode === 'run' ? 5 : human.mode === 'swim' ? 1.2 : 0;
+          const ramp = q.get('ramp') === '1';
+          const x = ramp ? 10 : 0, z = swim ? -14 : 0;
+          h.root.position.set(x, swim ? -1.25 : groundAt(x, z), z);
+          h.root.rotation.y = ramp ? Math.PI / 2 : 0;
+          h.update(dt, speed, { swimming: swim, sprinting: human.mode === 'run', grounded: true, ground: swim ? null : groundAt });
+        }
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      function showHuman(mode = 'walk') {
+        clear();
+        human = { h: new Humanoid({ height: 1.8 }), mode, t: 0 };
+        scene.add(human.h.root);
+        const swim = mode === 'swim' || mode === 'tread';
+        const ramp = q.get('ramp') === '1';
+        controls.target.set(ramp ? 10 : 0, swim ? -0.4 : 1 + (ramp ? groundAt(10, 0) : 0), swim ? -14 : 0);
+        camera.position.copy(controls.target).add(new THREE.Vector3(3.2, 1.0, 2.6));
+        if (q.get('bones') === '1') toggleBones(true);
+      }
+
+      // ---- interface
+      const selSp = document.getElementById('species'), selSt = document.getElementById('state');
+      for (const id of Object.keys(SPECIES)) selSp.add(new Option(SPECIES[id].nome, id));
+      for (const s of STATES) selSt.add(new Option(s, s));
+      selSp.onchange = () => showOne(selSp.value);
+      selSt.onchange = () => { for (const a of actors) a.state = selSt.value; };
+      document.getElementById('attack').onclick = () => { for (const a of actors) a.body.startAttack(); };
+      document.getElementById('bones').onclick = () => toggleBones();
+      document.getElementById('grid').onclick = showGrid;
+      document.getElementById('human').onclick = () => showHuman(human?.mode === 'walk' ? 'swim' : 'walk');
+      addEventListener('resize', () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+      });
+
+      await models.loadAll((d, t) => { document.getElementById('status').textContent = `carregando ${d}/${t}`; });
+      const rigged = [...models.ready.entries()].filter(([, m]) => m.rig).map(([id]) => id);
+      document.getElementById('status').textContent = `${rigged.length} modelos com AutoRig`;
+      window.lab = {
+        ready: true, rigged, failed: [...models.failed], showOne, showGrid, showHuman, toggleBones, scene, camera, controls,
+        setState: (s) => { for (const a of actors) a.state = s; selSt.value = s; },
+        setHuman: (m) => { if (human) human.mode = m; },
+        attack: () => { for (const a of actors) a.body.startAttack(); },
+        rigInfo: (id) => models.ready.get(id)?.rig ?? null,
+      };
+      const mode = q.get('human');
+      if (mode) showHuman(mode);
+      else if (q.get('grid') === '1') showGrid();
+      else showOne(q.get('species') ?? 'leao');
+      selSp.value = q.get('species') ?? 'leao';
+      renderer.setAnimationLoop(tick);
+    </script>
+  </body>
+</html>
