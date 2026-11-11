@@ -28,6 +28,9 @@ const QUATERNIUS = { idle: 'Idle', walk: 'Walk', run: 'Gallop', attack: 'Attack'
  */
 const Q = { kind: 'quadruped' };
 
+/** Pacote "Realistic Animated Pack" (enviado pelo dono): estático, cabeça para +X → gira para +Z. */
+const RAP = { yaw: -Math.PI / 2 };
+
 /** Carregador: pasta do decodificador Draco (copiado de three/examples/jsm/libs/draco/gltf). */
 export const ANIMAL_LOADER = { dracoPath: `${(import.meta.env?.BASE_URL ?? "/")}draco/` };
 
@@ -46,16 +49,16 @@ export const ANIMAL_LOADER = { dracoPath: `${(import.meta.env?.BASE_URL ?? "/")}
  */
 export const ANIMAL_MODELS = {
   zebra: { ...file('zebra'), length: 2.4, rig: Q },
-  leao: { ...file('leao'), length: 2.3, rig: Q },
-  lobo: { ...file('lobo'), length: 1.5, clips: QUATERNIUS },
-  alce: { ...file('alce'), length: 2.3, clips: { ...QUATERNIUS, attack: 'Attack_Headbutt' } },
+  leao: { ...file('leao'), ...RAP, length: 2.3, rig: Q },
+  lobo: { ...file('lobo'), ...RAP, length: 1.5, rig: Q },
+  alce: { ...file('alce'), ...RAP, length: 2.6, rig: Q },
   escorpiao: { ...file('escorpiao'), length: 1.7, rig: { kind: 'scorpion' } },
   onca: { ...file('onca'), length: 1.9, rig: Q },
   capivara: { ...file('capivara'), length: 1.2, rig: Q },
-  hiena: { ...file('hiena'), length: 1.5, rig: Q },
+  hiena: { ...file('hiena'), ...RAP, length: 1.5, rig: Q },
   gorila: { ...file('gorila'), height: 1.6, rig: { kind: 'quadruped', tail: false } },
   leopardo: { ...file('leopardo'), length: 1.9, rig: Q },
-  javali: { ...file('javali'), length: 1.4, rig: Q },
+  javali: { ...file('javali'), ...RAP, length: 1.4, rig: Q },
   corvo: { ...file('corvo'), length: 0.5, rig: { kind: 'bird', jaw: false } },
   // ---- 3 espécies por bioma (ver CREDITS.md) ----
   camelo: { ...file('camelo'), length: 3.0, rig: Q },
@@ -65,10 +68,10 @@ export const ANIMAL_MODELS = {
     tint: 0xb89a68, // Quaternius vem verde: pinta de areia (víbora do deserto)
   },
   girafa: { ...file('girafa'), height: 5.2, rig: Q },
-  urso: { ...file('urso'), length: 2.2, rig: { kind: 'quadruped', tail: false } },
+  urso: { ...file('urso'), ...RAP, length: 2.2, rig: { kind: 'quadruped', tail: false } },
   arara: { ...file('arara'), length: 0.85, rig: { kind: 'bird', jaw: false } },
   avestruz: { ...file('avestruz'), height: 2.4, rig: { kind: 'biped', jaw: false } },
-  jacare: { ...file('jacare'), length: 3.4, rig: { kind: 'quadruped', lateralLegs: true, spineBones: 4, tailBones: 4 } },
+  jacare: { ...file('jacare'), ...RAP, length: 3.4, rig: { kind: 'quadruped', lateralLegs: true, spineBones: 4, tailBones: 4 } },
   // Cérbero: o lobo animado, maior, quase preto e com brilho vermelho (cão paranormal).
-  cerbero: { ...file('lobo'), length: 2.6, clips: QUATERNIUS, tint: 0x1c1618, emissive: 0x2a0404 },
+  cerbero: { ...file('cerbero'), length: 2.6, clips: QUATERNIUS, tint: 0x1c1618, emissive: 0x2a0404 },
 };
