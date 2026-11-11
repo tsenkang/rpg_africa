@@ -67,6 +67,7 @@ export class Water {
         uAbsorb: { value: new THREE.Vector3(...OCEAN.optics.absorption) },
         uScatter: { value: new THREE.Vector3(...OCEAN.optics.scatter) },
         uShoreFoam: { value: OCEAN.optics.shoreFoam }, uLevel: { value: WORLD.waterLevel },
+        uWake: { value: null }, uWakeOn: { value: 0 }, uWakeRect: { value: new THREE.Vector4(0, 0, 1, 1) },
       });
     }
     const material = new THREE.ShaderMaterial({
@@ -141,6 +142,31 @@ export class Water {
   /** Instala a luz subaquática e as cáusticas no material (terreno, pedras…). */
   installUnderwater(material) {
     this.underwaterLighting?.install(material);
+  }
+
+  /**
+   * Fundo do oceano além da borda do mapa: o terreno termina ali, e sem um fundo a água
+   * transparente mostrava o vazio (uma costura reta e clara ao longo da borda do mundo).
+   * Plano grande um pouco abaixo da profundidade da borda, com luz subaquática.
+   * @param {{ heightAt: (x:number, z:number) => number }} terrain
+   */
+  buildOceanFloor(terrain) {
+    let edge = 0;
+    const n = 64;
+    for (let i = 0; i <= n; i++) {
+      const u = -0.5 + i / n;
+      for (const [x, z] of [[u * WORLD.width, -WORLD.depth / 2], [u * WORLD.width, WORLD.depth / 2], [-WORLD.width / 2, u * WORLD.depth], [WORLD.width / 2, u * WORLD.depth]]) edge += terrain.heightAt(x, z);
+    }
+    edge /= (n + 1) * 4;
+    const geo = new THREE.PlaneGeometry(40000, 40000, 1, 1).rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x8a7a5c, roughness: 1, metalness: 0 });
+    this.installUnderwater(mat);
+    const floor = new THREE.Mesh(geo, mat);
+    floor.position.y = Math.min(edge, WORLD.waterLevel - 2) - 1.5; // abaixo do terreno da borda (sem brigar com ele)
+    floor.receiveShadow = false;
+    floor.name = 'fundo-do-oceano';
+    floor.userData.noCollide = true;
+    return floor;
   }
 
   /**
@@ -243,9 +269,21 @@ uniform vec4 uSizes, uD0, uFloor, uFoamW, uTexel, uDepthRect;
 uniform float uAmp;
 uniform sampler2D uDepthTex;
 
+uniform sampler2D uWake;
+uniform float uWakeOn;
+uniform vec4 uWakeRect; // canto (m), tamanho (m) da janela da esteira
+// (h, ∂h/∂x, ∂h/∂z, espuma) da esteira do barco, com borda suave na janela [Tidewater wakeSample]
+vec4 wakeSample(vec2 xz) {
+  if (uWakeOn < 0.5) return vec4(0.0);
+  vec2 f = (xz - uWakeRect.xy) / uWakeRect.zw;
+  float m = smoothstep(0.0, 0.08, f.x) * smoothstep(1.0, 0.92, f.x) * smoothstep(0.0, 0.08, f.y) * smoothstep(1.0, 0.92, f.y);
+  if (m <= 0.0) return vec4(0.0);
+  return texture(uWake, xz / uWakeRect.zw) * m;
+}
 float seaDepth(vec2 xz) {
-  vec2 uv = (xz - uDepthRect.xy) / uDepthRect.zw;
-  if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return 500.0;
+  // fora do mapa: a profundidade da borda (como o terreno, que também prende na borda);
+  // assumir "mar fundo" ali criava uma costura reta na água junto da borda do mundo
+  vec2 uv = clamp((xz - uDepthRect.xy) / uDepthRect.zw, vec2(0.0), vec2(1.0));
   return texture(uDepthTex, uv).r;
 }
 // Atenuação por cascata no raso [Tidewater waterSurfaceCascadeAttenuation].
@@ -278,6 +316,9 @@ void main() {
     foam += textureLod(uDisp[${c}], xz / uSizes[${c}], max(level, 1.5)).w * uFoamW[${c}] * att;
   }`).join('\n  ')}
   wp.xyz += disp * uAmp;
+  vec4 wk = wakeSample(xz);
+  wp.y += wk.x;
+  foam += wk.w * 0.8;
   vWorld = wp.xyz;
   vLag = xz;
   vDepth = depth;
@@ -328,7 +369,9 @@ void main() {
     ${c >= 2 ? `foamDetail += texture(uDisp[${c}], uv).w * uFoamW[${c}] * att;` : ''}
   }`).join('\n  ')}
   slope *= uAmp; jac *= uAmp;
-  vec2 s = slope / max(vec2(1.0) + jac, vec2(0.2));
+  vec4 wk = wakeSample(vLag);
+  vec2 s = slope / max(vec2(1.0) + jac, vec2(0.2)) + wk.yz;
+  foamDetail += wk.w * 0.9;
   vec3 n = normalize(vec3(-s.x, 1.0, -s.y));
   bool below = !gl_FrontFacing;               // câmera debaixo d'água vê a face de trás
   vec3 V = normalize(cameraPosition - vWorld);

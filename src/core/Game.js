@@ -257,6 +257,7 @@ export class Game {
 
     this.water = new Water({ renderer: this.renderer, terrain: this.terrain });
     this.water.installUnderwater(this.terrain.mesh.material); // cáusticas e luz debaixo d'água no fundo
+    if (this.water.fft) this.scene.add(this.water.buildOceanFloor(this.terrain)); // fundo além da borda do mapa
     this.scene.add(this.water.mesh);
     this.environment = new Environment(this.scene, this.renderer);
     // Clima por bioma + névoa paranormal (roda depois do Environment no loop).

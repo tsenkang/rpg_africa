@@ -59,9 +59,10 @@ export class WaterQuery {
         uniform sampler2D uDisp[4]; uniform sampler2D uDeriv[4];
         uniform vec4 uSizes, uD0, uFloor, uFoamW, uTexel, uDepthRect; uniform float uAmp; uniform sampler2D uDepthTex;
         float seaDepth(vec2 xz) {
-          vec2 uv = (xz - uDepthRect.xy) / uDepthRect.zw;
-          if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return 500.0;
-          return texture(uDepthTex, uv).r;
+          // fora do mapa: a profundidade da borda (como o terreno, que também prende na borda);
+  // assumir "mar fundo" ali criava uma costura reta na água junto da borda do mundo
+  vec2 uv = clamp((xz - uDepthRect.xy) / uDepthRect.zw, vec2(0.0), vec2(1.0));
+  return texture(uDepthTex, uv).r;
         }
         float atten(int c, float depth) {
           float a = smoothstep(0.0, uD0[c], depth);

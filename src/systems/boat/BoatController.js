@@ -3,6 +3,9 @@ import { BOAT } from '../../config/boat.js';
 import { WORLD } from '../../config/worldConfig.js';
 import { BoatPhysics } from './BoatPhysics.js';
 import { buildBoatModel } from '../../render/boat/BoatModel.js';
+import { WakeSim } from '../../render/ocean/WakeSim.js';
+import { BoatSpray } from '../../render/boat/BoatSpray.js';
+import { WAKE } from '../../config/ocean.js';
 
 /**
  * Barco pilotável no jogo (Etapa A3): física + modelo + água da GPU + controles.
@@ -49,6 +52,9 @@ export class BoatController {
       position: () => this.physics.renderPosition, onInteract: (g) => g.boat.enter(),
     });
     this.hud = makeHud(game.ui?.root ?? document.body);
+    // Esteira (ondas em V, espuma) e spray (Etapa A4)
+    this.wake = game.water.fft ? new WakeSim(game.renderer, game.water) : null;
+    this.spray = new BoatSpray(game.scene);
     this.sync();
   }
 
@@ -118,7 +124,7 @@ export class BoatController {
   update(dt, input) {
     const g = this.game, ph = this.physics, c = this.cfg.controls;
     const near = Math.hypot(g.player.position.x - ph.com.x, g.player.position.z - ph.com.z) < 300;
-    if (!near && !this.piloting) { this.hud.style.display = 'none'; return; }
+    if (!near && !this.piloting) { this.hud.style.display = 'none'; if (this.game.water.uniforms.uWakeOn) this.game.water.uniforms.uWakeOn.value = 0; return; }
     if (this.piloting && input) {
       const up = input.isDown('KeyW') || input.isDown('ArrowUp'), down = input.isDown('KeyS') || input.isDown('ArrowDown');
       this.throttle = Math.max(-1, Math.min(1, this.throttle + (up - down) * c.throttleRate * dt));
@@ -129,8 +135,24 @@ export class BoatController {
     this.requestWater();
     ph.update(dt, { throttle: this.throttle, steer: this.steer }, { water: this.water, ground: this.ground });
     this.sync(dt);
+    this.updateWake(dt);
     if (this.piloting) this.placePilot();
     this.updateHud();
+  }
+
+  /** Esteira na GPU + spray; liga a textura na água. */
+  updateWake(dt) {
+    const u = this.game.water.uniforms;
+    if (this.wake) {
+      const q = this.game.water.query;
+      this.wake.u.uDepth.value = Math.min(WAKE.maxDepth, Math.max(0.5, q?.valid ? q.depth(this.slots[10] ?? 1) : WAKE.maxDepth));
+      this.wake.update(dt, this.physics, true);
+      const c = WAKE.cell;
+      u.uWake.value = this.wake.display;
+      u.uWakeRect.value.set(this.wake.origin.x * c, this.wake.origin.y * c, this.wake.size, this.wake.size);
+      u.uWakeOn.value = 1;
+    }
+    this.spray.update(dt, this.physics, (x, z) => this.waterAt(x, z).h);
   }
 
   /** Copia a pose interpolada para o modelo. */

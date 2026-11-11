@@ -62,3 +62,27 @@ export const OCEAN = {
   /** Velocidade do tempo do oceano. */
   timeScale: 1,
 };
+
+/**
+ * Esteira do barco (Etapa A4) — porte do `WakeSim.js` do Tidewater para WebGL2.
+ * Ondas lineares com dispersão exata (dw/dt = −g·L[h + P], dh/dt = w, L = |k| tanh(|k| d))
+ * numa janela que segue o barco; o casco é uma pressão que se move (Havelock) → esteira de Kelvin.
+ * [Tidewater: 512² células de 0,4 m, 4 operadores de profundidade; jogo: 256² de 0,5 m, 1 operador
+ * com a profundidade sob o barco.]
+ *
+ * @example WAKE.foam.prop = 1.4 // mais espuma da hélice
+ */
+export const WAKE = {
+  N: 256,
+  cell: 0.5,
+  sponge: 18, // células de borda que absorvem as ondas
+  spongeRate: 3.0,
+  damping: 0.04, // 1/s, dissipação de fundo
+  foamDamping: 0.9, // 1/s extra onde há espuma (turbulência achata as ondas)
+  /** Pressão do casco (m de coluna d'água). */
+  hull: { draft: 0.55, edge: 0.7, bow: 1.0, stern: 0.7 },
+  foam: { decay: 0.45, steep: 0.28, steepGain: 3.0, hull: 0.5, prop: 0.9, propLength: 7 },
+  /** Spray na proa e na popa. */
+  spray: { max: 700, speedThreshold: 2.2, rate: 90, life: 0.9, size: 0.18 },
+  maxDepth: 40, // profundidade usada no operador (água funda acima disso)
+};

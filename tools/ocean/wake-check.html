@@ -1,0 +1,74 @@
+<!doctype html>
+<!-- Confere a esteira (WakeSim): FFT ida e volta e o ângulo da esteira de Kelvin. Com o servidor de dev:
+     http://localhost:5173/tools/ocean/wake-check.html — o resultado fica em window.result. -->
+<body><script type="module">
+import * as THREE from 'three';
+import { WakeSim } from '/src/render/ocean/WakeSim.js';
+import { WAKE } from '/src/config/ocean.js';
+const r = new THREE.WebGLRenderer(); r.setSize(64, 64);
+const depth = new THREE.DataTexture(new Float32Array([500, 500, 500, 500]), 2, 2, THREE.RedFormat, THREE.FloatType); depth.needsUpdate = true;
+const water = { uniforms: { uDepthTex: { value: depth }, uDepthRect: { value: new THREE.Vector4(-1e5, -1e5, 2e5, 2e5) } } };
+const wake = new WakeSim(r, water, { ...WAKE, foam: { ...WAKE.foam } });
+wake.u.uDepth.value = 40;
+const N = wake.N, cell = WAKE.cell, out = {};
+// 1) ida e volta: campo aleatório → FFT(−1) → FFT(+1) / N² deve devolver o campo
+{
+  const data = new Float32Array(N * N * 4); for (let i = 0; i < N * N; i++) data[i * 4] = Math.sin(i * 0.37) + Math.cos(i * 0.011);
+  const tex = new THREE.DataTexture(data, N, N, THREE.RGBAFormat, THREE.FloatType); tex.needsUpdate = true;
+  const a = wake.fft(wake.copyTo(tex), -1); const other = a === wake.fftA ? wake.fftB : wake.fftA;
+  wake.copyMat.uniforms.uSrc.value = a.textures[0];
+  // copia complexa: usa o estágio com uStage alto não serve; copia via operador nulo = reaproveita fft na volta direto
+  const back = wake.fft(a, 1);
+  const buf = new Float32Array(N * N * 4); r.readRenderTargetPixels(back, 0, 0, N, N, buf);
+  let err = 0, mag = 0; for (let i = 0; i < N * N; i++) { err += Math.abs(buf[i * 4] / (N * N) - data[i * 4]); mag += Math.abs(data[i * 4]); }
+  out.roundTripRelErr = +(err / mag).toExponential(2);
+}
+// 2) Kelvin: pressão andando a U m/s em água funda por T s
+const U = +(new URLSearchParams(location.search).get('U') ?? 5);
+const boat = { renderPosition: new THREE.Vector3(0, 0, 0), speed: U, sway: 0, rpm: 0, cfg: { waterlineLength: 7.6, waterlineBeam: 2.7 }, angles: () => ({ yaw: 0 }) };
+wake.started = false;
+const dt = 1 / 60, T = 22;
+for (let t = 0; t < T; t += dt) { boat.renderPosition.z += U * dt; wake.update(dt, boat, true); }
+const buf = new Float32Array(N * N * 4); r.readRenderTargetPixels(wake.stateA, 0, 0, N, N, buf);
+const O = wake.origin, bz = boat.renderPosition.z, bx = 0;
+const rows = {};
+let maxAll = 0;
+for (let ty = 0; ty < N; ty++) for (let tx = 0; tx < N; tx++) {
+  const cx = O.x + ((tx - O.x) & (N - 1)), cz = O.y + ((ty - O.y) & (N - 1));
+  const x = (cx + 0.5) * cell, z = (cz + 0.5) * cell, h = buf[(ty * N + tx) * 4];
+  const behind = bz - z, lat = Math.abs(x - bx);
+  if (behind < 12 || behind > 50) continue;
+  const k = Math.round(behind / 2) * 2;
+  (rows[k] ??= []).push([lat, Math.abs(h)]);
+  maxAll = Math.max(maxAll, Math.abs(h));
+}
+const angles = [];
+for (const [k, list] of Object.entries(rows)) {
+  const m = Math.max(...list.map((p) => p[1]));
+  const edge = Math.max(...list.filter((p) => p[1] > 0.25 * m).map((p) => p[0]));
+  angles.push(Math.atan2(edge, +k) * 180 / Math.PI);
+  // cúspide: crista mais alta fora da faixa do casco (descontada a meia boca de 1,35 m)
+  const out2 = list.filter((p) => p[0] > 2.5);
+  const top = out2.reduce((a, p) => (p[1] > a[1] ? p : a), [0, 0]);
+  (window._cusp ??= []).push(Math.atan2(top[0] - 1.35, +k) * 180 / Math.PI);
+}
+const cu = window._cusp.sort((a, b) => a - b);
+out.cuspAngleMedian = +cu[cu.length >> 1].toFixed(1);
+angles.sort((a, b) => a - b);
+out.U = U; out.froude = +(U / Math.sqrt(9.81 * 7.6)).toFixed(2);
+out.kelvinAngleMedian = +angles[angles.length >> 1].toFixed(1);
+out.maxWakeHeight = +maxAll.toFixed(3);
+// energia limitada (não explode)
+out.finite = buf.every((v) => Number.isFinite(v));
+// imagem do campo (vista de cima, proa para cima): azul = cava, laranja = crista
+{
+  const c = document.createElement('canvas'); c.width = N; c.height = N; const x = c.getContext('2d'); const im = x.createImageData(N, N);
+  for (let ty = 0; ty < N; ty++) for (let tx = 0; tx < N; tx++) {
+    const wx = (tx - O.x) & (N - 1), wz = (ty - O.y) & (N - 1), h = buf[(ty * N + tx) * 4], d = ((N - 1 - wz) * N + wx) * 4;
+    const k = Math.max(-1, Math.min(1, h / 0.2));
+    im.data[d] = 128 + 120 * Math.max(0, k); im.data[d + 1] = 128 + 40 * k; im.data[d + 2] = 128 - 120 * Math.min(0, -k) * 0 + 120 * Math.max(0, -k); im.data[d + 3] = 255;
+  }
+  x.putImageData(im, 0, 0); out.png = c.toDataURL('image/png');
+}
+window.result = out;
+</script></body>
