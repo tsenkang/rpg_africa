@@ -7,6 +7,8 @@ import { pickWeighted, groupSize, spawnTable } from './FaunaRules.js';
 import { AnimalSounds } from '../audio/AnimalSounds.js';
 import { EcosystemManager } from './fauna/EcosystemManager.js';
 import { ECOSYSTEM } from '../config/ecosystem.js';
+import { CombatAnimationSystem } from './fauna/CombatAnimationSystem.js';
+import { FAUNA_COMBAT } from '../config/faunaCombat.js';
 
 /**
  * Fauna regional: mantém grupos de animais vivos em volta do jogador, sorteados
@@ -41,6 +43,19 @@ export class Fauna {
     this.guardians = new Map();
     /** Cadeia alimentar, fome/energia, alvo/ameaça de cada animal e LOD estatístico. */
     this.ecosystem = new EcosystemManager(ECOSYSTEM, { rng });
+    /** Agarrões (mordida no pescoço, rolamento da morte). */
+    this.grapples = new CombatAnimationSystem();
+    this._playerDot = 0;
+  }
+
+  /**
+   * O jogador como "corpo" para o combate entre espécies (agarrão, efeitos).
+   * Usa a posição e os efeitos do Player.
+   */
+  get playerBody() {
+    const g = this.game;
+    if (!this._pb) this._pb = { isPlayer: true, get position() { return g.player.position; }, get alive() { return !g.dead; }, get status() { return g.player.status; } };
+    return this._pb;
   }
 
   /**
@@ -79,10 +94,23 @@ export class Fauna {
     const st = this.game.state;
     const events = this.ecosystem.update(dt, this.animals, { position: playerPos, alive: playerAlive, health01: st ? st.health / st.maxHealth : 1 });
     for (const e of events) if (e.type === 'kill') this.applyKill(e.predator, e.prey);
+    // Agarrões em andamento: dano por segundo, arrasto do jacaré para a água.
+    this.grapples.update(dt, {
+      damage: (v, n, a) => {
+        if (v.isPlayer) { this._playerDot += n; if (this._playerDot >= 2) { this.game.damagePlayer(this._playerDot, `${a.spec.nome} (${a.combat.clamp?.label ?? 'agarrão'})`, null, a); this._playerDot = 0; } }
+        else if (v.alive) { v.health -= n; if (v.health <= 0) { v.brain.die(); this.applyKill(a, v, false); } }
+      },
+      waterDir: (v) => this.waterDir(v.position),
+    });
+    const pfw = this.game.player?.facing;
     for (const a of [...this.animals]) {
-      const { strike, state, victim } = a.update(dt, playerPos, playerAlive);
+      a.playerFwd = pfw;
+      const { strike, state, victim, kick } = a.update(dt, playerPos, playerAlive);
       if (strike && victim) this.hitAnimal(a, victim);
-      else if (strike) this.game.damagePlayer(a.spec.damage, a.spec.nome, a.speciesId, a);
+      else if (strike) this.hitPlayer(a);
+      if (kick === 'player') this.hitPlayer(a);
+      else if (kick) this.hitAnimal(a, kick);
+      if (strike && a.combat.aoe) this.groundPound(a, victim ?? (playerAlive ? this.playerBody : null));
       if (a.agent) this.game.physics?.moveAgent(a.agent, a.position.x, a.position.y, a.position.z, dt);
       if (state !== a.reported) this.onStateChange(a, state, playerPos);
       // Bando: quem entra em perseguição chama os outros do mesmo grupo.
@@ -98,12 +126,58 @@ export class Fauna {
    * Golpe de animal em animal. A vítima reage (foge ou revida contra o agressor);
    * morreu → o predador come.
    */
-  hitAnimal(a, v) {
+  hitAnimal(a, v, scale = 1) {
     if (!v.alive) return;
     const dx = v.position.x - a.position.x, dz = v.position.z - a.position.z, l = Math.hypot(dx, dz) || 1;
-    v.takeHit({ damage: a.spec.damage, direction: { x: dx / l, z: dz / l } });
-    if (v.eco && v.alive && !v.brain.fearful) v.eco.retaliate = a; // girafa/alce/gorila/urso revidam
-    if (!v.alive) this.applyKill(a, v, false);
+    v.takeHit({ damage: a.spec.damage * scale, direction: { x: dx / l, z: dz / l } });
+    if (v.eco && v.alive && (!v.brain.fearful || v.eco.level === 3)) v.eco.retaliate = a; // girafa/alce/gorila/urso revidam
+    if (!v.alive) { this.applyKill(a, v, false); return; }
+    const fx = a.combat.effect;
+    if (fx) {
+      v.status.apply(fx);
+      if (fx.knockback) { v.position.x += (dx / l) * fx.knockback; v.position.z += (dz / l) * fx.knockback; }
+    }
+    if (a.combat.clamp) this.grapples.startGrapple(a, v, a.combat.clamp);
+  }
+
+  /** Golpe no jogador: dano + efeito da espécie (atordoa, lentidão, empurrão) + agarrão. */
+  hitPlayer(a, scale = 1) {
+    const g = this.game;
+    g.damagePlayer(a.spec.damage * scale, a.spec.nome, a.speciesId, a);
+    if (g.dead) return;
+    const fx = a.combat.effect;
+    if (fx) {
+      // Veneno no jogador vem do sistema de ferimentos (picada venenosa); aqui só o resto.
+      g.player.status?.apply({ stun: fx.stun, slow: fx.slow });
+      if (fx.knockback) {
+        const dx = g.player.position.x - a.position.x, dz = g.player.position.z - a.position.z, l = Math.hypot(dx, dz) || 1;
+        g.player.knockback?.((dx / l) * fx.knockback, (dz / l) * fx.knockback);
+      }
+    }
+    if (a.combat.clamp) this.grapples.startGrapple(a, this.playerBody, a.combat.clamp);
+  }
+
+  /** Gorila: os punhos no chão atingem todos em volta (menos a própria espécie). */
+  groundPound(a, main) {
+    const R = a.combat.aoe;
+    for (const o of this.animals) {
+      if (o === a || o === main || !o.alive || o.speciesId === a.speciesId) continue;
+      if (Math.hypot(o.position.x - a.position.x, o.position.z - a.position.z) <= R) this.hitAnimal(a, o, 0.5);
+    }
+    const p = this.game.player.position;
+    if (!main?.isPlayer && !this.game.dead && Math.hypot(p.x - a.position.x, p.z - a.position.z) <= R) this.hitPlayer(a, 0.5);
+  }
+
+  /** Direção (unitária) até a água mais perto, num raio curto — arrasto do jacaré. */
+  waterDir(pos) {
+    const T = this.game.terrain, WL = WORLD.waterLevel;
+    for (let r = 2; r <= 14; r += 3) {
+      for (let k = 0; k < 8; k++) {
+        const ang = (k / 8) * Math.PI * 2, x = pos.x + Math.cos(ang) * r, z = pos.z + Math.sin(ang) * r;
+        if (T.heightAt(x, z) < WL - 0.3) return { x: Math.cos(ang), z: Math.sin(ang) };
+      }
+    }
+    return null;
   }
 
   /** Abate entre animais (golpe final ou estatístico): a presa morre e o predador se alimenta. */

@@ -5,6 +5,9 @@ import { AnimalBody } from './AnimalBody.js';
 import { WORLD } from '../config/worldConfig.js';
 import { slopeTilt } from './anim/AnimMath.js';
 import { SLOPE } from '../config/physics.js';
+import { FAUNA_COMBAT, REAR_KICK } from '../config/faunaCombat.js';
+import { StatusEffects } from '../systems/fauna/StatusEffects.js';
+import { flankPoint, isBehind, burstSpeed } from '../systems/fauna/AttackRules.js';
 import { surfaceNormal, isUnwalkable, SlideState, steerAroundSlope } from '../systems/physics/SlopePhysics.js';
 
 const _to = new THREE.Vector3();
@@ -33,7 +36,11 @@ export class Animal {
    *   `model`: cópia de `AnimalModels.instance()`; null = corpo procedural.
    */
   constructor({ spec, x, z, groundAt, fauna, rng = Math.random, group = 0, speciesId = '', model = null }) {
-    this.spec = spec;
+    /** Combate biomimético da espécie (F2): estilo, efeitos, agarrão, flanco, coice. */
+    this.combat = FAUNA_COMBAT[speciesId] ?? {};
+    // Quem antes só fugia (girafa, alce, zebra, camelo) ganha dano/alcance para revidar.
+    this.spec = this.combat.stats ? { ...spec, ...this.combat.stats } : spec;
+    spec = this.spec;
     this.speciesId = speciesId;
     this.fauna = fauna;
     this.rng = rng;
@@ -66,6 +73,13 @@ export class Animal {
     this._lastState = this.brain.state;
     /** s até o impacto do bote em andamento (-1 = nenhum): o dano sai no impacto. */
     this.pendingStrike = -1;
+    /** Atordoado, preso, lento, envenenado. */
+    this.status = new StatusEffects();
+    /** Segurando uma presa (agarrão) — o CombatAnimationSystem cola o corpo nela. */
+    this.holding = false;
+    this.kickCd = 0;
+    this.pendingKick = -1;
+    this.kickTarget = null;
     this.swimming = false;
     this._yaw = this.root.rotation.y;
     this._tilt = { pitch: 0, roll: 0 };
@@ -111,6 +125,27 @@ export class Animal {
     return this.brain.state !== 'dead';
   }
 
+  /** CombatAnimationSystem: começou/terminou de segurar a presa. */
+  onGrapple(on) {
+    this.holding = on;
+    this.body.anim?.setHold(on);
+  }
+
+  /** Frente do corpo no chão (unitária). */
+  forward(out = { x: 0, z: 0 }) {
+    out.x = Math.sin(this.root.rotation.y); out.z = Math.cos(this.root.rotation.y);
+    return out;
+  }
+
+  /** Quem está no cone de trás, perto o bastante para levar coice: o predador que ameaça, o agressor, ou o jogador. */
+  kickCandidate(playerPos, playerAlive) {
+    const p = this.root.position, fwd = this.forward(this._fwd ?? (this._fwd = { x: 0, z: 0 }));
+    const near = (q) => Math.hypot(q.x - p.x, q.z - p.z) <= REAR_KICK.range && isBehind(p, fwd, q, REAR_KICK.rearCos);
+    for (const o of [this.eco?.threat, this.eco?.retaliate]) if (o?.alive && near(o.position)) return o;
+    if (playerAlive && near(playerPos)) return 'player';
+    return null;
+  }
+
   /**
    * Levou um golpe: perde vida, recua um pouco e reage.
    * `zone` (caça): 'head' = abate na hora; 'body' = sangra e foge deixando
@@ -129,6 +164,8 @@ export class Animal {
     if (this.health <= 0) this.brain.die();
     else if (zone === 'body' || zone === 'legs') this.brain.startFleeing(); // ferido de longe: foge
     else this.brain.hurt();
+    // Grande herbívoro (girafa, alce, camelo, gorila) provocado: revida com força em vez de fugir.
+    if (this.alive && this.eco?.level === 3 && zone !== 'head') { this.brain.angry = true; this.brain.set('chase'); }
   }
 
   /**
@@ -196,13 +233,32 @@ export class Animal {
     }
     const atHome = Math.hypot(p.x - this.home.x, p.z - this.home.z) < 3;
     const prev = this.brain.state;
+    // Efeitos (F2): veneno tira vida; atordoado/preso/segurando não anda nem ataca.
+    const poison = this.status.update(dt);
+    if (poison > 0 && this.alive) { this.health -= poison; if (this.health <= 0) this.brain.die(); }
+    const immobile = this.status.immobile || this.holding;
     const { state, strike: decided } = this.brain.tick(dt, dist, { fromHome, atHome });
     // Antecipação → impacto: a IA decide, a animação começa, o dano sai no impacto.
     let strike = false;
-    if (decided) this.pendingStrike = this.body.startAttack();
+    if (decided && !immobile) this.pendingStrike = this.body.startAttack();
     if (this.pendingStrike >= 0) {
       this.pendingStrike -= dt;
-      if (this.pendingStrike < 0) strike = this.alive && dist <= (spec.attackRange ?? 1.5) * 1.5;
+      if (this.pendingStrike < 0) strike = this.alive && !this.status.stunned && dist <= (spec.attackRange ?? 1.5) * 1.5;
+    }
+    // Coice traseiro (zebra, alce): predador ou jogador colado atrás leva o casco.
+    let kick = null;
+    this.kickCd = Math.max(0, this.kickCd - dt);
+    if (this.combat.rearKick && this.alive && !immobile) {
+      if (this.pendingKick >= 0) {
+        this.pendingKick -= dt;
+        if (this.pendingKick < 0) {
+          const t = this.kickTarget, q = t === 'player' ? realPlayer : t?.position;
+          if (q && Math.hypot(q.x - p.x, q.z - p.z) <= REAR_KICK.range * 1.3 && (t === 'player' || t.alive)) kick = t;
+        }
+      } else if (this.kickCd <= 0) {
+        const c = this.kickCandidate(realPlayer, playerAlive);
+        if (c) { this.kickTarget = c; this.pendingKick = this.body.startAttack(); this.kickCd = REAR_KICK.cooldown; }
+      }
     }
     // Leopardo: o fim da tocaia vira um salto em arco sobre o jogador.
     if (spec.leap && prev === 'stalk' && state === 'chase') this.leapT = 0.6;
@@ -230,10 +286,20 @@ export class Animal {
         speed = spec.stalk ?? spec.walk;
         heading = Math.atan2(playerPos.x - p.x, playerPos.z - p.z);
         break;
-      case 'chase':
-        speed = spec.run;
-        heading = Math.atan2(playerPos.x - p.x, playerPos.z - p.z);
+      case 'chase': {
+        // Arrancada de emboscada perto da presa (felinos, lobos), se houver energia.
+        speed = burstSpeed(spec.run, dist, this.combat.burst, this.eco?.needs.energy ?? 1);
+        let tx = playerPos.x, tz = playerPos.z;
+        // Matilha: circula e entra pelo flanco/calcanhar em vez de atacar de frente.
+        const fl = this.combat.flank;
+        if (fl && dist > spec.attackRange * 1.3 && dist < fl.maxDist) {
+          const fwd = this.victim ? this.victim.forward(this._vf ?? (this._vf = { x: 0, z: 0 })) : this.playerFwd ?? { x: 0, z: 1 };
+          const fp = flankPoint(playerPos, fwd, p, fl.offset);
+          tx = fp.x; tz = fp.z;
+        }
+        heading = Math.atan2(tx - p.x, tz - p.z);
         break;
+      }
       case 'attack':
       case 'threat':
         heading = Math.atan2(playerPos.x - p.x, playerPos.z - p.z);
@@ -257,6 +323,8 @@ export class Animal {
     }
     if (this.leapT > 0) { this.leapT -= dt; speed = spec.run * 1.5; }
     if (this.limpT > 0) { this.limpT -= dt; speed *= BLEED.slowFactor; } // tiro nas pernas: manca
+    if (immobile || this.pendingKick >= 0) speed = 0; // coice: planta as patas da frente durante o golpe
+    else speed *= this.status.speedFactor; // mordida no calcanhar: lento
 
     if (heading !== null) {
       const cur = this.root.rotation.y;
@@ -328,7 +396,7 @@ export class Animal {
     const toPlayer = Math.atan2(playerPos.x - p.x, playerPos.z - p.z);
     const look = Math.atan2(Math.sin(toPlayer - yaw), Math.cos(toPlayer - yaw));
     this.body.update(dt, speed, state, this.stateTime, { swimming: this.swimming, tilt, yawRate, leaping: this.leapT > 0, look });
-    return { strike, state, victim: this.victim };
+    return { strike, state, victim: this.victim, kick };
   }
 
   pickWanderTarget() {

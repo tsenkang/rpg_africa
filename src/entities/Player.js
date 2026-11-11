@@ -4,6 +4,7 @@ import { PLAYER, WORLD } from '../config/worldConfig.js';
 import { CLIMB, MOVE_SUBSTEP, SLOPE } from '../config/physics.js';
 import { surfaceNormal, isUnwalkable, blockUphill, SlideState } from '../systems/physics/SlopePhysics.js';
 import { applyGesture } from './NPCAgent.js';
+import { StatusEffects } from '../systems/fauna/StatusEffects.js';
 import { wantsSprint, resolveMoveSpeed } from './Locomotion.js';
 import { GAMEPLAY } from '../config/gameplay.js';
 import { swimVerticalSpeed } from './Swimming.js';
@@ -28,6 +29,8 @@ export class Player {
     this._block = { dx: 0, dz: 0, uphill: false };
     this._skidT = 0;
     this._t = 0;
+    /** Efeitos de golpes de animais: atordoado (coice), preso (mordida no pescoço), lento (calcanhar). */
+    this.status = new StatusEffects();
     /** Gancho: derrapou (correndo contra encosta íngreme ou começou a escorregar). */
     this.onSkid = null;
     /** Escadas de mão (Ladders): W anda contra ela → sobe. */
@@ -59,6 +62,12 @@ export class Player {
     this._right = new THREE.Vector3();
     /** Chão sob um ponto, na altura atual dos pés (IK dos pés / inclinação na rampa). */
     this._ground = (x, z) => this.groundAt(x, z, this.position.y + 0.3);
+  }
+
+  /** Empurrão de um golpe (coice, patada): desloca com colisão. */
+  knockback(dx, dz) {
+    if (this.flying || this.climbing) return;
+    this.collisions.move(this.position, dx, dz, PLAYER.radius, MOVE_SUBSTEP);
   }
 
   teleport(x, z, facing = 0, y) {
@@ -118,10 +127,13 @@ export class Player {
     sl.steep = onTerrain && isUnwalkable(sl.normal);
     sl.angle = Math.acos(sl.normal.y) * 57.2958;
 
+    // Atordoado (coice) ou preso (agarrão): sem controle; lento: mordida no calcanhar.
+    this.status.update(dt);
+    if (this.status.immobile) move.set(0, 0, 0);
     let moving = move.lengthSq() > 0;
     // Stamina (Survival): zerada, não corre até recuperar.
     this.sprinting = wantsSprint(input, moving, { swimming: this.swimming }) && (this.stamina?.canSprint() ?? true);
-    const speed = resolveMoveSpeed(PLAYER, {
+    const speed = this.status.speedFactor * resolveMoveSpeed(PLAYER, {
       sprinting: this.sprinting,
       swimming: this.swimming,
       modifier: this.state.modifier('speed'),
@@ -170,7 +182,7 @@ export class Player {
       if (g > this.position.y) this.position.y = g;
       this.grounded = false;
     } else {
-      if (this.grounded && !sl.slipping && input.pressed('Space')) { // escorregando não dá impulso
+      if (this.grounded && !sl.slipping && !this.status.immobile && input.pressed('Space')) { // escorregando não dá impulso
         this.velocity.y = PLAYER.jumpSpeed * this.state.modifier('jump'); // lama/frio: pulo fraco
         this.grounded = false;
       }

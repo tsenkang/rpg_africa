@@ -1754,7 +1754,7 @@ export class Game {
     else {
       this.player.update(dt, input, this.cameraRig);
       this.slopeHint ??= new SlopeHint(ui.root);
-      this.slopeHint.update(this.player.slope);
+      this.slopeHint.update(this.player.slope, this.player.status);
       // Em 1ª pessoa o corpo acompanha para onde se olha (o soco sai daí).
       if (this.cameraRig.isFirstPerson) this.player.faceDirection(this.cameraRig.forward(this._camFwd));
     }

@@ -77,6 +77,12 @@ export const ANIMATION = {
     headbutt: { anticipation: 0.3, impact: 0.14, recovery: 0.45, leap: 0.0, reach: 0.25 }, // alce, javali
     sting: { anticipation: 0.14, impact: 0.08, recovery: 0.55, leap: 0.0, reach: 0.12 }, // escorpião (bote rápido, retração lenta)
     peck: { anticipation: 0.18, impact: 0.08, recovery: 0.3, leap: 0.0, reach: 0.15 }, // aves, víbora procedural
+    flankBite: { anticipation: 0.18, impact: 0.12, recovery: 0.35, leap: 0.0, reach: 0.3 }, // lobo/hiena: mordida baixa no calcanhar
+    neckHoof: { anticipation: 0.45, impact: 0.18, recovery: 0.6, leap: 0.0, reach: 0.18 }, // girafa: pescoço-martelo + casco
+    deathRoll: { anticipation: 0.12, impact: 0.12, recovery: 0.5, leap: 0.0, reach: 0.55 }, // jacaré: bote da água
+    maul: { anticipation: 0.5, impact: 0.16, recovery: 0.6, leap: 0.0, reach: 0.25 }, // urso: ergue-se e golpeia de cima
+    groundPound: { anticipation: 0.55, impact: 0.14, recovery: 0.6, leap: 0.0, reach: 0.15 }, // gorila: punhos no chão
+    rearKick: { anticipation: 0.22, impact: 0.12, recovery: 0.45, leap: 0.0, reach: -0.25 }, // zebra/alce: coice para trás
   },
 
   /** Seguimento do terreno (suspensão): inclinação do corpo na rampa. */
@@ -115,8 +121,8 @@ export const ANIMATION = {
 /** Estilo de ataque por espécie (`ANIMATION.attack[estilo]`). Sem entrada: 'bite'. */
 export const ATTACK_STYLE = {
   leao: 'pounce', onca: 'pounce', leopardo: 'pounce',
-  lobo: 'bite', hiena: 'bite', cerbero: 'bite', jacare: 'bite', vibora: 'peck',
-  gorila: 'slam', urso: 'slam',
-  alce: 'headbutt', javali: 'headbutt', camelo: 'headbutt', girafa: 'headbutt', zebra: 'headbutt', avestruz: 'peck',
+  lobo: 'flankBite', hiena: 'flankBite', cerbero: 'bite', jacare: 'deathRoll', vibora: 'peck',
+  gorila: 'groundPound', urso: 'maul',
+  alce: 'rearKick', javali: 'headbutt', camelo: 'headbutt', girafa: 'neckHoof', zebra: 'rearKick', avestruz: 'peck',
   escorpiao: 'sting', corvo: 'peck', arara: 'peck',
 };

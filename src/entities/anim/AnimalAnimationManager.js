@@ -103,6 +103,9 @@ export class AnimalAnimationManager {
     /** Pesos dos estados (todos amortecidos). */
     this.w = { move: 0, swim: 0, stalk: 0, combat: 0, threat: 0, dead: 0, fly: 0, glide: 0, graze: 0, leap: 0, aware: 0, trot: 0, gallop: 0 };
     this.attackT = -1;
+    /** Agarrão (F2): pose de golpe sustentada enquanto segura a presa; `holdT` anima o rolamento. */
+    this.hold = false;
+    this.holdT = 0;
     this.deadSide = rng() < 0.5 ? -1 : 1;
     this.posBase = pose.position.clone();
     this.rootPos = new THREE.Vector3();
@@ -238,6 +241,17 @@ export class AnimalAnimationManager {
    * Começa um ataque (Antecipação → Impacto → Recuperação).
    * @returns {number} segundos até o impacto (quando o dano deve sair)
    */
+  /**
+   * Segura a presa (mordida no pescoço / rolamento da morte): mantém o golpe no
+   * ápice até `setHold(false)`.
+   * @example anim.setHold(true);
+   */
+  setHold(on) {
+    this.hold = on;
+    this.holdT = 0;
+    if (!on) this.attackT = -1;
+  }
+
   startAttack() {
     const env = this.cfg.attack[this.style] ?? this.cfg.attack.bite;
     this.attackT = 0;
@@ -311,8 +325,16 @@ export class AnimalAnimationManager {
 
   /** Avanço/recuo do corpo no bote (também por cima dos clipes). */
   layerAttackRoot(scale = 1) {
-    if (this.attackT < 0) return;
     const P = this.cfg.attack[this.style] ?? this.cfg.attack.bite;
+    if (this.hold) { // agarrado: golpe congelado no ápice; jacaré gira no eixo do corpo
+      this.holdT += this.dt ?? 0;
+      const { L } = this.dims;
+      this.rootPos.z += P.reach * L * scale;
+      if (this.style === 'deathRoll') this.rootRot.z += this.holdT * 9;
+      else this.rootRot.z += Math.sin(this.holdT * 14) * 0.08; // sacode a presa
+      return { wind: 0, lunge: 1, P };
+    }
+    if (this.attackT < 0) return;
     const { wind, lunge } = attackEnvelope(this.attackT, P);
     const { L, H } = this.dims;
     this.rootPos.z += (-wind * 0.35 + lunge) * P.reach * L * scale;
@@ -551,6 +573,51 @@ export class AnimalAnimationManager {
       R.neck?.add(0.55 * wind + 0.3 * lun, 0, 0);
       R.head?.add(0.2 * wind - 0.45 * lun, 0, 0);
       for (const leg of R.legs) if (!leg.front) leg.upper?.add(0.35 * lun);
+    } else if (s === 'flankBite') {
+      // Lobo/hiena: cabeça baixa e de lado, mordida no calcanhar e puxão.
+      this.crouchLegs(0.12 * wind, 0.2 * wind);
+      R.neck?.add(0.45 * wind + 0.25 * lun, 0.35 * lun, 0);
+      R.head?.add(0.25 * lun, 0.3 * lun, 0);
+      R.jaw?.add(0.65 * lun + 0.1 * wind, 0, 0);
+      this.rootRot.y += 0.25 * lun;
+      for (const leg of R.legs) if (!leg.front) leg.upper?.add(0.4 * lun);
+    } else if (s === 'neckHoof') {
+      // Girafa: pescoço recua e desce como martelo (de lado); patas da frente dão o casco rígido.
+      R.neck?.add(-0.5 * wind + 1.1 * lun, 0.6 * wind - 0.9 * lun, 0);
+      R.head?.add(-0.2 * wind + 0.4 * lun, 0, 0);
+      this.rootRot.z += 0.12 * wind - 0.18 * lun;
+      for (const leg of R.legs) if (leg.front) { leg.upper?.add(-0.9 * wind - 0.4 * lun); leg.lower?.add(0.5 * wind); }
+      this.rootRot.x -= 0.15 * wind;
+    } else if (s === 'deathRoll') {
+      // Jacaré: bote reto e baixo saindo da água, mandíbula escancarada.
+      R.neck?.add(-0.25 * wind - 0.15 * lun, 0, 0);
+      R.jaw?.add(0.9 * Math.max(wind, lun), 0, 0);
+      R.tail.forEach((j, i) => j.add(0, (i % 2 ? -1 : 1) * 0.35 * lun, 0));
+      this.rootRot.x += 0.06 * lun;
+    } else if (s === 'maul') {
+      // Urso: fica em pé nas patas de trás e desce as garras de cima.
+      this.rootRot.x -= 0.95 * wind - 0.55 * lun;
+      this.rootPos.y += 0.35 * this.dims.H * wind;
+      for (const leg of R.legs) {
+        if (leg.front) { leg.upper?.add(-1.6 * wind + 1.4 * lun, 0, -leg.side * 0.4 * wind); leg.lower?.add(0.9 * wind - 0.4 * lun); } else { leg.upper?.add(-0.5 * wind); leg.lower?.add(0.5 * wind); }
+      }
+      R.head?.add(-0.35 * wind + 0.25 * lun, 0, 0);
+      R.jaw?.add(0.5 * Math.max(wind, lun), 0, 0);
+    } else if (s === 'groundPound') {
+      // Gorila: ergue o tronco com os dois braços no alto e soca o chão com os punhos.
+      this.rootRot.x -= 0.6 * wind - 0.35 * lun;
+      this.rootPos.y += 0.18 * this.dims.H * wind - 0.08 * this.dims.H * lun;
+      for (const leg of R.legs) if (leg.front) { leg.upper?.add(-1.8 * wind + 1.9 * lun, 0, -leg.side * 0.2); leg.lower?.add(0.4 * wind); }
+      R.head?.add(-0.3 * wind + 0.3 * lun, 0, 0);
+    } else if (s === 'rearKick') {
+      // Zebra/alce: abaixa a frente, ergue a garupa e estica as patas de trás.
+      this.rootRot.x += 0.35 * wind + 0.25 * lun;
+      R.neck?.add(0.4 * (wind + lun), 0, 0);
+      for (const leg of R.legs) {
+        if (leg.front) leg.upper?.add(0.15 * wind);
+        else { leg.upper?.add(-0.6 * wind + 1.5 * lun); leg.lower?.add(0.8 * wind - 0.6 * lun); }
+      }
+      R.tail.forEach((j) => j.add(-0.4 * lun, 0, 0));
     } else if (s === 'sting') {
       for (const chain of R.chains) chain.forEach((j, i) => j.add(-0.22 * wind + 0.5 * lun * (0.6 + i * 0.25), 0, 0));
       for (const { j, side } of R.claws) j.add(-0.25 * lun, side * (0.45 * wind - 0.35 * lun), 0);
