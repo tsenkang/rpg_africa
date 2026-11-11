@@ -104,6 +104,9 @@ import { LAW } from '../config/law.js';
 import { CrimeLog, humanZone, rollLoot, TrespassTracker } from '../systems/law/Crimes.js';
 import { findWitnesses, WitnessSystem } from '../systems/law/Witness.js';
 import { WitnessMarkers } from '../ui/WitnessMarkers.js';
+import { BountyManager } from '../systems/law/Bounty.js';
+import { canSee } from '../systems/law/Witness.js';
+import { WantedHUD } from '../ui/WantedHUD.js';
 
 /**
  * Orquestra o jogo: gera o mundo (terreno → vilas → malha → água →
@@ -771,6 +774,8 @@ export class Game {
     this.trespass = new TrespassTracker(LAW.trespass.graceSeconds);
     this.witnesses = new WitnessSystem(LAW.witness);
     this.witnessMarks = new WitnessMarkers(this.ui.root);
+    this.bounty = new BountyManager(LAW.bounty, { villageAt: (p) => this.villageRegionAt(p)?.config.id ?? null });
+    this.wantedHUD = new WantedHUD(this.ui.root, this.ui.vitals);
     /** Casa alheia onde o jogador está agora: { home, vs, residents } ou null. */
     this._alienHome = null;
     this.npcManager.onModelBuilt = (a) => this.combat.register({
@@ -836,7 +841,46 @@ export class Game {
    */
   onCrimeWitnessed(crime, by, direct) {
     const vname = this.villages[crime.villageId]?.config.name ?? crime.villageId;
+    if (!this.bounty.recordWitnessed(crime, this.player.position)) return; // outra testemunha já denunciou
     this.ui.toast(direct ? `Um guarda de ${vname} viu: ${crime.label}.` : `${by.name} denunciou você à guarda de ${vname}: ${crime.label}.`);
+  }
+
+  /** Vila (habitada) cuja região contém o ponto: raio da vila + `LAW.bounty.regionMargin`. */
+  villageRegionAt(p) {
+    let best = null, bd = Infinity;
+    for (const v of Object.values(this.villages)) {
+      if (v.config.abandoned) continue;
+      const d = Math.hypot(p.x - v.x, p.z - v.z) - v.radius;
+      if (d < LAW.bounty.regionMargin && d < bd) { bd = d; best = v; }
+    }
+    return best;
+  }
+
+  /** Vilas cujos guardas (acordados, fora de casa) estão vendo o jogador agora. */
+  villagesSeeingPlayer() {
+    const p = this.player.position, out = this._seenBy ?? (this._seenBy = new Set());
+    out.clear();
+    if (this.areaId !== 'overworld' || this.dead) return out;
+    for (const vs of this.npcManager.villages) {
+      if (!vs.active || !this.bounty.bountyOf(vs.village.config.id)) continue;
+      for (const g of vs.agents) {
+        if (g.person.profession !== 'guarda' || g.down || g.indoors) continue;
+        if (canSee({ x: g.pos.x, z: g.pos.z, yaw: g.yaw }, p, LAW.bounty.guardSight)) { out.add(vs.village.config.id); break; }
+      }
+    }
+    return out;
+  }
+
+  /** Procurado: zona de busca, contador de fuga, selo na HUD. */
+  updateBounty(dt) {
+    const seen = this.villagesSeeingPlayer();
+    const ended = this.bounty.update(dt, { playerPos: this.player.position, seen: (v) => seen.has(v) });
+    for (const v of ended) this.ui.toast(`Você despistou a guarda de ${this.villages[v]?.config.name ?? v}. A recompensa continua.`);
+    // Selo: vila da região atual; se não houver, a vila com busca ativa.
+    const here = this.bounty.wantedHere(this.player.position);
+    const id = here ?? this.bounty.searches.keys().next().value ?? null;
+    const s = id ? this.bounty.searchOf(id) : null;
+    this.wantedHUD.update(id ? { village: this.villages[id]?.config.name ?? id, bounty: this.bounty.bountyOf(id), search: s && { escape: s.escape, seen: seen.has(id) } } : null);
   }
 
   /** Testemunhas correndo; denúncias; marcadores de olho. */
@@ -962,6 +1006,7 @@ export class Game {
     this.npcManager.update(dt);
     this.updateLaw(dt);
     this.updateWitnesses(dt);
+    this.updateBounty(dt);
     if (this.areaId === 'overworld') this.npcManager.updateSocial(dt, this.playerPerceptionState(dt));
     // Balões somem atrás de diálogos e painéis (não tampam a caixa de texto).
     this.bubbles.root.style.display = this.ui.dialogue.isOpen || this.backpack.open || this.notebookUI.open || this.recipeBook.open || this.inspection.active ? 'none' : '';

@@ -117,3 +117,8 @@ export const STATUS_EFFECTS = {
     modifiers: { relicPower: 1.2 },
   },
 };
+
+/** Tempos da interface. */
+export const UI_TIMING = {
+  villageCardSeconds: 6, // quadro da vila fica completo por este tempo e depois recolhe
+};

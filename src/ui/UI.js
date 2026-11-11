@@ -4,6 +4,7 @@ import { BIOMES } from '../config/biomes.js';
 import { WORLD, REFERENCE_MAP, worldToUv, uvToWorld } from '../config/worldConfig.js';
 import { GRAPHICS_PRESETS } from '../config/graphics.js';
 import { icon } from './Icons.js';
+import { UI_TIMING } from '../config/gameplay.js';
 
 const el = (tag, cls, parent, html) => {
   const e = document.createElement(tag);
@@ -356,7 +357,10 @@ export class UI {
       <p>${cfg.description}</p>
       <ul>${cfg.structures.map((s) => `<li>${s}</li>`).join('')}</ul>${extra}`;
     this.village.classList.toggle('ruins', !!cfg.abandoned);
-    this.village.classList.remove('hidden');
+    this.village.classList.remove('hidden', 'compact');
+    // Depois de alguns segundos recolhe para não cobrir a tela (nome e região ficam).
+    clearTimeout(this._villageCompact);
+    this._villageCompact = setTimeout(() => this.village.classList.add('compact'), UI_TIMING.villageCardSeconds * 1000);
   }
 
   // ---------- mapas ----------
@@ -515,6 +519,18 @@ export class UI {
       c.beginPath(); c.arc(x, y, v.radius * k, 0, Math.PI * 2); c.stroke();
       c.fillStyle = '#fff';
       c.fillText(v.name.replace('Vila ', ''), x, y - v.radius * k - 4);
+    }
+    // Zonas de busca (procurado): círculo vermelho em volta da última posição conhecida.
+    for (const z of this.game.bounty?.searches.values() ?? []) {
+      const x = S / 2 + (z.x - p.x) * k, y = S / 2 + (z.z - p.z) * k, r = Math.max(6, z.r * k);
+      const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 300);
+      c.fillStyle = `rgba(214, 60, 44, ${0.16 + 0.08 * pulse})`;
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+      c.setLineDash([5, 4]);
+      c.strokeStyle = 'rgba(255, 96, 76, 0.95)';
+      c.lineWidth = 1.6;
+      c.stroke();
+      c.setLineDash([]);
     }
     this.drawArrow(c, S / 2, S / 2, 7);
     c.restore();

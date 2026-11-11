@@ -42,6 +42,13 @@ export const LAW = {
     silencedLines: { intimidar: ['Tá bom, tá bom… eu não vi nada.', 'Não me machuque!'], suborno: ['Não vi nada. Nada mesmo.', 'Moedas falam mais alto…'] },
     intimidateFailLines: ['Não tenho medo de você! GUARDAS!', 'Sai daqui! SOCORRO!'],
   },
+  /** Procurado (C3): zona de busca em volta da última posição conhecida e fuga. */
+  bounty: {
+    searchRadius: 45, // raio do círculo de busca (m)
+    escapeSeconds: 20, // fora do círculo e sem ser visto por este tempo = busca encerrada
+    regionMargin: 120, // a região da vila vai até raio + margem (procurado ali)
+    guardSight: { radius: 28, fovDot: 0.35, hearRadius: 5 }, // guarda vendo o jogador
+  },
   /** Roubo: vasculhar uma casa alheia. Cada casa pode ser roubada uma vez por intervalo. */
   theft: {
     cooldownHours: 24,
