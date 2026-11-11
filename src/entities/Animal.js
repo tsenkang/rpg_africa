@@ -6,6 +6,7 @@ import { WORLD } from '../config/worldConfig.js';
 import { slopeTilt } from './anim/AnimMath.js';
 import { SLOPE } from '../config/physics.js';
 import { FAUNA_COMBAT, REAR_KICK } from '../config/faunaCombat.js';
+import { PACKS } from '../config/ecosystem.js';
 import { StatusEffects } from '../systems/fauna/StatusEffects.js';
 import { flankPoint, isBehind, burstSpeed } from '../systems/fauna/AttackRules.js';
 import { surfaceNormal, isUnwalkable, SlideState, steerAroundSlope } from '../systems/physics/SlopePhysics.js';
@@ -32,14 +33,21 @@ const HITBOX_GEO = new THREE.BoxGeometry(1, 1, 1);
 export class Animal {
   /**
    * @param {{ spec: object, x: number, z: number, groundAt: (x:number,z:number)=>number,
-   *   fauna: object, rng?: () => number, group?: number, speciesId?: string, model?: object|null }} opts
+   *   fauna: object, rng?: () => number, group?: number, speciesId?: string, model?: object|null, young?: boolean }} opts
+   *   `young`: filhote (menor, mais lento, menos vida — presa preferida).
    *   `model`: cópia de `AnimalModels.instance()`; null = corpo procedural.
    */
-  constructor({ spec, x, z, groundAt, fauna, rng = Math.random, group = 0, speciesId = '', model = null }) {
+  constructor({ spec, x, z, groundAt, fauna, rng = Math.random, group = 0, speciesId = '', model = null, young = false }) {
     /** Combate biomimético da espécie (F2): estilo, efeitos, agarrão, flanco, coice. */
     this.combat = FAUNA_COMBAT[speciesId] ?? {};
     // Quem antes só fugia (girafa, alce, zebra, camelo) ganha dano/alcance para revidar.
     this.spec = this.combat.stats ? { ...spec, ...this.combat.stats } : spec;
+    if (young) {
+      const y = PACKS.young;
+      this.spec = { ...this.spec, size: this.spec.size * y.scale, walk: this.spec.walk * y.speed, run: this.spec.run * y.speed, health: Math.round(this.spec.health * y.health) };
+    }
+    /** Filhote (F3): fica no centro do círculo defensivo da manada. */
+    this.young = young;
     spec = this.spec;
     this.speciesId = speciesId;
     this.fauna = fauna;
@@ -281,6 +289,15 @@ export class Animal {
       case 'fly':
         speed = state === 'fly' ? spec.run * 0.6 : spec.run;
         heading = Math.atan2(p.x - playerPos.x, p.z - playerPos.z) + Math.sin(this.stateTime * 1.7) * 0.35;
+        // Manada (F3): debandada num rumo comum, ou círculo defensivo em volta dos filhotes.
+        if (state === 'flee' && this.eco) {
+          const e = this.eco, slot = e.circle ?? e.huddle;
+          if (slot) {
+            const sx = slot.x - p.x, sz = slot.z - p.z, sd = Math.hypot(sx, sz);
+            if (sd > 0.6) { speed = Math.min(spec.run * 0.7, sd * 3); heading = Math.atan2(sx, sz); }
+            else { speed = 0; heading = e.circle ? Math.atan2(playerPos.x - p.x, playerPos.z - p.z) : null; } // adulto encara o predador
+          } else if (e.fleeDir != null) heading = e.fleeDir + Math.sin(this.stateTime * 1.7) * 0.12;
+        }
         break;
       case 'stalk':
         speed = spec.stalk ?? spec.walk;
@@ -291,8 +308,11 @@ export class Animal {
         speed = burstSpeed(spec.run, dist, this.combat.burst, this.eco?.needs.energy ?? 1);
         let tx = playerPos.x, tz = playerPos.z;
         // Matilha: circula e entra pelo flanco/calcanhar em vez de atacar de frente.
+        // Matilha (F3): o interceptador corre para a rota de fuga da presa; de perto, morde.
+        const ic = this.eco?.intercept;
+        if (ic && dist > PACKS.pack.strikeDist) { tx = ic.x; tz = ic.z; }
         const fl = this.combat.flank;
-        if (fl && dist > spec.attackRange * 1.3 && dist < fl.maxDist) {
+        if (!(ic && dist > PACKS.pack.strikeDist) && fl && dist > spec.attackRange * 1.3 && dist < fl.maxDist) {
           const fwd = this.victim ? this.victim.forward(this._vf ?? (this._vf = { x: 0, z: 0 })) : this.playerFwd ?? { x: 0, z: 1 };
           const fp = flankPoint(playerPos, fwd, p, fl.offset);
           tx = fp.x; tz = fp.z;

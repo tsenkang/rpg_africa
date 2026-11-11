@@ -1,4 +1,5 @@
-import { ECOSYSTEM } from '../../config/ecosystem.js';
+import { ECOSYSTEM, PACKS } from '../../config/ecosystem.js';
+import { PackController } from './PackController.js';
 import { buildDiet, SpatialGrid, needsStep, wantsToHunt, scorePrey, statKillChance } from './Ecology.js';
 
 /**
@@ -23,8 +24,11 @@ import { buildDiet, SpatialGrid, needsStep, wantsToHunt, scorePrey, statKillChan
  *   for (const e of ev) if (e.type === 'kill') fauna.applyKill(e.predator, e.prey);
  */
 export class EcosystemManager {
-  constructor(cfg = ECOSYSTEM, { rng = Math.random } = {}) {
+  constructor(cfg = ECOSYSTEM, { rng = Math.random, packs = PACKS } = {}) {
     this.cfg = cfg;
+    /** Matilhas e manadas (F3). */
+    this.packs = new PackController(packs);
+    this.sentinelScale = packs.herd.sentinelScale;
     this.rng = rng;
     this.diet = buildDiet(cfg);
     /** Espécies que algum predador come (para saber quem vigia). */
@@ -68,7 +72,7 @@ export class EcosystemManager {
    * @param {number} dt
    * @param {object[]} animals
    * @param {{ position: {x:number,z:number}, alive: boolean, health01?: number }} player
-   * @returns {{ type: 'kill', predator: object, prey: object }[]}
+   * @returns {{ type: string, predator?: object, prey?: object }[]} `kill` (caçada estatística) e os de bando (`howl`, `alarm`…)
    */
   update(dt, animals, player) {
     const cfg = this.cfg, ev = [];
@@ -103,6 +107,8 @@ export class EcosystemManager {
       e.threat = this.findThreat(a);
       if (e.threat) alarmed++;
     }
+    // 2b) Bandos: alvo comum, papéis, vigia, alarme (F3). Eventos: howl/alarm/circle/stampede.
+    for (const e of this.packs.update(alive)) ev.push(e);
     // 3) LOD: caçadas longe do jogador → estatística.
     const R = cfg.detailRadius;
     for (const a of alive) {
@@ -149,7 +155,8 @@ export class EcosystemManager {
   findThreat(a) {
     const cfg = this.cfg.prey;
     let best = null, bd = Infinity;
-    const near = this.grid.query(a.position.x, a.position.z, cfg.alarmRadius, (this._near.length = 0, this._near));
+    const R = cfg.alarmRadius * (a.eco.sentinel ? this.sentinelScale : 1); // o vigia enxerga mais longe
+    const near = this.grid.query(a.position.x, a.position.z, R, (this._near.length = 0, this._near));
     for (const o of near) {
       if (o === a || !o.eco.predator || !this.diet.get(o.speciesId).has(a.speciesId)) continue;
       const d = Math.hypot(o.position.x - a.position.x, o.position.z - a.position.z);

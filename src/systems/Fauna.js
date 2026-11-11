@@ -4,6 +4,7 @@ import { SPECIES, BIOME_FAUNA, FAUNA, GUARDIANS } from '../config/fauna.js';
 import { BIOMES } from '../config/biomes.js';
 import { WORLD } from '../config/worldConfig.js';
 import { pickWeighted, groupSize, spawnTable } from './FaunaRules.js';
+import { PACKS } from '../config/ecosystem.js';
 import { AnimalSounds } from '../audio/AnimalSounds.js';
 import { EcosystemManager } from './fauna/EcosystemManager.js';
 import { ECOSYSTEM } from '../config/ecosystem.js';
@@ -93,7 +94,10 @@ export class Fauna {
     // Ecossistema: quem caça quem, quem foge de quem; caçadas longe resolvidas por estatística.
     const st = this.game.state;
     const events = this.ecosystem.update(dt, this.animals, { position: playerPos, alive: playerAlive, health01: st ? st.health / st.maxHealth : 1 });
-    for (const e of events) if (e.type === 'kill') this.applyKill(e.predator, e.prey);
+    for (const e of events) {
+      if (e.type === 'kill') this.applyKill(e.predator, e.prey);
+      else if (e.type === 'howl' || e.type === 'alarm') this.groupCall(e, playerPos);
+    }
     // Agarrões em andamento: dano por segundo, arrasto do jacaré para a água.
     this.grapples.update(dt, {
       damage: (v, n, a) => {
@@ -188,6 +192,17 @@ export class Fauna {
     if (pred.alive && (pred.brain.state === 'chase' || pred.brain.state === 'attack')) pred.brain.calmDown();
   }
 
+  /** Uivo do líder da matilha / grito de alarme do vigia da manada (F3). */
+  groupCall(e, playerPos) {
+    const a = e.leader ?? e.sentinel;
+    if (!a) return;
+    const d = Math.hypot(a.position.x - playerPos.x, a.position.z - playerPos.z);
+    const loud = Math.max(0, 1 - d / PACKS.pack.howlRadius);
+    if (e.type === 'howl') { if (a.spec.laughs) this.sounds?.laugh(loud); else this.sounds?.howl?.(loud); }
+    else this.sounds?.alarm?.(loud);
+    this.lastCall = { type: e.type, species: a.speciesId, t: this.game.time };
+  }
+
   /** Sons e reações quando a IA muda de estado. */
   onStateChange(a, state, playerPos) {
     a.reported = state;
@@ -274,6 +289,8 @@ export class Fauna {
         spec, speciesId: id, group, fauna: this.config, rng: this.rng,
         model: this.models?.instance(id) ?? null,
         x: x + Math.cos(a) * r, z: z + Math.sin(a) * r,
+        // Manadas (F3): parte do grupo nasce filhote (nunca o primeiro).
+        young: i > 0 && PACKS.herd.species.includes(id) && this.rng() < PACKS.young.chance,
         groundAt: (px, pz) => this.game.terrain.heightAt(px, pz),
       });
       this.game.scene.add(animal.root);

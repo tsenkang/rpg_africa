@@ -51,6 +51,50 @@ export class AnimalSounds {
     }
   }
 
+  /** Uivo do lobo líder: tom longo que sobe, sustenta e cai, com leve vibrato. */
+  howl(strength = 1) {
+    const ctx = this.ctx;
+    if (!ctx || strength <= 0.03) return;
+    const t = ctx.currentTime + 0.05, f = 380 + Math.random() * 60;
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(f * 0.7, t);
+    osc.frequency.exponentialRampToValueAtTime(f, t + 0.5);
+    osc.frequency.setValueAtTime(f, t + 1.6);
+    osc.frequency.exponentialRampToValueAtTime(f * 0.6, t + 2.4);
+    const lfo = ctx.createOscillator(), lg = ctx.createGain();
+    lfo.frequency.value = 5; lg.gain.value = 6;
+    lfo.connect(lg).connect(osc.frequency);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(this.volume * 0.3 * strength, t + 0.4);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.5);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(t); lfo.start(t); osc.stop(t + 2.6); lfo.stop(t + 2.6);
+  }
+
+  /** Alarme do vigia da manada: latidos curtos e agudos ("kwa-ha"). */
+  alarm(strength = 1) {
+    const ctx = this.ctx;
+    if (!ctx || strength <= 0.03) return;
+    const t0 = ctx.currentTime + 0.05;
+    for (let i = 0; i < 3; i++) {
+      const t = t0 + i * 0.28;
+      const osc = ctx.createOscillator();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(700, t);
+      osc.frequency.exponentialRampToValueAtTime(420, t + 0.15);
+      const band = ctx.createBiquadFilter();
+      band.type = 'bandpass'; band.frequency.value = 900; band.Q.value = 2;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(this.volume * 0.3 * strength, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      osc.connect(band).connect(g).connect(ctx.destination);
+      osc.start(t); osc.stop(t + 0.2);
+    }
+  }
+
   /** Gorila batendo no peito: batidas graves e rápidas. */
   chestBeat(strength = 1) {
     const ctx = this.ctx;

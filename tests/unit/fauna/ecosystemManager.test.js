@@ -100,3 +100,15 @@ test('feed_reducesHungerByPreySize_andClearsTarget', () => {
   assert.ok(Math.abs(lion.eco.needs.hunger - 0.1) < 1e-9); // 80 de vida × 1/100
   assert.equal(lion.eco.target, null);
 });
+
+test('sentinel_spotsHuntingPredator_fartherThanOthers', () => {
+  const eco = make();
+  const lion = animal('leao', 0, 0), a = animal('zebra', 33, 0, { group: 99 }), b = animal('zebra', 34, 0, { group: 99 });
+  for (const o of [lion, a, b]) eco.register(o);
+  lion.eco.needs.hunger = 0.9;
+  a.eco.sentinel = true; // vigia: 25 × 1,6 = 40 m
+  const ev = eco.update(0.3, [lion, a, b], { ...PLAYER, position: { x: 500, z: 0 } });
+  assert.equal(a.eco.threat, lion);
+  assert.equal(b.eco.threat, lion); // alarmada pela manada
+  assert.ok(ev.some((e) => e.type === 'alarm'));
+});
