@@ -70,6 +70,38 @@ export const LAW = {
       lost: ['Sumiu… espalhem-se!', 'Ele estava aqui agora mesmo.'],
     },
   },
+  /** Caçadores de recompensa (C5): surgem fora das vilas com a recompensa total alta. */
+  hunters: {
+    threshold: 1000, // recompensa somada de todas as vilas
+    firstDelay: 25, // s viajando até a primeira chance
+    interval: [70, 140], // s entre tentativas
+    chance: 0.6,
+    maxGroups: 1,
+    count: [2, 3], // caçadores por grupo
+    dogs: [1, 2], // cães (lobos treinados)
+    dogSpecies: 'lobo',
+    spawnDist: 38,
+    behindArc: [110, 250], // graus em relação à frente do jogador (180 = bem atrás)
+    speed: 5.6,
+    attackRange: 1.8,
+    attackCooldown: 1.2,
+    damage: 10,
+    health: 30, // soco tira `GAMEPLAY.combat.punch.damage`; lança/flecha no corpo mata
+    despawnDist: 260,
+    look: { shirt: 0x3b3328, pants: 0x2a241e, armor: 0x5c4a36, straps: 0x2b1d14, boots: 0x1d1712, hatColor: 0x3a2a1a },
+    lines: ['Tem um preço pela sua cabeça.', 'Vivo ou morto — tanto faz.', 'Achamos você.'],
+  },
+  /** Redenção (C5): Comandante da Guarda fica na praça de cada vila. */
+  redemption: { title: 'Comandante da Guarda' },
+  /** Memória social (C5): vítima/parente que vê o jogador. */
+  grudge: {
+    radius: 16,
+    checkEvery: 0.5,
+    cooldown: 25, // s até o mesmo morador reagir de novo
+    callGuardChance: 0.5,
+    fleeLines: ['É ele! Fiquem longe!', 'Assassino! Socorro!', 'Não chega perto da minha família!'],
+    callLines: ['Guarda! Ele voltou!', 'É o procurado! GUARDAS!'],
+  },
   /** Roubo: vasculhar uma casa alheia. Cada casa pode ser roubada uma vez por intervalo. */
   theft: {
     cooldownHours: 24,

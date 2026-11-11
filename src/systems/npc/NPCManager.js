@@ -1,7 +1,7 @@
 import { NPCAgent } from '../../entities/NPCAgent.js';
 import { generatePopulation, familyOf } from './Population.js';
 import { buildLook } from './NPCVisualBuilder.js';
-import { POPULATION, NPC_LOD, WEATHER_REACT, PROFESSIONS, OUTFIT_REGION } from '../../config/npcLife.js';
+import { POPULATION, NPC_LOD, WEATHER_REACT, PROFESSIONS, OUTFIT_REGION, COMMANDER_LOOK } from '../../config/npcLife.js';
 import { DialogueEngine } from './DialogueEngine.js';
 import { PERCEPTION, SOCIAL } from '../../config/dialogues.js';
 import { mulberry32 } from '../../world/Noise.js';
@@ -134,6 +134,15 @@ export class NPCManager {
       if (agent.patrol && p.patrolPair % 2) agent.patrolIndex = 3; // a dupla começa do outro lado
       vs.agents.push(agent);
       this.agents.push(agent);
+    }
+    // Comandante da Guarda: um guarda do turno do dia fica fixo na praça (paga-se a recompensa a ele).
+    const cmd = vs.agents.find((a) => a.person.profession === 'guarda' && a.person.shift === 'day');
+    if (cmd) {
+      cmd.commander = true;
+      cmd.patrol = null;
+      cmd.workplace = { x: plaza.x + 2.5, z: plaza.z + 2.5, yaw: rng() * Math.PI * 2, gesture: 'guard' };
+      cmd.look = { ...cmd.look, cape: COMMANDER_LOOK.cape, armor: COMMANDER_LOOK.armor };
+      vs.commander = cmd;
     }
     // Família: referência rápida (diálogos).
     for (const a of vs.agents) a.family = familyOf(a.person, people).map((p) => p.fullName);

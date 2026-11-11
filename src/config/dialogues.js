@@ -12,7 +12,7 @@
  *   activity    WORK | LUNCH | LEISURE | HOME | WAKE | PATROL | PLAY | REST | SHELTER
  *   player      armado | ensanguentado | insano | correndo | procurado
  *   family      true = tem família (usa {conjuge}/{filho})
- *   memory      provocado | agredido | parente_agredido
+ *   memory      provocado | agredido | parente_agredido | parente_morto
  *
  * Marcadores no texto: {nome} {primeiro} {vila} {profissao} {conjuge} {filho}
  * {horas} (horas trabalhadas) {jogador_titulo} (estranho/forasteiro/amigo).
@@ -36,6 +36,7 @@ export const DIALOGUE = {
     { text: 'Não tenho nada pra falar com você.', when: { mood: 'IRRITADO', memory: 'provocado' } },
     { text: 'Fique longe de mim e da minha família.', when: { mood: 'RANCOROSO' } },
     { text: 'Ainda tem coragem de aparecer aqui? Depois do que fez?', when: { mood: 'RANCOROSO', memory: ['agredido', 'parente_agredido'] } },
+    { text: 'Você matou alguém do meu sangue. Some da minha frente antes que eu chame a guarda.', when: { mood: 'RANCOROSO', memory: 'parente_morto' } },
     { text: 'Ah, oi! Dia bonito, né? Nem parece que a semana foi dura.', when: { mood: 'FELIZ' } },
     { text: 'Minhas costas estão moídas... Passei o dia inteiro sob este sol limpando a terra da plantação e quase não colhi nada. Só quero chegar em casa, ver {conjuge} e deitar...', when: { profession: 'agricultor', mood: 'TRISTE_E_CANSADO', period: 'fim_de_tarde', family: true } },
     { text: 'Já são {horas} horas com a enxada na mão. Se Deus quiser, a colheita vem.', when: { profession: 'agricultor', activity: 'WORK' } },

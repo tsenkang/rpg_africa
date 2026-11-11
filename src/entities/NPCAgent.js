@@ -127,6 +127,8 @@ export class NPCAgent {
     const p = this.person;
     const act = activityAt(hour, { jitter: this.jitter, profession: p.profession, shift: p.shift ?? 'day', age: p.age });
     const h = this.home;
+    // Comandante da Guarda: sempre no posto da praça (NPC fixo).
+    if (this.commander) return { key: 'POST', x: this.workplace.x, z: this.workplace.z, state: 'WORKING', yaw: this.workplace.yaw, gesture: 'guard' };
     // Temporal: todos buscam abrigo em casa, menos o guarda em serviço.
     if (env.shelter && !(p.profession === 'guarda' && act === 'WORK')) {
       return { key: 'SHELTER', x: h.inside.x, z: h.inside.z, state: 'SHELTER', yaw: h.yaw, viaDoor: true, run: true };

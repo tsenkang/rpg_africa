@@ -46,7 +46,8 @@ export class WantedHUD {
     this.village.textContent = s.village;
     this.bounty.textContent = `${s.bounty.toLocaleString('pt-BR')} moedas`;
     this.el.classList.toggle('searching', !!s.search);
-    this.search.style.display = s.search ? '' : 'none';
+    this.bar.parentElement.style.display = s.search ? '' : 'none';
+    if (!s.search) this.label.textContent = 'Pague ao Comandante da Guarda, na praça, para limpar a ficha.';
     if (s.search) {
       this.label.textContent = s.search.seen ? 'Guarda te vendo · busca reiniciada' : pct > 0 ? `Fugindo da busca · ${pct}%` : 'Área de busca · saia do círculo vermelho';
       this.bar.style.width = `${Math.max(0, pct)}%`;

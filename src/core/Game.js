@@ -109,6 +109,10 @@ import { canSee } from '../systems/law/Witness.js';
 import { WantedHUD } from '../ui/WantedHUD.js';
 import { GuardAIController } from '../systems/law/GuardAI.js';
 import { Whistle } from '../audio/Whistle.js';
+import { HunterDirector, ambushPoint } from '../systems/law/Hunters.js';
+import { payQuote } from '../systems/law/Redemption.js';
+import { grudgeReaction } from '../systems/law/Grudge.js';
+import { BountyHunter } from '../entities/BountyHunter.js';
 
 /**
  * Orquestra o jogo: gera o mundo (terreno → vilas → malha → água →
@@ -781,6 +785,11 @@ export class Game {
     this.guardAI = new GuardAIController(LAW.guards);
     this.whistle = new Whistle();
     this._guards = [];
+    this.hunterDir = new HunterDirector(LAW.hunters);
+    /** @type {BountyHunter[]} */
+    this.hunters = [];
+    this._hunterGroup = 0;
+    this._grudgeT = 0;
     /** Casa alheia onde o jogador está agora: { home, vs, residents } ou null. */
     this._alienHome = null;
     this.npcManager.onModelBuilt = (a) => this.combat.register({
@@ -870,7 +879,7 @@ export class Game {
     for (const vs of this.npcManager.villages) {
       if (!vs.active || !this.bounty.bountyOf(vs.village.config.id)) continue;
       for (const g of vs.agents) {
-        if (g.person.profession !== 'guarda' || g.down || g.indoors) continue;
+        if (g.person.profession !== 'guarda' || g.commander || g.down || g.indoors) continue;
         if (canSee({ x: g.pos.x, z: g.pos.z, yaw: g.yaw }, p, LAW.bounty.guardSight)) { out.add(vs.village.config.id); break; }
       }
     }
@@ -893,7 +902,7 @@ export class Game {
   activeGuards() {
     const out = this._guards;
     out.length = 0;
-    for (const vs of this.npcManager.villages) if (vs.active) for (const a of vs.agents) if (a.person.profession === 'guarda') out.push(a);
+    for (const vs of this.npcManager.villages) if (vs.active) for (const a of vs.agents) if (a.person.profession === 'guarda' && !a.commander) out.push(a);
     return out;
   }
 
@@ -931,11 +940,108 @@ export class Game {
     }
   }
 
+  // ------------------------------------------------------------ lei (Etapa C5)
+
+  /** Comandante da Guarda: mostra a ficha da vila e aceita o pagamento da recompensa. */
+  commanderDialog(a) {
+    const v = a.village.config.id, vname = a.village.config.name;
+    const bounty = this.bounty.bountyOf(v);
+    const chasing = this.activeGuards().some((g) => g.village === a.village && this.guardAI.stateOf(g).mode === 'CHASE');
+    const q = payQuote(bounty, { chasing, coins: this.state.coins });
+    const crimes = this.crimes.byVillage(v).filter((c) => c.witnessed && !c.paid);
+    const counts = {};
+    for (const c of crimes) counts[c.label] = (counts[c.label] ?? 0) + 1;
+    const list = Object.entries(counts).map(([k, n]) => `${k}${n > 1 ? ` ×${n}` : ''}`).join(', ');
+    const text = {
+      limpa: `Sua ficha está limpa em ${vname}. Mantenha assim.`,
+      combate: `Com meus guardas no seu encalço? Primeiro pare de fugir. Depois conversamos sobre as ${q.cost} moedas.`,
+      moedas: `Você deve ${q.cost} moedas a ${vname} (${list}). Volte quando tiver o dinheiro.`,
+      null: `Você deve ${q.cost} moedas a ${vname} (${list}). Pague e a guarda esquece o seu rosto.`,
+    }[q.reason];
+    const options = [];
+    if (q.ok) options.push({ label: `Pagar a recompensa · ${q.cost} moedas`, onSelect: () => {
+      if (!this.state.spend(q.cost)) return;
+      for (const c of crimes) c.paid = true;
+      this.bounty.clear(v);
+      this.ui.dialogue.close();
+      this.bubbles.say(a, 'Está feito. Ficha limpa — não me faça me arrepender.', 3.2);
+      this.ui.toast(`Ficha limpa em ${vname}.`);
+    } });
+    options.push({ label: 'Até mais' });
+    a.react('FACE', 8, this.player.position);
+    this.ui.dialogue.open({ speaker: a.name, title: `<span class="dlg-mood">${LAW.redemption.title} · ${vname}</span>`, text: `"${text}"`, options });
+  }
+
+  /** Vítimas e parentes que reconhecem o jogador: fogem gritando ou correm chamar a guarda. */
+  updateGrudges(dt) {
+    const G = LAW.grudge;
+    this._grudgeT -= dt;
+    if (this._grudgeT > 0 || this.areaId !== 'overworld' || this.dead) return;
+    this._grudgeT = G.checkEvery;
+    const p = this.player.position, nm = this.npcManager, pick = (l) => l[Math.floor(this.random() * l.length)];
+    for (const a of nm.rendering ?? []) {
+      if (!a.rendered || a.down || a.indoors || a.person.profession === 'guarda' || a.reaction?.kind === 'FLEE' || a.reaction?.kind === 'RUN_TO') continue;
+      if ((a._grudgeUntil ?? 0) > this.time) continue;
+      if (!canSee({ x: a.pos.x, z: a.pos.z, yaw: a.yaw }, p, { radius: G.radius, fovDot: LAW.witness.fovDot, hearRadius: 3 })) continue;
+      const r = grudgeReaction(nm.memoryOf(a), { wanted: this.bounty.bountyOf(a.village.config.id) > 0 }, this.random, G);
+      if (!r) continue;
+      a._grudgeUntil = this.time + G.cooldown;
+      if (r === 'flee') { this.bubbles.say(a, pick(G.fleeLines), 3, 'medo'); a.react('FLEE', 6, p); }
+      else { this.bubbles.say(a, pick(G.callLines), 3, 'medo'); a.sawAt = { x: p.x, z: p.z }; this.witnesses.addAlert(a); }
+    }
+  }
+
+  /** Caçadores de recompensa: surgem fora das vilas com recompensa alta; perseguem com cães. */
+  updateHunters(dt) {
+    const H = LAW.hunters, p = this.player.position;
+    const onRoad = this.areaId === 'overworld' && !this.dead && !this.player.flying && !this.villageRegionAt(p);
+    const groupsAlive = new Set(this.hunters.filter((h) => h.alive).map((h) => h.group)).size;
+    if (this.hunterDir.update(dt, { totalBounty: this.bounty.total(), onRoad, groupsAlive }, this.random)) this.spawnHunters();
+    const move = (q, dx, dz) => this.collisions.move(q, dx, dz, 0.3, { fraction: 0.6, maxSteps: 4 });
+    const groundAt = (x, z, f) => this.groundHeight(x, z, f);
+    for (let i = this.hunters.length - 1; i >= 0; i--) {
+      const h = this.hunters[i];
+      const far = Math.hypot(h.pos.x - p.x, h.pos.z - p.z) > H.despawnDist || this.areaId !== 'overworld';
+      if (far) { this.removeHunter(h); continue; }
+      if (h.update(dt, p, { move, groundAt, playerAlive: !this.dead })) { this.damagePlayer(H.damage, 'Caçador de recompensa', null, h); this.cameraRig.kick(0.05); }
+    }
+  }
+
+  /** Solta um grupo de caçadores (e cães) atrás do jogador. */
+  spawnHunters() {
+    const H = LAW.hunters, p = this.player.position, r = (a, b) => a + Math.floor(this.random() * (b - a + 1));
+    const at = ambushPoint(p, this.viewForward(), this.random, H);
+    const group = ++this._hunterGroup, n = r(...H.count);
+    const first = ['Kofi', 'Bako', 'Zuri', 'Tunde', 'Imani', 'Jabari', 'Sefu'];
+    for (let i = 0; i < n; i++) {
+      const h = new BountyHunter({ x: at.x + (this.random() - 0.5) * 4, z: at.z + (this.random() - 0.5) * 4, name: `${first[r(0, first.length - 1)]}, caçador de recompensa`, group });
+      this.scene.add(h.model.root);
+      this.combat.register({ name: h.name, object: h.model.root, enabled: () => this.areaId === 'overworld' && h.alive, onHit: (hit) => h.hurt(hit.damage) });
+      this.hunters.push(h);
+      if (i === 0) this.bubbles.say(h, H.lines[r(0, H.lines.length - 1)], 3.5, 'alerta');
+    }
+    for (const dog of this.fauna.spawnGroup(H.dogSpecies, at.x, at.z, r(...H.dogs), { force: true })) dog.brain.alert();
+    this.whistle.blow(H.spawnDist * 0.6);
+    this.ui.toast(`Caçadores de recompensa estão atrás de você (recompensa total: ${this.bounty.total()} moedas).`);
+  }
+
+  removeHunter(h) {
+    this.combat.unregister(h.model.root);
+    this.scene.remove(h.model.root);
+    this.hunters.splice(this.hunters.indexOf(h), 1);
+  }
+
   /** Testemunhas correndo; denúncias; marcadores de olho. */
   updateWitnesses(dt) {
     for (const e of this.witnesses.entries.values()) if (e.paused && !this.ui.dialogue.isOpen) e.paused = false;
     const reports = this.witnesses.update(dt, { guardFor: (a) => this.guardFor(a) });
     for (const { agent, crimes } of reports) {
+      if (!crimes.length) { // parente que foi chamar a guarda: busca no lugar onde viu o jogador
+        this.bubbles.say(agent, 'Guarda! Eu vi o procurado ali!', 3, 'alerta');
+        const v = agent.village.config.id;
+        if (this.bounty.bountyOf(v) > 0) this.bounty.startSearch(v, agent.sawAt ?? this.player.position);
+        continue;
+      }
       const L = LAW.witness.reportLines;
       this.bubbles.say(agent, L[Math.floor(this.random() * L.length)], 3, 'alerta');
       for (const c of crimes) this.onCrimeWitnessed(c, agent, false);
@@ -1056,6 +1162,8 @@ export class Game {
     this.updateWitnesses(dt);
     this.updateBounty(dt);
     this.updateGuards(dt);
+    this.updateGrudges(dt);
+    this.updateHunters(dt);
     if (this.areaId === 'overworld') this.npcManager.updateSocial(dt, this.playerPerceptionState(dt));
     // Balões somem atrás de diálogos e painéis (não tampam a caixa de texto).
     this.bubbles.root.style.display = this.ui.dialogue.isOpen || this.backpack.open || this.notebookUI.open || this.recipeBook.open || this.inspection.active ? 'none' : '';
@@ -1066,7 +1174,7 @@ export class Game {
     this.npcTalk.enabled = !!a;
     if (a) {
       this.npcTalk.pos = a.model.root.position;
-      this.npcTalk.label = this.witnesses.entryOf(a) ? `Interceptar ${a.name} (testemunha)` : `Falar com ${a.name} (${PROFESSIONS[a.person.profession]?.name ?? (a.person.age === 'child' ? 'Criança' : 'Morador')})`;
+      this.npcTalk.label = this.witnesses.entryOf(a) ? `Interceptar ${a.name} (testemunha)` : a.commander ? `Falar com ${a.name} (${LAW.redemption.title})` : `Falar com ${a.name} (${PROFESSIONS[a.person.profession]?.name ?? (a.person.age === 'child' ? 'Criança' : 'Morador')})`;
     }
   }
 
@@ -1101,6 +1209,7 @@ export class Game {
   talkToAgent(a, reply = null) {
     if (!a) return;
     if (this.witnesses?.entryOf(a)) { this.interceptWitness(a); return; }
+    if (a.commander && !reply) { this.commanderDialog(a); return; }
     const nm = this.npcManager;
     const ctx = nm.contextFor(a, this.playerTagsFor(a));
     const text = reply ?? (ctx.player.some((t) => t !== 'procurado') ? DialogueEngine.line('react', ctx, this.random) : DialogueEngine.line('greet', ctx, this.random));
@@ -1396,7 +1505,8 @@ export class Game {
     for (const { p, hit } of events) {
       if (p.gone) { this.projectiles.remove(p); continue; }
       if (hit) {
-        if (hit.agent) this.onAgentShot(hit, p); else this.onAnimalShot(hit, p);
+        if (hit.hunter) { hit.hunter.kill(); this.ui.showHit(`Acertou: ${hit.hunter.name} · morto`, true); }
+        else if (hit.agent) this.onAgentShot(hit, p); else this.onAnimalShot(hit, p);
         if (this.random() < WEAPONS[p.weapon].breakChance) { this.projectiles.remove(p); this.ui.toast(`${ITEMS[p.item].name} quebrou no impacto.`); }
       }
     }
@@ -1418,6 +1528,7 @@ export class Game {
     this._hb.length = 0;
     for (const an of this.fauna.animals) if (an.alive && an.hitbox) this._hb.push(an.hitbox);
     for (const ag of this.npcManager?.rendering ?? []) if (ag.rendered && ag.life !== 'DEAD' && ag.hitbox) this._hb.push(ag.hitbox);
+    for (const h of this.hunters ?? []) if (h.alive) this._hb.push(h.hitbox);
     if (!this._hb.length) return null;
     this._rayDir.set(b.x - a.x, b.y - a.y, b.z - a.z);
     const len = this._rayDir.length();
@@ -1428,6 +1539,7 @@ export class Game {
     const hits = this._ray.intersectObjects(this._hb, false);
     if (!hits.length) return null;
     const hb = hits[0].object, animal = hb.userData.animal;
+    if (hb.userData.hunter) return { hunter: hb.userData.hunter, zone: 'body', point: { x: hits[0].point.x, y: hits[0].point.y, z: hits[0].point.z } };
     if (hb.userData.agent) {
       const ag = hb.userData.agent;
       return { agent: ag, zone: humanZone(hits[0].point.y - ag.pos.y), point: { x: hits[0].point.x, y: hits[0].point.y, z: hits[0].point.z } };

@@ -134,3 +134,6 @@ export const OUTFITS = {
 
 /** Bioma → conjunto de roupas. */
 export const OUTFIT_REGION = { taiga: 'taiga', deserto: 'desert', kalahari: 'desert', tropical: 'jungle', equatorial: 'jungle' };
+
+/** Comandante da Guarda (um por vila, fixo na praça): capa vermelha e peitoral. */
+export const COMMANDER_LOOK = { cape: 0x7a1f1a, armor: 0x8c8378 };

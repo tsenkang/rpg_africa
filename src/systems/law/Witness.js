@@ -78,6 +78,16 @@ export class WitnessSystem {
     return { reportedNow, runners };
   }
 
+  /**
+   * Morador que corre para chamar a guarda sem crime novo (ex.: parente de vítima
+   * que reconhece o procurado). A denúncia sai com `crimes` vazio.
+   */
+  addAlert(agent) {
+    if (this.entries.has(agent)) return false;
+    this.entries.set(agent, { agent, crimes: [], t: 0, alert: true });
+    return true;
+  }
+
   /** Tira a testemunha da corrida (intimidada, subornada…). O crime segue sem testemunha. */
   silence(agent, reason = 'silenciada') {
     const e = this.entries.get(agent);

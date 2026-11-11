@@ -1,10 +1,10 @@
 # Handoff — continuar o desenvolvimento (Claude app / nuvem)
 
 > Leia este arquivo inteiro antes de mexer no código. Ele resume o estado do
-> jogo, as decisões já tomadas com o dono do projeto e **a próxima tarefa
-> (Etapa C — Lei, Testemunhas e Recompensa)**, com a especificação completa.
+> jogo, as decisões já tomadas com o dono do projeto e o que fazer a seguir.
+> A Etapa C (Lei, Testemunhas e Recompensa) está **pronta** — visão de código em `docs/LAW-SYSTEM.md`.
 >
-> Última atualização: 2026-11-10 · branch `completo`.
+> Última atualização: 2026-11-11 · branch `ccr-f440db29-mlw9d3` (a partir de `completo`).
 
 ---
 
@@ -19,7 +19,7 @@
 ```bash
 npm install
 npm run dev        # http://localhost:5173 (gera o mundo em ~10 s)
-npm test           # node --test "tests/**/*.test.js" — 230 testes, todos passando
+npm test           # node --test "tests/**/*.test.js" — 288 testes (1 instável conhecido: ver §6)
 npm run build      # build de produção em dist/
 ```
 
@@ -50,6 +50,7 @@ npm run build      # build de produção em dist/
 | Sanidade: barra sob a vida, gatilhos de trauma, ficha do personagem (atividades de conforto), 3 níveis de alucinação (distorção, sons, vultos), ossadas | `systems/SanityManager.js`, `config/character.js`, `render/Hallucinations.js`, `audio/PhantomSounds.js`, `render/Skeletons.js` | — |
 | **Mundo vivo — Etapa A**: 280 moradores (40/vila), famílias com sobrenome e casa, rotina de 24 h, energia/cansaço, roupas por bioma, reação ao clima, LOD de IA, portas trancadas à noite | `systems/npc/NPCManager.js`, `entities/NPCAgent.js`, `systems/npc/Routine.js`, `Population.js`, `NPCVisualBuilder.js`, `config/npcLife.js` | — |
 | **Mundo vivo — Etapa B**: diálogo contextual (Fala = F(profissão, humor, cansaço, hora, clima, bioma, família, jogador, memória)), menu Saudar/Provocar/Perguntar/Comerciar, percepção do jogador (armado/ensanguentado/insano/correndo), conversa NPC-NPC com balões, memória e rancor familiar | `systems/npc/DialogueEngine.js`, `config/dialogues.js`, `ui/SpeechBubbles.js` | E |
+| **Lei — Etapa C**: crimes (agressão = nocaute, assassinato, invasão, roubo ao vasculhar), testemunhas (olho, corrida até a guarda, intimidar/subornar), PROCURADO por vila com zona de busca e fuga, IA dos guardas (reconhecer, perseguir, flanquear, atacar, apito), caçadores de recompensa com cães (≥ 1000), Comandante da Guarda (pagar limpa a ficha), parentes das vítimas | `systems/law/*`, `config/law.js`, `ui/WantedHUD.js`, `ui/WitnessMarkers.js`, `entities/BountyHunter.js` — ver `docs/LAW-SYSTEM.md` | E / clique |
 
 Outras teclas: **T** câmera 1ª/3ª pessoa, **M** mapa, **G** gráficos, **F** viagem rápida, **V** voo (debug), **H** poção.
 
@@ -59,49 +60,18 @@ Outras teclas: **T** câmera 1ª/3ª pessoa, **M** mapa, **G** gráficos, **F** 
 - **NPCs: soco = nocaute** (levanta depois, conta como agressão); **lança/flecha = podem matar** (conta como assassinato). Corpo fica no chão e dá trauma de sanidade a quem vê.
 - **~40 NPCs com rotina por vila**; NPCs de missão (lojistas fixos, anciões, Senhor, prefeito) ficam sempre no posto.
 - O livro de receitas mostra **todas** as receitas (foi oferecido esconder as não descobertas; sem resposta ainda).
+- **Interface sem emojis**: ícones de linha próprios em `ui/Icons.js`; dados guardam a chave (`icon: 'leaf'`). Um teste falha se um ícone não existir.
+- Roubo = **vasculhar com E** dentro de casa alheia (móveis dos interiores são só visuais). Lança/flecha nas **pernas derruba**, cabeça/corpo mata.
 
-## 4. Próxima tarefa — Etapa C: Lei, Testemunhas e Recompensa
+## 4. Próximos passos (sugestões — confirmar com o dono)
 
-Pedido original do dono (inspiração: sistema de procurado/recompensa de jogos de faroeste em mundo aberto). Implementar `BountyManager` e `GuardAIController` integrados ao `NPCManager`.
+A Etapa C foi entregue em 5 fatias (C1 crimes · C2 testemunhas · C3 procurado · C4 guardas · C5 caçadores/redenção/rancor), cada uma com testes em `tests/unit/law/` e prints em `production/qa/evidence/lei-c*.jpg`.
 
-### 4.1 Crimes
-- **Agressão**: socar um morador (soco já existe em `Game.tryAttack` → `Combat`; hoje só NPCs antigos estão registrados como alvo — registre os `NPCAgent` com boneco em `game.combat`). Soco derruba (nocaute: estado `KNOCKED_OUT` por ~20 s, deitado), grava `npcManager.remember(agent, 'agredido')` (a família já fica rancorosa — Etapa B pronta).
-- **Assassinato**: lança/flecha (`Projectiles` → hoje só testa hitbox de animais em `Game.projectileHit`; incluir hitboxes dos moradores). Morador morre: estado `DEAD`, corpo fica, `game.onNpcDeath(npc)` já existe (dá trauma de sanidade a quem vê).
-- **Invasão**: entrar numa casa de outra família (`home` do agente; `game.interiors.insideAt(pos)`), principalmente à noite com a porta destrancada à força (portas: `NPCManager.updateDoors`).
-- **Roubo**: pegar itens/props dentro de casas alheias (definir: ex. pegar barril/caixote/pote de dentro de um lar, ou abrir baú).
-- Valores sugeridos pelo dono: **50 moedas** por agressão/invasão, **500** por assassinato de civil ou guarda. Pôr em `config/law.js`.
-
-### 4.2 Testemunhas (Witness System)
-- Qualquer civil com boneco que **veja** o crime (raio + cone de visão; há `Game.inView(x, z, radius, minDot)` e a percepção em `NPCManager.updateSocial`) entra em `WITNESS`.
-- Ícone de **olho** sobre a cabeça (use `SpeechBubbles` ou um ícone próprio), e o civil **corre até o guarda mais próximo** gritando por socorro (balões).
-- **Interceptação**: enquanto ele corre, o jogador pode **Intimidar**, **Subornar** (custa moedas) ou **Nocautear** a testemunha (E perto dela abre essas opções; nocautear também é agressão, mas sem testemunha não vira procurado).
-- Se a testemunha alcança um guarda → **PROCURADO** naquela vila.
-
-### 4.3 Procurado e zona de busca
-- HUD: selo **PROCURADO** e **[RECOMPENSA: 350 Moedas]** da região atual (vila mais próxima; recompensa é por vila/bioma).
-- **Círculo vermelho de busca** no minimapa (`render/Minimap.js` desenha ícones; adicione um anel) em volta da última posição conhecida. Guardas correm para investigar.
-- Sair do círculo sem ser visto e esperar um **contador de fuga** baixa o alerta; o crime **continua registrado** na recompensa daquela vila.
-
-### 4.4 Guardas (GuardAIController)
-- Já existem 6 guardas por vila em duplas, com turnos dia/noite e ronda (`NPCAgent.patrol`). Falta a IA de lei:
-  - Com recompensa ativa, ao se aproximar de um guarda ele **reconhece após alguns segundos** de checagem visual.
-  - Táticas: perseguir, **flanquear** (dupla se divide), lança/escudo, **chamar reforço com apito/corneta** (som via WebAudio como `audio/PhantomSounds.js`).
-  - Dano do guarda no jogador via `game.damagePlayer(n, 'Guarda', null, guardAgent)` (já trata ataque surpresa/crítico na sanidade).
-  - Guardas também podem ser nocauteados/mortos (crime grave).
-
-### 4.5 Caçadores de recompensa
-- Recompensa total **≥ 1000** → grupos de caçadores (NPCs armados) com **cães** (use `Fauna.spawnGroup('lobo' ou 'hiena', …)` ou espécie nova "cão de caça") surgem aleatoriamente **nas estradas/trilhas entre vilas** e emboscam.
-
-### 4.6 Redenção
-- **Comandante da Guarda / Posto de Correio** em cada vila (NPC fixo): pagar a recompensa limpa a ficha daquela vila, desde que **não esteja em combate**.
-
-### 4.7 Memória social
-- Vítimas e parentes já guardam rancor (`NPCManager.memory` / `familyMemory`), recusam comércio e ficam hostis (Etapa B). Na C: ao ver o jogador, parente de vítima pode **fugir gritando** ou chamar guarda.
-
-### 4.8 Entrega pedida pelo dono
-- Mostrar o código dos gerenciadores (`NPCManager`, `NPCAgent`, `GuardAIController`, `BountyManager`, `DialogueEngine`), a estrutura das tabelas de diálogo, o sistema de testemunhas e a integração no loop.
-- Integração no loop hoje (em `Game.update`): `updateSurvival → updateSanity → updateLivingWorld` (este chama `npcManager.update(dt)` e `npcManager.updateSocial(dt, playerPerceptionState)`). Adicionar `bounty.update(dt)` e a IA dos guardas aí.
-- `Game.playerPerceptionState` já tem um campo `wanted: !!this.bounty?.wantedHere?.(p)` esperando o `BountyManager` (a tag `procurado` já existe no `DialogueEngine`).
+Pontas soltas conhecidas:
+- Guardas e caçadores não seguram uma lança 3D; o ataque é o gesto `thrust`.
+- Não há estradas entre vilas no mapa: "na estrada" = fora da região de qualquer vila (`LAW.bounty.regionMargin`).
+- Reforço em dupla/flanco e o apito só foram vistos nos testes, não no navegador (no teste havia um guarda por perto).
+- Crimes/recompensas não são salvos (não há sistema de save).
 
 ## 5. Mapa rápido do código
 
@@ -118,6 +88,8 @@ src/systems/Projectiles.js  lança/flecha (zonas de acerto em classifyZone)
 ```
 
 ## 6. Pegadinhas conhecidas
+- **Teste instável (antigo)**: `tests/unit/animation/humanoid-animation.test.js` ("entrar e sair da água…") falha ~1 em 12 execuções — `Humanoid` sorteia `phase`/`idleT`/`strokePhase` com `Math.random`. Tornar injetável resolve.
+- Verificação na nuvem (Chromium sem GPU) roda ~1 FPS: o relógio do jogo anda ~25× mais devagar; encurte tempos no `cfg` do teste em vez de esperar.
 - `game.gameClock.totalHours` controla a hora (1 h de jogo = 50 s reais). Saltos de relógio fazem o `NPCManager` reposicionar todos (`snap`).
 - Moradores sem boneco são simulados a cada 0,25 s sem colisão; com boneco usam `collisions.move`.
 - Nevascas/tempestades fortes mandam todos para casa (`weatherEnv().shelter`) — vila vazia não é bug.

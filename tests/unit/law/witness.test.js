@@ -104,3 +104,13 @@ test('update_noGuardInVillage_reportsAfterTimeout', () => {
   assert.equal(ws.update(6, { guardFor: () => null }).length, 1);
   assert.equal(crime.witnessed, true);
 });
+
+test('addAlert_runsToGuardAndReportsWithNoCrimes', () => {
+  const ws = new WitnessSystem(CFG);
+  const c = npc('c', 0, 0);
+  assert.equal(ws.addAlert(c), true);
+  assert.equal(ws.addAlert(c), false); // já corre
+  const reports = ws.update(0.1, { guardFor: () => ({ x: 1, z: 0 }) });
+  assert.equal(reports.length, 1);
+  assert.deepEqual(reports[0].crimes, []);
+});
