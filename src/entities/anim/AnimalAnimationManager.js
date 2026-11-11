@@ -269,13 +269,15 @@ export class AnimalAnimationManager {
    * Um quadro de animação.
    * @param {number} dt segundos (do relógio principal)
    * @param {{ speed: number, state: string, stateTime?: number, swimming?: boolean,
-   *   tilt?: { pitch: number, roll: number }, yawRate?: number, leaping?: boolean, look?: number }} ctx
+   *   tilt?: { pitch: number, roll: number }, yawRate?: number, leaping?: boolean, look?: number, feeding?: boolean }} ctx
+   *   `feeding`: comendo uma carcaça (cabeça baixa, puxões)
    */
   update(dt, ctx) {
     const cfg = this.cfg, spec = this.spec, w = this.w;
-    const { speed, state, stateTime = 0, swimming = false, tilt = null, yawRate = 0, leaping = false, look = 0 } = ctx;
+    const { speed, state, stateTime = 0, swimming = false, tilt = null, yawRate = 0, leaping = false, look = 0, feeding = false } = ctx;
     this.t += dt;
     this.dt = dt;
+    this.feeding = feeding;
     const rate = cfg.blend.stateRate;
     this.speedS = damp(this.speedS, speed, 6, dt);
     const v = this.speedS;
@@ -291,7 +293,8 @@ export class AnimalAnimationManager {
     w.leap = damp(w.leap, leaping ? 1 : 0, 14, dt);
     w.aware = damp(w.aware, AWARE.has(state) ? 1 : 0, 4, dt);
     const herb = spec.behavior === 'flee' || spec.behavior === 'passive';
-    const wantGraze = herb && state === 'idle' && Math.sin(this.t * 0.23 + this.seed) > 0.1;
+    // Comendo carcaça (F4): mesma pose de cabeça baixa e mastigar, com puxões mais fortes.
+    const wantGraze = feeding || (herb && state === 'idle' && Math.sin(this.t * 0.23 + this.seed) > 0.1);
     w.graze = damp(w.graze, wantGraze ? 1 : 0, 1.6, dt);
     w.trot = damp(w.trot, smoothstep(spec.walk * 1.25, spec.walk * 2.6, v), 4, dt);
     w.gallop = damp(w.gallop, smoothstep(spec.run * 0.45, spec.run * 0.78, v), 4, dt);
@@ -439,6 +442,7 @@ export class AnimalAnimationManager {
     R.neck?.add(w.graze * grazeAmp * land, 0, 0);
     R.head?.add(w.graze * 0.25 * land, 0, 0);
     R.jaw?.add(w.graze * Math.max(0, Math.sin(this.t * 8.5)) * 0.1, 0, 0); // mastiga
+    if (this.feeding) R.neck?.add(Math.max(0, Math.sin(this.t * 3.1)) * 0.22 * land, Math.sin(this.t * 1.7) * 0.15, 0); // arranca pedaços
 
     // ---- cauda: onda com atraso + puxada pela curva (follow-through)
     const nT = R.tail.length;

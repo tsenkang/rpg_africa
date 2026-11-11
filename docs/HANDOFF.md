@@ -52,10 +52,12 @@ npm run build      # build de produção em dist/
 | **Mundo vivo — Etapa B**: diálogo contextual (Fala = F(profissão, humor, cansaço, hora, clima, bioma, família, jogador, memória)), menu Saudar/Provocar/Perguntar/Comerciar, percepção do jogador (armado/ensanguentado/insano/correndo), conversa NPC-NPC com balões, memória e rancor familiar | `systems/npc/DialogueEngine.js`, `config/dialogues.js`, `ui/SpeechBubbles.js` | E |
 | **Lei — Etapa C**: crimes (agressão = nocaute, assassinato, invasão, roubo ao vasculhar), testemunhas (olho, corrida até a guarda, intimidar/subornar), PROCURADO por vila com zona de busca e fuga, IA dos guardas (reconhecer, perseguir, flanquear, atacar, apito), caçadores de recompensa com cães (≥ 1000), Comandante da Guarda (pagar limpa a ficha), parentes das vítimas | `systems/law/*`, `config/law.js`, `ui/WantedHUD.js`, `ui/WitnessMarkers.js`, `entities/BountyHunter.js` — ver `docs/LAW-SYSTEM.md` | E / clique |
 | **Limite de inclinação 45°** (jogador, animais, moradores, caçadores): bloqueia subida, escorregão até chão firme, IA contorna montanhas, som de derrapagem | `systems/physics/SlopePhysics.js`, `config/physics.js` (`SLOPE`) — ver `docs/SLOPE-PHYSICS.md` | — |
+| **Ecossistema da fauna — F1–F4**: cadeia alimentar em níveis, fome/energia (caça só > 60%), LOD estatístico, ataques por espécie (agarrão, rolamento, coice, flanco, soco no chão, veneno), matilhas (líder uiva, batedores/interceptadores), manadas (vigia, alarme, debandada, círculo defensivo, filhotes), carcaças com necrófagos | `systems/fauna/*`, `config/ecosystem.js`, `config/faunaCombat.js` — ver `docs/FAUNA-ECOSYSTEM.md` | — |
 
 Outras teclas: **T** câmera 1ª/3ª pessoa, **M** mapa, **G** gráficos, **F** viagem rápida, **V** voo (debug), **H** poção.
 
 ### Decisões já tomadas pelo dono (não perguntar de novo)
+- **Sem elefante** (não há modelo 3D): girafa, alce e camelo são os grandes defensores.
 - Inspeção corporal na tecla **C**; câmera foi para **T**.
 - Fome, sede, infecção e veneno **podem matar**.
 - **NPCs: soco = nocaute** (levanta depois, conta como agressão); **lança/flecha = podem matar** (conta como assassinato). Corpo fica no chão e dá trauma de sanidade a quem vê.

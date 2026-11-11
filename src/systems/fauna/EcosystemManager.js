@@ -94,7 +94,8 @@ export class EcosystemManager {
     for (const a of alive) {
       const e = a.eco;
       if (!e.predator) continue;
-      e.hunting = wantsToHunt(e.needs, cfg);
+      // À mesa de uma carcaça (F4): come em vez de caçar, e não é ameaça para os vizinhos.
+      e.hunting = wantsToHunt(e.needs, cfg) && !(e.feedAt && !e.feedAt.wait);
       e.calm = !e.hunting;
       if (!e.hunting) { e.target = null; continue; }
       hunting++;
@@ -161,6 +162,7 @@ export class EcosystemManager {
       if (o === a || !o.eco.predator || !this.diet.get(o.speciesId).has(a.speciesId)) continue;
       const d = Math.hypot(o.position.x - a.position.x, o.position.z - a.position.z);
       if (!o.eco.hunting && d > cfg.panicRadius) continue; // alimentado e não colado: convivem
+      if (!o.eco.hunting && a.eco.feedAt) continue; // à mesa da carcaça: predador saciado não assusta (F4)
       if (d < bd) { bd = d; best = o; }
     }
     return best;

@@ -4,7 +4,8 @@ import { SPECIES, BIOME_FAUNA, FAUNA, GUARDIANS } from '../config/fauna.js';
 import { BIOMES } from '../config/biomes.js';
 import { WORLD } from '../config/worldConfig.js';
 import { pickWeighted, groupSize, spawnTable } from './FaunaRules.js';
-import { PACKS } from '../config/ecosystem.js';
+import { PACKS, CARCASS } from '../config/ecosystem.js';
+import { CarcassSystem } from './fauna/CarcassSystem.js';
 import { AnimalSounds } from '../audio/AnimalSounds.js';
 import { EcosystemManager } from './fauna/EcosystemManager.js';
 import { ECOSYSTEM } from '../config/ecosystem.js';
@@ -46,6 +47,8 @@ export class Fauna {
     this.ecosystem = new EcosystemManager(ECOSYSTEM, { rng });
     /** Agarrões (mordida no pescoço, rolamento da morte). */
     this.grapples = new CombatAnimationSystem();
+    /** Carcaças: comida para predadores e necrófagos até decompor (F4). */
+    this.carcasses = new CarcassSystem();
     this._playerDot = 0;
   }
 
@@ -98,6 +101,8 @@ export class Fauna {
       if (e.type === 'kill') this.applyKill(e.predator, e.prey);
       else if (e.type === 'howl' || e.type === 'alarm') this.groupCall(e, playerPos);
     }
+    // Carcaças (F4): quem tem fome vem comer; necrófagos esperam o superpredador; decompõe.
+    for (const c of this.carcasses.update(dt, this.animals)) if (this.animals.includes(c.animal)) this.remove(c.animal);
     // Agarrões em andamento: dano por segundo, arrasto do jacaré para a água.
     this.grapples.update(dt, {
       damage: (v, n, a) => {
@@ -122,8 +127,9 @@ export class Fauna {
         for (const b of this.animals) if (b !== a && b.group === a.group && b.brain.state !== 'chase' && b.brain.state !== 'attack') b.brain.alert();
       }
       const far = Math.hypot(a.position.x - playerPos.x, a.position.z - playerPos.z) > this.config.despawn;
-      if (far || a.brain.gone || (!a.alive && a.deadTime > this.config.corpseSeconds)) this.remove(a);
+      if (far || a.brain.gone || (!a.alive && !a.carcass && a.deadTime > this.config.corpseSeconds)) this.remove(a);
     }
+    for (const c of this.carcasses.list) this.decayLook(c);
   }
 
   /**
@@ -188,8 +194,21 @@ export class Fauna {
   applyKill(pred, prey, lethal = true) {
     if (lethal && prey.alive) prey.takeHit({ damage: prey.health + 1, direction: { x: 0, z: 1 } });
     prey.killedBy = pred;
-    this.ecosystem.feed(pred, prey);
+    // Perto do jogador: vira carcaça e o predador come aos poucos (F4). Longe: refeição na hora.
+    const p = this.game.player?.position;
+    if (p && Math.hypot(prey.position.x - p.x, prey.position.z - p.z) <= this.ecosystem.cfg.detailRadius) {
+      this.carcasses.add(prey);
+      pred.eco && (pred.eco.target = null, pred.eco.hunting = false);
+    } else this.ecosystem.feed(pred, prey);
     if (pred.alive && (pred.brain.state === 'chase' || pred.brain.state === 'attack')) pred.brain.calmDown();
+  }
+
+  /** Carcaça perdendo carne afunda e escurece até virar ossos. */
+  decayLook(c) {
+    const a = c.animal, k = 1 - CarcassSystem.fresh(c);
+    if (!a.root) return;
+    a.root.position.y = a.groundAt(a.position.x, a.position.z) - k * CARCASS.sink;
+    a.root.scale.y = 1 - k * 0.55;
   }
 
   /** Uivo do líder da matilha / grito de alarme do vigia da manada (F3). */
@@ -311,6 +330,7 @@ export class Fauna {
   }
 
   remove(a) {
+    if (a.carcass) this.carcasses.list = this.carcasses.list.filter((c) => c.animal !== a);
     if (a.agent) this.game.physics?.removeAgent(a.agent);
     this.game.scene.remove(a.root);
     this.game.combat.unregister(a.root);

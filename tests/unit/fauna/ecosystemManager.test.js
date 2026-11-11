@@ -112,3 +112,13 @@ test('sentinel_spotsHuntingPredator_fartherThanOthers', () => {
   assert.equal(b.eco.threat, lion); // alarmada pela manada
   assert.ok(ev.some((e) => e.type === 'alarm'));
 });
+
+test('scavengerAtCarcass_besideSatedPredator_isNotPanicked', () => {
+  const eco = make();
+  const lion = animal('leao', 0, 0), zebra = animal('zebra', 2, 0);
+  eco.register(lion); eco.register(zebra);
+  lion.eco.needs.hunger = 0.1;
+  zebra.eco.feedAt = { x: 2, z: 0, wait: false }; // comendo ao lado (colado)
+  eco.update(0.3, [lion, zebra], { ...PLAYER, position: { x: 500, z: 0 } });
+  assert.equal(zebra.eco.threat, null);
+});

@@ -70,3 +70,20 @@ export const PACKS = {
   },
   young: { chance: 0.35, scale: 0.6, speed: 0.8, health: 0.5 },
 };
+
+/**
+ * Carcaças (Etapa F4): a presa abatida vira comida por alguns minutos.
+ * @example CARCASS.lifetime // 240 s até sumir
+ */
+export const CARCASS = {
+  lifetime: 240, // s até decompor e sumir
+  eatRate: 6, // pontos de carne por segundo, por comedor
+  eatAbove: 0.12, // predador só come com fome acima disto (saciado sai da mesa)
+  scavengers: ['hiena', 'corvo'],
+  scavengeAbove: 0.05, // necrófago come quase sempre
+  attract: { predator: 35, scavenger: 80 }, // raio em que a carcaça atrai (o cheiro)
+  seatRadius: 1.4, // distância da carcaça para comer
+  waitRadius: 7, // necrófago espera a esta distância enquanto um superpredador come
+  maxEaters: 4,
+  sink: 0.25, // m que a carcaça afunda até virar ossos
+};

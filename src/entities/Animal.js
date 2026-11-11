@@ -341,6 +341,17 @@ export class Animal {
       default:
         break;
     }
+    // Carcaça (F4): vai até o lugar em volta dela e come (necrófago espera de longe).
+    const fd = this.eco?.feedAt;
+    this.feeding = false;
+    if (fd && this.alive) {
+      if (state === 'chase' && !this.victim) this.brain.calmDown();
+      if (state === 'idle' || state === 'wander') {
+        const sx = fd.x - p.x, sz = fd.z - p.z, sd = Math.hypot(sx, sz);
+        if (sd > 0.6) { speed = spec.walk * 1.8; heading = Math.atan2(sx, sz); }
+        else { speed = 0; heading = Math.atan2(fd.cx - p.x, fd.cz - p.z); this.feeding = !fd.wait; }
+      }
+    }
     if (this.leapT > 0) { this.leapT -= dt; speed = spec.run * 1.5; }
     if (this.limpT > 0) { this.limpT -= dt; speed *= BLEED.slowFactor; } // tiro nas pernas: manca
     if (immobile || this.pendingKick >= 0) speed = 0; // coice: planta as patas da frente durante o golpe
@@ -415,7 +426,7 @@ export class Animal {
     }
     const toPlayer = Math.atan2(playerPos.x - p.x, playerPos.z - p.z);
     const look = Math.atan2(Math.sin(toPlayer - yaw), Math.cos(toPlayer - yaw));
-    this.body.update(dt, speed, state, this.stateTime, { swimming: this.swimming, tilt, yawRate, leaping: this.leapT > 0, look });
+    this.body.update(dt, speed, state, this.stateTime, { swimming: this.swimming, tilt, yawRate, leaping: this.leapT > 0, look, feeding: this.feeding });
     return { strike, state, victim: this.victim, kick };
   }
 
