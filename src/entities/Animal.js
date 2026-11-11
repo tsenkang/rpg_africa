@@ -131,6 +131,36 @@ export class Animal {
     else this.brain.hurt();
   }
 
+  /**
+   * Para onde a IA olha neste quadro (`EcosystemManager` preenche `this.eco`):
+   *  - caçando um animal → ele; fugindo de um predador → ele;
+   *  - senão o jogador. Predador alimentado (`eco.calm`) ignora o jogador até
+   *    ser provocado (`brain.angry`); guardião/território seguem as regras deles.
+   * @returns {{ pos: {x:number,z:number}, dist: number }} `victim` fica em `this.victim`
+   */
+  focusPoint(playerPos, playerAlive) {
+    const p = this.root.position, e = this.eco, f = this._focus ?? (this._focus = { pos: { x: 0, z: 0 }, dist: Infinity });
+    this.victim = null;
+    // Revide (girafa/alce/gorila atacados por um predador): o agressor vira o alvo enquanto estiver perto.
+    const rv = e?.retaliate?.alive && Math.hypot(e.retaliate.position.x - p.x, e.retaliate.position.z - p.z) < (e.retaliateRadius ?? 40) ? e.retaliate : null;
+    if (e && !rv) e.retaliate = null;
+    const t = rv ?? (e?.target && e.target !== 'player' && e.target.alive ? e.target : null);
+    const th = !t && e?.threat?.alive ? e.threat : null;
+    const o = t ?? th;
+    if (o) {
+      f.pos.x = o.position.x; f.pos.z = o.position.z;
+      f.dist = Math.hypot(o.position.x - p.x, o.position.z - p.z);
+      this.victim = t;
+      return f;
+    }
+    f.pos.x = playerPos.x; f.pos.z = playerPos.z;
+    f.dist = playerAlive ? Math.hypot(playerPos.x - p.x, playerPos.z - p.z) : Infinity;
+    const b = this.spec.behavior;
+    const hunter = b === 'aggressive' || b === 'pack' || b === 'stalker';
+    if (e?.calm && hunter && !this.brain.angry && this.brain.state !== 'chase' && this.brain.state !== 'attack') f.dist = Infinity;
+    return f;
+  }
+
   /** Água funda demais para um animal que não nada? */
   isWater(x, z) {
     return this.groundAt(x, z) < WORLD.waterLevel - 0.15;
@@ -152,8 +182,18 @@ export class Animal {
   update(dt, playerPos, playerAlive = true) {
     const spec = this.spec;
     const p = this.root.position;
-    const dist = playerAlive ? Math.hypot(playerPos.x - p.x, playerPos.z - p.z) : Infinity;
-    const fromHome = Math.hypot(playerPos.x - this.home.x, playerPos.z - this.home.z);
+    // Foco (ecossistema): a presa que caça, o predador de quem foge, ou o jogador.
+    const realPlayer = playerPos;
+    const focus = this.focusPoint(playerPos, playerAlive);
+    const dist = focus.dist;
+    playerPos = focus.pos;
+    const fromHome = Math.hypot(realPlayer.x - this.home.x, realPlayer.z - this.home.z);
+    // Ecossistema manda caçar/fugir mesmo fora do raio de percepção da espécie.
+    const st0 = this.brain.state;
+    if (this.alive && (st0 === 'idle' || st0 === 'wander')) {
+      if (this.victim) this.brain.set(spec.behavior === 'stalker' ? 'stalk' : 'chase');
+      else if (this.eco?.threat && this.brain.fearful) this.brain.startFleeing();
+    }
     const atHome = Math.hypot(p.x - this.home.x, p.z - this.home.z) < 3;
     const prev = this.brain.state;
     const { state, strike: decided } = this.brain.tick(dt, dist, { fromHome, atHome });
@@ -288,7 +328,7 @@ export class Animal {
     const toPlayer = Math.atan2(playerPos.x - p.x, playerPos.z - p.z);
     const look = Math.atan2(Math.sin(toPlayer - yaw), Math.cos(toPlayer - yaw));
     this.body.update(dt, speed, state, this.stateTime, { swimming: this.swimming, tilt, yawRate, leaping: this.leapT > 0, look });
-    return { strike, state };
+    return { strike, state, victim: this.victim };
   }
 
   pickWanderTarget() {

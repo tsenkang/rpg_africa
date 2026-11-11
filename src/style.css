@@ -672,3 +672,8 @@ svg.i.lg { width: 1.6em; height: 1.6em; }
 .slope-hint.show { opacity: 1; transform: translate(-50%, 0); }
 .slope-hint svg.i { color: #f2b84b; width: 15px; height: 15px; }
 @media (prefers-reduced-motion: reduce) { .slope-hint { transition: none; } }
+
+/* Caderneta: cadeia alimentar na ficha da fauna. */
+.nb-entry .nb-level { margin-left: 8px; font: 600 10.5px/1 system-ui, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold, #d8b23a); opacity: 0.8; }
+.nb-entry .nb-chain { margin-top: 2px; font-size: 12px; color: var(--ink-dim, #b9ab98); }
+.nb-entry .nb-chain svg.i { opacity: 0.7; margin-right: 3px; }

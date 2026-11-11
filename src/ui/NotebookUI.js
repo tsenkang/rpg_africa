@@ -1,5 +1,10 @@
 import { BIOMES } from '../config/biomes.js';
 import { SPECIES } from '../config/fauna.js';
+import { ECOSYSTEM } from '../config/ecosystem.js';
+import { buildDiet } from '../systems/fauna/Ecology.js';
+
+const DIET = buildDiet(ECOSYSTEM);
+const TROPHIC_LABEL = { 1: 'Superpredador', 2: 'Predador de matilha', 3: 'Grande herbívoro', 4: 'Presa', 5: 'Pequeno / venenoso' };
 import { RECIPES } from '../config/items.js';
 import { ITEMS } from '../systems/PlayerState.js';
 import { icon } from './Icons.js';
@@ -75,7 +80,17 @@ export class NotebookUI {
       html = list.map((id) => { const b = BIOMES.find((x) => x.id === id); return b ? `<div class="nb-entry"><b>${b.name}</b><p>${b.description ?? ''}</p></div>` : ''; }).join('');
       html += `<div class="nb-todo">${BIOMES.length - list.length} biomas por visitar.</div>`;
     } else if (this.tab === 'fauna') {
-      html = list.map((id) => { const s = SPECIES[id]; return s ? `<div class="nb-entry"><b>${s.nome}</b><p>${BEHAVIOR[s.behavior] ?? s.behavior}${s.damage ? ` · ataque ${s.damage}` : ''} · vida ${s.health ?? '?'}</p></div>` : ''; }).join('');
+      html = list.map((id) => {
+        const s = SPECIES[id];
+        if (!s) return '';
+        // Cadeia alimentar: só cita espécies que o jogador já viu.
+        const seen = (ids) => ids.filter((x) => list.includes(x)).map((x) => SPECIES[x]?.nome ?? x);
+        const eats = seen([...(DIET.get(id) ?? [])]), eatenBy = seen([...DIET].filter(([, preys]) => preys.has(id)).map(([p]) => p));
+        const lvl = ECOSYSTEM.levels[id];
+        return `<div class="nb-entry"><b>${s.nome}</b><span class="nb-level">${TROPHIC_LABEL[lvl] ?? ''}</span><p>${BEHAVIOR[s.behavior] ?? s.behavior}${s.damage ? ` · ataque ${s.damage}` : ''} · vida ${s.health ?? '?'}</p>`
+          + (eats.length ? `<p class="nb-chain">${icon('fist')} Caça: ${eats.join(', ')}</p>` : '')
+          + (eatenBy.length ? `<p class="nb-chain">${icon('eye')} Caçado por: ${eatenBy.join(', ')}</p>` : '') + '</div>';
+      }).join('');
       html += `<div class="nb-todo">${Object.keys(SPECIES).length - list.length} espécies por avistar.</div>`;
     } else if (this.tab === 'plantas') {
       html = list.map((id) => { const d = ITEMS[id]; return d ? `<div class="nb-entry"><b>${icon(d.icon)} ${d.name}</b><p>${d.description ?? ''}</p></div>` : ''; }).join('');

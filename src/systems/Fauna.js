@@ -5,6 +5,8 @@ import { BIOMES } from '../config/biomes.js';
 import { WORLD } from '../config/worldConfig.js';
 import { pickWeighted, groupSize, spawnTable } from './FaunaRules.js';
 import { AnimalSounds } from '../audio/AnimalSounds.js';
+import { EcosystemManager } from './fauna/EcosystemManager.js';
+import { ECOSYSTEM } from '../config/ecosystem.js';
 
 /**
  * Fauna regional: mantém grupos de animais vivos em volta do jogador, sorteados
@@ -37,6 +39,8 @@ export class Fauna {
     this.laughed = new Set(); // bandos de hiena que já riram
     /** Guardiões vivos por espécie e quando podem voltar (GUARDIANS). */
     this.guardians = new Map();
+    /** Cadeia alimentar, fome/energia, alvo/ameaça de cada animal e LOD estatístico. */
+    this.ecosystem = new EcosystemManager(ECOSYSTEM, { rng });
   }
 
   /**
@@ -71,9 +75,14 @@ export class Fauna {
       if (this.animals.length < this.config.maxAnimals) this.trySpawn(playerPos);
     }
     this.updateGuardians(playerPos);
+    // Ecossistema: quem caça quem, quem foge de quem; caçadas longe resolvidas por estatística.
+    const st = this.game.state;
+    const events = this.ecosystem.update(dt, this.animals, { position: playerPos, alive: playerAlive, health01: st ? st.health / st.maxHealth : 1 });
+    for (const e of events) if (e.type === 'kill') this.applyKill(e.predator, e.prey);
     for (const a of [...this.animals]) {
-      const { strike, state } = a.update(dt, playerPos, playerAlive);
-      if (strike) this.game.damagePlayer(a.spec.damage, a.spec.nome, a.speciesId, a);
+      const { strike, state, victim } = a.update(dt, playerPos, playerAlive);
+      if (strike && victim) this.hitAnimal(a, victim);
+      else if (strike) this.game.damagePlayer(a.spec.damage, a.spec.nome, a.speciesId, a);
       if (a.agent) this.game.physics?.moveAgent(a.agent, a.position.x, a.position.y, a.position.z, dt);
       if (state !== a.reported) this.onStateChange(a, state, playerPos);
       // Bando: quem entra em perseguição chama os outros do mesmo grupo.
@@ -83,6 +92,26 @@ export class Fauna {
       const far = Math.hypot(a.position.x - playerPos.x, a.position.z - playerPos.z) > this.config.despawn;
       if (far || a.brain.gone || (!a.alive && a.deadTime > this.config.corpseSeconds)) this.remove(a);
     }
+  }
+
+  /**
+   * Golpe de animal em animal. A vítima reage (foge ou revida contra o agressor);
+   * morreu → o predador come.
+   */
+  hitAnimal(a, v) {
+    if (!v.alive) return;
+    const dx = v.position.x - a.position.x, dz = v.position.z - a.position.z, l = Math.hypot(dx, dz) || 1;
+    v.takeHit({ damage: a.spec.damage, direction: { x: dx / l, z: dz / l } });
+    if (v.eco && v.alive && !v.brain.fearful) v.eco.retaliate = a; // girafa/alce/gorila/urso revidam
+    if (!v.alive) this.applyKill(a, v, false);
+  }
+
+  /** Abate entre animais (golpe final ou estatístico): a presa morre e o predador se alimenta. */
+  applyKill(pred, prey, lethal = true) {
+    if (lethal && prey.alive) prey.takeHit({ damage: prey.health + 1, direction: { x: 0, z: 1 } });
+    prey.killedBy = pred;
+    this.ecosystem.feed(pred, prey);
+    if (pred.alive && (pred.brain.state === 'chase' || pred.brain.state === 'attack')) pred.brain.calmDown();
   }
 
   /** Sons e reações quando a IA muda de estado. */
@@ -184,6 +213,7 @@ export class Fauna {
         onHit: (hit) => animal.takeHit(hit),
       });
       this.animals.push(animal);
+      this.ecosystem.register(animal);
       made.push(animal);
     }
     return made;
