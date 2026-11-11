@@ -254,7 +254,7 @@ export class Game {
     const paints = [...Object.values(this.villages).map((v) => v.paint()), ...this.bridges.paints()];
     this.scene.add(this.terrain.buildMesh(this.materials.textures, paints, this.photos));
 
-    this.water = new Water();
+    this.water = new Water({ renderer: this.renderer, terrain: this.terrain });
     this.scene.add(this.water.mesh);
     this.environment = new Environment(this.scene, this.renderer);
     // Clima por bioma + névoa paranormal (roda depois do Environment no loop).
@@ -1800,7 +1800,7 @@ export class Game {
       this.notebook.record('biomas', BIOMES[best].id);
       this.vegetation.update(this.camera.position, true);
       this.grass.update(pos, !this.player.fastTravel && pos.y - this.terrain.heightAt(pos.x, pos.z) < 40);
-      this.water.update(this.time, this.environment);
+      this.water.update(this.time, this.environment, this.camera);
       let near = null;
       for (const v of Object.values(this.villages)) {
         v.update(dt, pos);

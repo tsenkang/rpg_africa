@@ -1,0 +1,38 @@
+<!doctype html><body><script type="module">
+<!-- Confere a FFT da GPU contra a referência da CPU. Com o servidor de dev: http://localhost:5173/tools/ocean/gpu-check.html — o resultado fica em window.result. -->
+import * as THREE from 'three';
+import { OceanSimulation } from '/src/render/ocean/OceanSimulation.js';
+import { OCEAN } from '/src/config/ocean.js';
+import { buildCascade, cascadeCuts, systemParams } from '/src/systems/ocean/WaveSpectrum.js';
+import { oceanFieldsCPU } from '/src/systems/ocean/OceanFFTReference.js';
+const r = new THREE.WebGLRenderer(); r.setSize(64, 64); document.body.appendChild(r.domElement);
+const sim = new OceanSimulation(r);
+const out = { supported: sim.supported, ext: r.extensions.has('EXT_color_buffer_float') };
+if (sim.supported) {
+  const t = 3.7, N = OCEAN.fftSize;
+  sim.update(t);
+  const cuts = cascadeCuts(OCEAN.cascadeSizes), sys = [systemParams(OCEAN.local), systemParams(OCEAN.swell)];
+  out.cascades = [];
+  for (let c = 0; c < 4; c++) {
+    const { h0, wave } = buildCascade({ N, size: OCEAN.cascadeSizes[c], cut: cuts[c], sys, depth: OCEAN.depth, seed: OCEAN.seed, cascade: c });
+    const cpu = oceanFieldsCPU(h0, wave, N, t, OCEAN.choppiness);
+    const rt = sim.out[0][c];
+    const res = {};
+    for (const [ti, name, ref] of [[0, 'disp', cpu.disp], [1, 'deriv', cpu.deriv]]) {
+      const buf = new Uint16Array(N * N * 4);
+      r.readRenderTargetPixels(rt, 0, 0, N, N, buf, undefined, ti);
+      let err = 0, mag = 0, maxErr = 0;
+      for (let i = 0; i < N * N * 4; i++) {
+        if (ti === 0 && i % 4 === 3) continue; // w: espuma (GPU) x Jacobiano (CPU)
+        const g = THREE.DataUtils.fromHalfFloat(buf[i]);
+        const e = Math.abs(g - ref[i]); err += e; mag += Math.abs(ref[i]); maxErr = Math.max(maxErr, e);
+      }
+      res[name] = { relErr: +(err / mag).toExponential(2), maxErr: +maxErr.toExponential(2), meanAbs: +(mag / (N * N * 3)).toExponential(2) };
+    }
+    out.cascades.push(res);
+  }
+  // tempo de GPU: 30 quadros
+  const t0 = performance.now(); for (let i = 0; i < 30; i++) sim.update(t + i / 60); r.getContext().finish(); out.msPerUpdate = +((performance.now() - t0) / 30).toFixed(2);
+}
+window.result = out;
+</script></body>
