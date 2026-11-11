@@ -107,6 +107,8 @@ import { WitnessMarkers } from '../ui/WitnessMarkers.js';
 import { BountyManager } from '../systems/law/Bounty.js';
 import { canSee } from '../systems/law/Witness.js';
 import { WantedHUD } from '../ui/WantedHUD.js';
+import { GuardAIController } from '../systems/law/GuardAI.js';
+import { Whistle } from '../audio/Whistle.js';
 
 /**
  * Orquestra o jogo: gera o mundo (terreno → vilas → malha → água →
@@ -776,6 +778,9 @@ export class Game {
     this.witnessMarks = new WitnessMarkers(this.ui.root);
     this.bounty = new BountyManager(LAW.bounty, { villageAt: (p) => this.villageRegionAt(p)?.config.id ?? null });
     this.wantedHUD = new WantedHUD(this.ui.root, this.ui.vitals);
+    this.guardAI = new GuardAIController(LAW.guards);
+    this.whistle = new Whistle();
+    this._guards = [];
     /** Casa alheia onde o jogador está agora: { home, vs, residents } ou null. */
     this._alienHome = null;
     this.npcManager.onModelBuilt = (a) => this.combat.register({
@@ -819,6 +824,7 @@ export class Game {
       g.react('FACE', 4, this.player.position, 'point');
       this.bubbles.say(g, 'Parado aí! Eu vi isso!', 3, 'alerta');
       this.onCrimeWitnessed(crime, g, true);
+      this.applyGuardEvents(this.guardAI.alert(g, this.guardContext(), this.activeGuards()));
     }
   }
 
@@ -881,6 +887,48 @@ export class Game {
     const id = here ?? this.bounty.searches.keys().next().value ?? null;
     const s = id ? this.bounty.searchOf(id) : null;
     this.wantedHUD.update(id ? { village: this.villages[id]?.config.name ?? id, bounty: this.bounty.bountyOf(id), search: s && { escape: s.escape, seen: seen.has(id) } } : null);
+  }
+
+  /** Guardas das vilas simuladas (lista reaproveitada). */
+  activeGuards() {
+    const out = this._guards;
+    out.length = 0;
+    for (const vs of this.npcManager.villages) if (vs.active) for (const a of vs.agents) if (a.person.profession === 'guarda') out.push(a);
+    return out;
+  }
+
+  /** O que a IA dos guardas precisa saber do mundo. */
+  guardContext() {
+    return {
+      player: this.player.position,
+      playerDead: this.dead || this.areaId !== 'overworld',
+      wanted: (v) => this.bounty.bountyOf(v) > 0,
+      searchOf: (v) => this.bounty.searchOf(v),
+      rng: this.random,
+    };
+  }
+
+  /** IA de lei dos guardas (C4): reconhecer, perseguir, flanquear, atacar, apitar, investigar. */
+  updateGuards(dt) {
+    this.applyGuardEvents(this.guardAI.update(dt, this.activeGuards(), this.guardContext()));
+  }
+
+  /** Aplica no jogo os eventos da IA dos guardas (falas, apito, dano). */
+  applyGuardEvents(events) {
+    const L = LAW.guards.lines, pick = (l) => l[Math.floor(this.random() * l.length)], p = this.player.position;
+    for (const e of events) {
+      const g = e.guard, dist = Math.hypot(g.pos.x - p.x, g.pos.z - p.z);
+      if (e.type === 'suspect') this.bubbles.say(g, pick(L.suspect), 2.6, 'alerta');
+      else if (e.type === 'lost') this.bubbles.say(g, pick(L.lost), 2.6, 'alerta');
+      else if (e.type === 'whistle') {
+        this.whistle.blow(dist);
+        this.bubbles.say(g, pick(L.spotted), 2.6, 'alerta');
+        this.bounty.startSearch(g.village.config.id, p);
+      } else if (e.type === 'attack') {
+        this.damagePlayer(e.damage, 'Guarda', null, g);
+        this.cameraRig.kick(0.06);
+      }
+    }
   }
 
   /** Testemunhas correndo; denúncias; marcadores de olho. */
@@ -1007,11 +1055,13 @@ export class Game {
     this.updateLaw(dt);
     this.updateWitnesses(dt);
     this.updateBounty(dt);
+    this.updateGuards(dt);
     if (this.areaId === 'overworld') this.npcManager.updateSocial(dt, this.playerPerceptionState(dt));
     // Balões somem atrás de diálogos e painéis (não tampam a caixa de texto).
     this.bubbles.root.style.display = this.ui.dialogue.isOpen || this.backpack.open || this.notebookUI.open || this.recipeBook.open || this.inspection.active ? 'none' : '';
     this.bubbles.update(this.camera, dt);
-    const a = this.areaId === 'overworld' ? (this.nearestWitness(LAW.witness.interceptRadius) ?? this.npcManager.nearest(this.player.position)) : null;
+    let a = this.areaId === 'overworld' ? (this.nearestWitness(LAW.witness.interceptRadius) ?? this.npcManager.nearest(this.player.position)) : null;
+    if (a && this.guardAI?.engaged(a)) a = null; // guarda em perseguição não conversa
     this._talkAgent = a;
     this.npcTalk.enabled = !!a;
     if (a) {

@@ -49,6 +49,27 @@ export const LAW = {
     regionMargin: 120, // a região da vila vai até raio + margem (procurado ali)
     guardSight: { radius: 28, fovDot: 0.35, hearRadius: 5 }, // guarda vendo o jogador
   },
+  /** IA dos guardas (C4): reconhecer, perseguir, flanquear, atacar, chamar reforço, investigar. */
+  guards: {
+    sight: { radius: 28, fovDot: 0.35, hearRadius: 4 },
+    recognizeSeconds: 3, // tempo de checagem visual até ter certeza (metade disso de perto)
+    closeRadius: 8,
+    meterDecay: 0.5, // fora da vista o medidor esvazia a esta taxa por segundo
+    chaseSpeed: 5.2, // m/s — mais rápido que andar (4,2), mais lento que correr (8,4)
+    loseSeconds: 8, // sem ver o jogador por este tempo → investiga a zona de busca
+    attackRange: 1.8,
+    attackCooldown: 1.4,
+    damage: 12,
+    flankDist: 6, // o parceiro de dupla mira um ponto deslocado de lado
+    flankStopDist: 7, // perto assim os dois vão direto
+    reinforceRadius: 60, // apito: guardas da vila neste raio entram na perseguição
+    investigatePause: 3, // olha em volta em cada ponto da busca (s)
+    lines: {
+      suspect: ['Ei, você aí… eu conheço essa cara.', 'Parado. Deixa eu ver seu rosto.', 'Você não me é estranho…'],
+      spotted: ['É o procurado! Pega!', 'Alto! Em nome da vila!', 'Peguei você!'],
+      lost: ['Sumiu… espalhem-se!', 'Ele estava aqui agora mesmo.'],
+    },
+  },
   /** Roubo: vasculhar uma casa alheia. Cada casa pode ser roubada uma vez por intervalo. */
   theft: {
     cooldownHours: 24,

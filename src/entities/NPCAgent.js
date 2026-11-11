@@ -97,9 +97,9 @@ export class NPCAgent {
     this.state = 'DOWN';
   }
 
-  /** Interrompe a rotina: foge, encara ou conversa por `seconds`. */
-  react(kind, seconds, at, gesture = null) {
-    this.reaction = { kind, until: this.t + seconds, x: at.x, z: at.z, gesture };
+  /** Interrompe a rotina: foge, encara, conversa ou corre até um ponto por `seconds` (`speed` opcional em m/s). */
+  react(kind, seconds, at, gesture = null, speed = null) {
+    this.reaction = { kind, until: this.t + seconds, x: at.x, z: at.z, gesture, speed };
   }
 
   get walkSpeed() {
@@ -209,7 +209,7 @@ export class NPCAgent {
         this.speed = 0;
         const dx = this.pos.x - r.x, dz = this.pos.z - r.z, d = Math.hypot(dx, dz) || 1;
         if (r.kind === 'FLEE') this.step(dx / d, dz / d, POPULATION.runSpeed * dt, detailed, move);
-        else if (r.kind === 'RUN_TO') { if (d > 0.3) this.step(-dx / d, -dz / d, Math.min(d, POPULATION.runSpeed * dt), detailed, move); }
+        else if (r.kind === 'RUN_TO') { if (d > 0.3) this.step(-dx / d, -dz / d, Math.min(d, (r.speed ?? POPULATION.runSpeed) * dt), detailed, move); }
         else this.yaw = turn(this.yaw, Math.atan2(-dx, -dz), 0.2);
         return;
       }
@@ -427,6 +427,13 @@ export function applyGesture(m, gesture, t) {
     case 'point': // guarda apontando / avisando
       set(m.arms[L], -1.5, 0, -0.2); set(m.elbows[L], -0.1);
       break;
+    case 'thrust': { // estocada de lança: braço direito recua e avança
+      const k = Math.max(0, Math.sin(t * 7));
+      set(m.torso, 0.12 + 0.18 * k);
+      set(m.arms[R], -1.45 - 0.2 * k, 0, 0.1); set(m.elbows[R], -1.6 + 1.5 * k);
+      set(m.arms[L], -1.2, 0, -0.2); set(m.elbows[L], -1.1);
+      break;
+    }
     case 'guard': // lança em posição de guarda
       set(m.arms[R], -0.35); set(m.elbows[R], -1.0);
       break;
