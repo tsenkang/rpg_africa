@@ -3,6 +3,7 @@ import {
 } from '../config/survival.js';
 import { Body } from './Body.js';
 import { Nutrition, MACRO_NAMES } from './Nutrition.js';
+import { SanityManager } from './SanityManager.js';
 
 /**
  * Sobrevivência avançada: junta corpo (ferimentos/doenças), nutrição,
@@ -36,7 +37,9 @@ export class Survival {
     this.nutrition = new Nutrition();
     this.stamina = STAMINA.max;
     this.exhausted = false;
-    this.sanity = SANITY.start;
+    /** Dono da sanidade: gatilhos de trauma, ficha do personagem, níveis de alucinação. */
+    this.sanityMgr = new SanityManager({ start: SANITY.start, max: SANITY.max });
+    this.clock = 0; // s de jogo (recargas das atividades de conforto)
     this.dirt = 0;
     this.faintLeft = 0;
     this._restFor = 0;
@@ -72,6 +75,16 @@ export class Survival {
 
   // ------------------------------------------------------------ estado derivado
 
+  /** Sanidade 0..100 (vive no SanityManager). */
+  get sanity() {
+    return this.sanityMgr.value;
+  }
+
+  set sanity(v) {
+    this.sanityMgr.value = Math.max(0, Math.min(this.sanityMgr.max, v));
+    this.sanityMgr.checkLevel();
+  }
+
   /** Máximo de stamina hoje: deficiências e febre encolhem a barra. */
   get staminaMax() {
     const deficits = this.nutrition.deficits().length;
@@ -84,9 +97,9 @@ export class Survival {
     return !this.exhausted && this.stamina > 0 && this.faintLeft <= 0;
   }
 
-  /** 0..1: quão forte é a alucinação (sanidade abaixo de SANITY.hallucinate). */
+  /** 0..1: força da distorção visual (começa no nível 1 de alucinação, sanidade < 50). */
   get hallucination() {
-    return Math.max(0, Math.min(1, (SANITY.hallucinate - this.sanity) / SANITY.hallucinate));
+    return Math.max(0, Math.min(1, (50 - this.sanity) / 50));
   }
 
   get fainted() {
@@ -127,7 +140,8 @@ export class Survival {
     if (!food) return 'Isso não se come.';
     this.nutrition.eat(food);
     const parts = [food.name];
-    if (food.sanity) this.sanity = Math.max(0, Math.min(SANITY.max, this.sanity + food.sanity));
+    if (food.sanity) this.sanity = this.sanity + food.sanity;
+    if (food.sweet && this.sanityMgr.comfort('COMER_DOCES', 0, this.clock) > 0) parts.push('a mente acalma');
     for (const c of food.cures ?? []) {
       if (c === 'veneno') {
         const venom = this.body.wounds.filter((w) => w.type === 'veneno');
@@ -170,6 +184,7 @@ export class Survival {
   update(dt, env = {}) {
     if (env.paused) return { died: null, hpPerSecond: 0, fever: this.body.fever };
     const min = dt / 60;
+    this.clock += dt;
 
     // Sujeira: anda/corre/tempestade suja; rio e chuva lavam.
     if (env.swimming) this.dirt -= DIRT.swimWashPerSecond * dt;
@@ -220,9 +235,11 @@ export class Survival {
     // Sanidade.
     let sanityRate = -b.sanityPerMinute;
     if (deficits.includes('proteins') || deficits.includes('fats')) sanityRate -= DEFICIENCY.sanityDrainPerMinute;
-    if (sanityRate >= 0 && !deficits.length) sanityRate += env.nearFire || env.inVillage ? SANITY.regenNearFirePerMinute : SANITY.regenPerMinute;
-    this.sanity = Math.max(0, Math.min(SANITY.max, this.sanity + sanityRate * min));
-    if (this.hallucination > 0) {
+    // Fogo agora é conforto da ficha (SanityManager.comfort('FOGUEIRA')); a vila ainda acalma um pouco mais.
+    if (sanityRate >= 0 && !deficits.length) sanityRate += env.inVillage ? SANITY.regenNearFirePerMinute : SANITY.regenPerMinute;
+    if (sanityRate < 0) this.sanityMgr.drainSanity(-sanityRate * min, 'Corpo doente', { quiet: true });
+    else this.sanityMgr.restoreSanity(sanityRate * min, 'Descanso', { quiet: true });
+    if (this.sanityMgr.level >= 2) { // nível 2: vozes
       this._whisperIn -= dt;
       if (this._whisperIn <= 0) {
         this._whisperIn = this.whisperDelay() * (1.2 - this.hallucination);

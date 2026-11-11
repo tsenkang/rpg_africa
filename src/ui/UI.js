@@ -37,6 +37,7 @@ export class UI {
     // Status
     this.vitals = el('div', 'panel vitals', this.root, `
       <div class="row"><span class="label">Vida</span><div class="meter"><div class="fill hp"></div></div><span class="val hp-val"></span></div>
+      <div class="row san-row" title="Sanidade: 100 = mente sã · 0 = insensatez total"><span class="label">Sanidade</span><div class="meter"><div class="fill san"></div></div><span class="val san-val"></span></div>
       <div class="row"><span class="label">Exposição</span><div class="meter"><div class="fill exp"></div></div><span class="val exp-val"></span></div>
       <div class="row small"><span>Moedas <b class="coins"></b></span><span>Relíquias <b class="relic"></b></span><span>Confiança Bússola <b class="trust"></b></span></div>
       <div class="inventory"></div>
@@ -51,7 +52,7 @@ export class UI {
     this.help = el('div', 'help', this.root,
       '<b>WASD</b> mover · <b>Shift</b> correr · <b>Espaço</b> pular · <b>ALT</b> trava câmera · <b>T</b> 1ª/3ª pessoa · <b>C</b> corpo · <b>Roda</b> zoom · '
       + '<b>E</b> interagir · <b>H</b> poção · <b>M</b> mapa · <b>F</b> viagem rápida · <b>V</b> voar · '
-      + '<b>1–8</b> slot · <b>Clique</b> bater/arremessar · <b>I</b> mochila · <b>N</b> caderneta · <b>G</b> gráficos');
+      + '<b>1–8</b> slot · <b>Clique</b> bater/arremessar · <b>I</b> mochila · <b>J</b> receitas · <b>N</b> caderneta · <b>G</b> gráficos');
     this.speedTag = el('div', 'speed-tag hidden', this.root, 'VIAGEM RÁPIDA');
     this.sickOverlay = el('div', 'sick-overlay', this.root);
     // Água: tinta azul debaixo d'água + barra de fôlego (só aparece na água).
@@ -154,6 +155,21 @@ export class UI {
   }
 
   // ---------- status ----------
+  /**
+   * Barra de sanidade (abaixo da vida). Só mexe no DOM quando o valor
+   * arredondado muda; abaixo de `pulseBelow` pulsa com brilho elétrico.
+   */
+  setSanity(value, max, pulseBelow) {
+    const v = Math.round(value);
+    if (v === this._san) return;
+    this._san = v;
+    if (!this._sanEls) this._sanEls = { row: this.vitals.querySelector('.san-row'), fill: this.vitals.querySelector('.fill.san'), val: this.vitals.querySelector('.san-val') };
+    const { row, fill, val } = this._sanEls;
+    fill.style.width = `${(value / max) * 100}%`;
+    val.textContent = `${v}/${max}`;
+    row.classList.toggle('critical', value / max < pulseBelow);
+  }
+
   refreshVitals() {
     const s = this.game.state;
     const q = (c) => this.vitals.querySelector(c);

@@ -98,6 +98,8 @@ export class SurvivalHUD {
       this.arcs[k].classList.toggle('low', v[k] < NUTRITION.deficient);
     }
     this.halluc.style.opacity = (s.hallucination * 0.85).toFixed(3);
+    const lv = String(s.sanityMgr.level);
+    if (this.halluc.dataset.level !== lv) this.halluc.dataset.level = lv;
     this.faint.classList.toggle('on', s.fainted);
     const fever = s.body.fever;
     const key = [Math.round(s.sanity), Math.round(s.stamina), Math.round(s.staminaMax), Math.round(s.dirt), ...MACROS.map((k) => Math.round(v[k])),

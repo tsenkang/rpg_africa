@@ -36,6 +36,8 @@ export const ITEM_CATALOG = {
   curativo_mel: { name: 'Curativo de Mel', icon: '🩹', kind: 'medicine', description: 'Antisséptico suave.' },
   curativo_tabaco: { name: 'Curativo de Tabaco', icon: '🩹', kind: 'medicine', description: 'Anti-veneno: neutraliza picadas.' },
   curativo_lirio: { name: 'Curativo de Lírio', icon: '🩹', kind: 'medicine', description: 'Anti-veneno: neutraliza picadas.' },
+  flauta_osso: { name: 'Flauta de Osso', icon: '🪈', kind: 'tool', tool: true, hotbar: true, comfort: 'TOCAR_INSTRUMENTO', description: 'Tocar acalma (atividade de conforto).' },
+  livro: { name: 'Livro de Contos', icon: '📖', kind: 'tool', tool: true, comfort: 'LER_LIVROS', description: 'Ler algumas páginas acalma (atividade de conforto).' },
   agulha_osso: { name: 'Agulha de Osso', icon: '🪡', kind: 'tool', tool: true, description: 'Fura a pele e puxa larvas.' },
   // ---- ferramentas e armas ----
   faca_osso: { name: 'Faca de Osso', icon: '🗡️', kind: 'tool', tool: true, hotbar: true, description: 'Esfola animais. Base da agulha.' },
@@ -77,6 +79,7 @@ export const RECIPES = [
   { id: 'curativo_lirio', in: { curativo_folha: 1, lirio: 1 }, out: { curativo_lirio: 1 }, hint: 'Anti-veneno.' },
   { id: 'curativo_mel', in: { curativo_folha: 1, mel: 1 }, out: { curativo_mel: 1 } },
   { id: 'agulha_osso', in: { fragmento_osso: 1 }, tools: ['faca_osso'], out: { agulha_osso: 1 }, hint: 'Fragmento fincado na faca.' },
+  { id: 'flauta_osso', in: { osso: 1 }, tools: ['faca_osso'], out: { flauta_osso: 1 }, hint: 'Fure o osso oco com a faca.' },
   { id: 'arco', in: { graveto_longo: 1, corda: 1 }, out: { arco: 1 } },
   { id: 'flecha', in: { graveto: 1, lamina_pedra: 1, pena: 1 }, out: { flecha: 3 } },
   { id: 'fragmento_osso', in: { osso: 1, pedra: 1 }, out: { fragmento_osso: 3 }, hint: 'Quebre o osso com a pedra.' },
@@ -85,8 +88,15 @@ export const RECIPES = [
 /** Com o que o jogador começa (kit de viagem) — a coleta no mundo vem na etapa 3. */
 export const STARTER_KIT = { folha_medicinal: 2, curativo_folha: 1, cinza: 1, graveto_longo: 1, cipo: 2, pedra: 2, agua_fervida: 1 };
 
+/** Ferreiro (morador): armas e ferramentas. */
+export const SHOP_SMITH = [
+  { id: 'faca_pedra', price: 14 }, { id: 'lanca_simples', price: 8 }, { id: 'lanca_pedra', price: 24 },
+  { id: 'arco', price: 30 }, { id: 'flecha', price: 2 }, { id: 'lamina_pedra', price: 5 },
+];
+
 /** Materiais à venda nas lojas (até a coleta existir, dá para montar o básico). */
 export const SHOP_MATERIALS = [
   { id: 'folha_medicinal', price: 3 }, { id: 'cinza', price: 1 }, { id: 'folha_tabaco', price: 4 }, { id: 'corda', price: 3 },
   { id: 'larvas_carne', price: 5 }, { id: 'formigas', price: 4 }, { id: 'osso', price: 4 },
+  { id: 'livro', price: 12 }, { id: 'flauta_osso', price: 10 },
 ];

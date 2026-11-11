@@ -163,8 +163,14 @@ export class Village {
     this.fires.push(light);
   }
 
-  /** Transeuntes andando pelas ruas. */
-  addWanderers(count, lookExtra = {}) {
+  /**
+   * Transeuntes: agora são os moradores com rotina do NPCManager (famílias,
+   * trabalho, sono). Aqui só fica a dica de visual da vila; passe
+   * `{ legacy: true }` para os andarilhos antigos de vai-e-vem.
+   */
+  addWanderers(count, lookExtra = {}, { legacy = false } = {}) {
+    this.wandererHint = { count, lookExtra };
+    if (!legacy) return;
     for (let i = 0; i < count && this.streets.length; i++) {
       const s = this.streets[Math.floor(this.rnd() * this.streets.length)];
       const side = (this.rnd() - 0.5) * s.width * 0.6;

@@ -73,7 +73,7 @@ export class Fauna {
     this.updateGuardians(playerPos);
     for (const a of [...this.animals]) {
       const { strike, state } = a.update(dt, playerPos, playerAlive);
-      if (strike) this.game.damagePlayer(a.spec.damage, a.spec.nome, a.speciesId);
+      if (strike) this.game.damagePlayer(a.spec.damage, a.spec.nome, a.speciesId, a);
       if (a.agent) this.game.physics?.moveAgent(a.agent, a.position.x, a.position.y, a.position.z, dt);
       if (state !== a.reported) this.onStateChange(a, state, playerPos);
       // Bando: quem entra em perseguição chama os outros do mesmo grupo.
@@ -96,6 +96,7 @@ export class Fauna {
       this.sounds?.laugh(loud);
     }
     if (state === 'threat' && a.spec.threat) this.sounds?.chestBeat(loud); // gorila
+    if (state === 'dead') this.game.onAnimalDeath?.(a); // sanidade: morte presenciada
     if (state === 'dead' && a.guardianOf) this.guardians.set(a.guardianOf.species, { animal: null, back: this.game.time + a.guardianOf.respawn });
   }
 

@@ -69,7 +69,9 @@ import { Survival } from '../systems/Survival.js';
 import { WoundVisuals } from '../render/WoundVisuals.js';
 import { SurvivalHUD } from '../ui/SurvivalHUD.js';
 import { DIRT, HAZARDS, INSPECTION, LIMBS } from '../config/survival.js';
-import { STARTER_KIT } from '../config/items.js';
+import { STARTER_KIT, SHOP_MATERIALS as SHOP_MATERIALS_LIST } from '../config/items.js';
+import { SHOP_FOOD as SHOP_FOOD_LIST, WOUNDS as WOUNDS_TABLE } from '../config/survival.js';
+const WOUNDS_BLEED = Object.fromEntries(Object.entries(WOUNDS_TABLE).map(([k, w]) => [k, w.bleed ?? 0]));
 import { SPECIES } from '../config/fauna.js';
 import { ITEMS } from '../systems/PlayerState.js';
 import { Notebook } from '../systems/Notebook.js';
@@ -77,6 +79,14 @@ import { Crafting } from '../systems/Crafting.js';
 import { BackpackUI } from '../ui/BackpackUI.js';
 import { NotebookUI } from '../ui/NotebookUI.js';
 import { BodyInspection } from '../ui/BodyInspection.js';
+import { RecipeBookUI } from '../ui/RecipeBookUI.js';
+import { NPCManager } from '../systems/npc/NPCManager.js';
+import { PROFESSIONS } from '../config/npcLife.js';
+import { DialogueEngine } from '../systems/npc/DialogueEngine.js';
+import { DIALOGUE_MENU, PERCEPTION } from '../config/dialogues.js';
+import { SpeechBubbles } from '../ui/SpeechBubbles.js';
+import { SHOP_SMITH } from '../config/items.js';
+import { Mechanics } from '../systems/Mechanics.js';
 import { Projectiles, classifyZone, zoneDamage } from '../systems/Projectiles.js';
 import { Resources } from '../systems/Resources.js';
 import { Skinning, lootFor } from '../systems/Skinning.js';
@@ -86,6 +96,10 @@ import { ProjectileMeshes } from '../render/ProjectileMeshes.js';
 import { WEAPONS, ZONE_EFFECTS, BLEED, SKINNING, COOKING, WATER, PROJECTILE } from '../config/hunting.js';
 import { RESOURCES } from '../config/resources.js';
 import { PROP_TYPES } from '../config/physics.js';
+import { CHARACTER_PROFILE, SANITY_TRIGGERS, CURSED_AREAS, PHANTOMS, PHANTOM_SOUNDS, SANITY_BAR } from '../config/character.js';
+import { Hallucinations } from '../render/Hallucinations.js';
+import { Skeletons } from '../render/Skeletons.js';
+import { PhantomSounds } from '../audio/PhantomSounds.js';
 
 /**
  * Orquestra o jogo: gera o mundo (terreno → vilas → malha → água →
@@ -353,7 +367,10 @@ export class Game {
     for (const [id, n] of Object.entries(STARTER_KIT)) this.state.addItem(id, n);
     this.backpack = new BackpackUI(this);
     this.notebookUI = new NotebookUI(this);
+    this.recipeBook = new RecipeBookUI(this); // estilo JEI: J
     this.setupHunting();
+    this.setupSanity();
+    this.setupLivingWorld();
     const ren = this.villages.renascimento;
     this.player.teleport(ren.x + 3, ren.z + 17, Math.PI); // borda sul da praça, olhando para o poço e a igreja
     this.cameraRig = new CameraRig(this.camera, { groundAt: (x, z, feetY) => this.groundHeight(x, z, feetY) });
@@ -499,6 +516,7 @@ export class Game {
   /** Usa o item do slot ativo (`ITEM_USES`); se ele for gasto, sai da hotbar. Armas de caça arremessam/atiram. */
   useEquipped(item) {
     if (WEAPONS[item.id]) { this.throwWeapon(item); return; }
+    if (ITEMS[item.id]?.comfort) { this.useComfortItem(item.id); return; }
     const use = ITEM_USES[item.id];
     if (!use) {
       this.ui.showHit(`${item.nome}: ainda sem uso`, false);
@@ -512,10 +530,11 @@ export class Game {
    * @param {number} amount
    * @param {string} source quem causou (vai na mensagem de morte)
    */
-  damagePlayer(amount, source, speciesId = null) {
+  damagePlayer(amount, source, speciesId = null, attacker = null) {
     if (this.dead) return;
     this.state.damage(amount);
     if (speciesId) this.survival.onAnimalHit(speciesId); // garra/presa/picada → ferimento num membro
+    this.onPlayerHurt(amount, source, attacker);
     this.player.model.flinch();
     this.cameraRig.kick(0.05);
     this.ui.flashDamage(`-${amount} · ${source}`);
@@ -543,6 +562,7 @@ export class Game {
     this.player.submerged = false;
     this.state.healFull();
     this.survival.respawn();
+    this.hallucinations?.clear();
     this.oxygen.reset();
     this.fauna.clear();
     this.cameraRig.yaw = Math.PI;
@@ -675,6 +695,11 @@ export class Game {
     this.woundVisuals.update(dt, this.time);
   }
 
+  /** Nome legível de um bioma pelo id (livro de receitas). */
+  biomeName(id) {
+    return BIOMES.find((b) => b.id === id)?.name ?? id;
+  }
+
   /** Tira um item equipável da mochila e põe na hotbar (se houver vaga). */
   equipFromBackpack(id) {
     const d = ITEMS[id];
@@ -709,6 +734,271 @@ export class Game {
     const isNew = this.notebook.record('receitas', recipe.id);
     for (const id of Object.keys(recipe.out)) if (ITEMS[id].hotbar) this.equipFromBackpack(id);
     return { ok: true, message: `Criado: ${made}${isNew ? ' · receita anotada na caderneta' : ''}` };
+  }
+
+  // ------------------------------------------------------------ mundo vivo (NPCs com rotina)
+
+  /** Moradores com rotina de 24 h (NPCManager) e a conversa com E. */
+  setupLivingWorld() {
+    this.npcManager = new NPCManager(this);
+    this.bubbles = new SpeechBubbles(this.ui.root);
+    this.npcManager.bubbles = this.bubbles;
+    this._prevPos = { x: this.player.position.x, z: this.player.position.z };
+    const talk = this.interactions.register({ id: 'npc-talk', label: 'Falar', radius: 2.6, position: () => talk.pos ?? Game.NOWHERE, onInteract: (g) => g.talkToAgent(g._talkAgent) });
+    talk.enabled = false;
+    this.npcTalk = talk;
+    const s = this.npcManager.stats();
+    console.info(`[mundo vivo] ${s.total} moradores em ${s.villages} vilas`);
+  }
+
+  updateLivingWorld(dt) {
+    this.npcManager.update(dt);
+    if (this.areaId === 'overworld') this.npcManager.updateSocial(dt, this.playerPerceptionState(dt));
+    // Balões somem atrás de diálogos e painéis (não tampam a caixa de texto).
+    this.bubbles.root.style.display = this.ui.dialogue.isOpen || this.backpack.open || this.notebookUI.open || this.recipeBook.open || this.inspection.active ? 'none' : '';
+    this.bubbles.update(this.camera, dt);
+    const a = this.areaId === 'overworld' ? this.npcManager.nearest(this.player.position) : null;
+    this._talkAgent = a;
+    this.npcTalk.enabled = !!a;
+    if (a) {
+      this.npcTalk.pos = a.model.root.position;
+      this.npcTalk.label = `Falar com ${a.name} (${PROFESSIONS[a.person.profession]?.name ?? (a.person.age === 'child' ? 'Criança' : 'Morador')})`;
+    }
+  }
+
+  /** O que os moradores percebem do jogador (arma, sangue, sanidade, corrida). */
+  playerPerceptionState(dt) {
+    const p = this.player.position, prev = this._prevPos;
+    const vx = (p.x - prev.x) / Math.max(dt, 1e-4), vz = (p.z - prev.z) / Math.max(dt, 1e-4);
+    prev.x = p.x; prev.z = p.z;
+    const eq = this.inventory.equipado.id;
+    return {
+      x: p.x, z: p.z, vx, vz,
+      armed: !!WEAPONS[eq] || eq === 'faca_osso' || eq === 'faca_pedra',
+      dirt: this.survival.dirt,
+      bleeding: this.survival.body.wounds.some((w) => !w.bandage && (WOUNDS_BLEED[w.type] ?? 0) >= 0.1),
+      sanity: this.sanity.value,
+      sprinting: this.player.sprinting,
+      wanted: !!this.bounty?.wantedHere?.(p),
+    };
+  }
+
+  /** Tags do jogador vistas por um morador específico (para a conversa). */
+  playerTagsFor(a) {
+    const st = this.playerPerceptionState(1 / 60);
+    const dist = Math.hypot(a.pos.x - st.x, a.pos.z - st.z);
+    return DialogueEngine.perceive({ ...st, towardDot: 0, sprinting: false, dist }).tags;
+  }
+
+  /**
+   * Conversa com um morador (tecla E): cabeçalho "Nome - Profissão | Humor",
+   * fala de abertura contextual e o menu Saudar / Provocar / Perguntar / Comerciar.
+   */
+  talkToAgent(a, reply = null) {
+    if (!a) return;
+    const nm = this.npcManager;
+    const ctx = nm.contextFor(a, this.playerTagsFor(a));
+    const text = reply ?? (ctx.player.some((t) => t !== 'procurado') ? DialogueEngine.line('react', ctx, this.random) : DialogueEngine.line('greet', ctx, this.random));
+    const isTrader = !!PROFESSIONS[a.person.profession]?.trader;
+    const options = DIALOGUE_MENU.filter((o) => !o.traders || isTrader).map((o, i) => ({
+      label: o.label,
+      onSelect: () => this.dialogueChoice(a, o.id),
+    }));
+    options.push({ label: 'Até mais' });
+    a.react('CHAT', 8, this.player.position);
+    this.ui.dialogue.open({
+      speaker: DialogueEngine.header(ctx).split(' | ')[0],
+      title: `<span class="dlg-mood">${DialogueEngine.header(ctx).split(' | ')[1]}</span>`,
+      text: `"${text}"`,
+      options,
+    });
+  }
+
+  /** Resposta a uma opção do menu de conversa. */
+  dialogueChoice(a, id) {
+    const nm = this.npcManager;
+    if (id === 'provoke') {
+      nm.remember(a, 'provocado');
+      const ctx = nm.contextFor(a, this.playerTagsFor(a));
+      const line = DialogueEngine.line('provoke', ctx, this.random);
+      const scared = a.person.age !== 'adult' || (a.person.profession !== 'guarda' && this.random() < 0.35);
+      this.ui.dialogue.close();
+      this.bubbles.say(a, line, 3.2, scared ? 'medo' : 'alerta');
+      if (scared) a.react('FLEE', PERCEPTION.fleeSeconds, this.player.position);
+      else a.react('FACE', 4, this.player.position, a.person.profession === 'guarda' ? 'point' : 'fists');
+      return;
+    }
+    const ctx = nm.contextFor(a, this.playerTagsFor(a));
+    if (id === 'trade') {
+      const line = DialogueEngine.line('trade', ctx, this.random);
+      if (ctx.memory.includes('agredido') || ctx.memory.includes('parente_agredido')) { this.talkToAgent(a, line); return; }
+      const list = a.person.profession === 'ferreiro' ? SHOP_SMITH : [...SHOP_FOOD_LIST, ...SHOP_MATERIALS_LIST];
+      Mechanics.shopList(this, a.name, a.person.profession === 'ferreiro' ? 'Forja' : 'Banca', list);
+      return;
+    }
+    this.talkToAgent(a, DialogueEngine.line(id, ctx, this.random));
+  }
+
+  // ------------------------------------------------------------ sanidade e psicologia
+
+  /**
+   * Sanidade: SanityManager (no Survival), ficha do personagem, gatilhos de
+   * trauma, alucinações (distorção, sons, criaturas fantasmas) e ossadas.
+   *
+   * Pontos de entrada para outros sistemas:
+   *   game.paranormalEntities.push(obj)  // criatura paranormal (Object3D ou {x,z}); `userData.sanityReach` ou `reach` = raio
+   *   game.sanity.drainSanity(n, 'motivo', { tags: ['SANGUE'] })
+   *   game.onNpcDeath(npc)                // quando NPCs puderem morrer
+   */
+  setupSanity() {
+    /** Ficha do personagem ativo (edite em config/character.js). */
+    this.characterProfile = CHARACTER_PROFILE;
+    this.sanity = this.survival.sanityMgr;
+    this.sanity.profile = CHARACTER_PROFILE;
+    /** Criaturas paranormais (stub): empurre os modelos aqui. É a mesma lista da névoa paranormal. */
+    this.paranormalEntities = this.paranormalCreatures;
+    for (const p of this.paranormalEntities) if (p.name && p.reach && !p.isObject3D) p.presence = true; // presenças fixas = local amaldiçoado
+    this.cursedAreas = CURSED_AREAS.map((c) => { const v = this.villages[c.village]; return v && { x: v.x, z: v.z, r: v.radius + c.extra, name: c.name }; }).filter(Boolean);
+    this.hallucinations = new Hallucinations();
+    this.hallucinations.onSpawn = () => this.sanity.drainSanity(PHANTOMS.dread, 'Um vulto observa você', { quiet: true });
+    this.scene.add(this.hallucinations.group);
+    this.phantomSounds = new PhantomSounds({ volume: PHANTOM_SOUNDS.volume });
+    this._soundIn = 6;
+    this.skeletons = new Skeletons({ villages: this.villages, groundAt: (x, z) => this.terrain.heightAt(x, z), seed: WORLD.seed });
+    this.scene.add(this.skeletons.mesh);
+    this.sanityPop = document.createElement('div');
+    this.sanityPop.className = 'sanity-pop';
+    this.ui.root.appendChild(this.sanityPop);
+    this.sanity.on('drain', ({ amount, reason, quiet, disliked }) => { if (!quiet) this.popSanity(-amount, reason + (disliked ? ' (detesta)' : '')); });
+    this.sanity.on('restore', ({ amount, reason, quiet }) => { if (!quiet) this.popSanity(amount, reason); });
+    this.sanity.on('level', ({ level, previous }) => {
+      if (level <= previous) return;
+      this.ui.toast(['', 'Sua visão começa a tremer…', 'Você ouve coisas que não estão lá.', 'Vultos se movem entre as árvores. Recupere a sanidade!'][level]);
+    });
+    // Acariciar animais (PET_ANIMAIS): animais das vilas e animais mansos.
+    const pet = this.interactions.register({ id: 'pet', label: 'Acariciar', radius: 2.6, position: () => pet.pos ?? Game.NOWHERE, onInteract: (g) => g.petAnimal() });
+    pet.enabled = false;
+    this.petInteraction = pet;
+    this._v3 = new THREE.Vector3();
+  }
+
+  /** Aviso flutuante de ganho/perda de sanidade. */
+  popSanity(delta, reason) {
+    const d = document.createElement('div');
+    if (delta > 0) d.className = 'up';
+    d.textContent = `🧠 ${delta > 0 ? '+' : '−'}${Math.abs(delta).toFixed(delta % 1 && Math.abs(delta) < 10 ? 1 : 0)} · ${reason}`;
+    this.sanityPop.appendChild(d);
+    setTimeout(() => d.remove(), 3300);
+    while (this.sanityPop.children.length > 4) this.sanityPop.firstChild.remove();
+  }
+
+  /** Direção do olhar no plano (câmera). */
+  viewForward() {
+    const f = this.cameraRig.forward(this._v3);
+    const l = Math.hypot(f.x, f.z) || 1;
+    return { x: f.x / l, z: f.z / l };
+  }
+
+  /** O ponto está à vista (perto e na frente da câmera)? */
+  inView(x, z, radius, minDot) {
+    const p = this.player.position, dx = x - p.x, dz = z - p.z, d = Math.hypot(dx, dz);
+    if (d > radius) return false;
+    if (d < 2) return true;
+    const f = this.viewForward();
+    return (dx * f.x + dz * f.z) / d >= minDot;
+  }
+
+  /** Um quadro de sanidade (depois da sobrevivência). */
+  updateSanity(dt) {
+    const T = SANITY_TRIGGERS, pos = this.player.position, over = this.areaId === 'overworld';
+    if (this.dead || this.player.flying) { this.hallucinations.update(dt, { level: 0, player: pos, groundAt: () => 0, active: false }); return; }
+    // Paranormal (contínuo, por proximidade). Presenças fixas contam como local amaldiçoado.
+    const paranormal = [];
+    if (over) {
+      for (const e of this.paranormalEntities) {
+        if (e.presence) continue;
+        const ep = e.isObject3D ? e.getWorldPosition(this._v3) : (e.position ?? e);
+        paranormal.push({ dist: Math.hypot(ep.x - pos.x, ep.z - pos.z), reach: e.userData?.sanityReach ?? e.reach ?? 30 });
+      }
+    }
+    const cursed = over && this.cursedAreas.some((c) => Math.hypot(pos.x - c.x, pos.z - c.z) < c.r);
+    const sheltered = this._nearFire || (over && this.villageShelter(pos) >= 1);
+    const dark = !sheltered && (!over || this.environment.night > T.darkNight);
+    this.sanity.update(dt, { paranormal, cursed, dark });
+    if (this._nearFire) this.sanity.comfort('FOGUEIRA', dt);
+    // Ossada à vista: trauma, uma vez por ossada.
+    if (over && this.skeletons.noticed(pos, this.viewForward())) this.sanity.drainSanity(T.corpseFound, 'Você encontrou uma ossada');
+    // Alucinações: criaturas fantasmas (nível 3) e sons (nível ≥ 2).
+    const level = this.sanity.level;
+    this.hallucinations.update(dt, { level, player: pos, groundAt: (x, z) => this.groundHeight(x, z, -Infinity), rng: this.random, active: over });
+    if (level >= 2) {
+      this._soundIn -= dt;
+      if (this._soundIn <= 0) {
+        const [a, b] = PHANTOM_SOUNDS.every;
+        this._soundIn = (a + this.random() * (b - a)) * (level >= 3 ? 0.6 : 1);
+        this.phantomSounds.random();
+      }
+    }
+    // Acariciar: animal manso mais perto.
+    let best = null, bd = 2.6;
+    if (over) {
+      for (const v of Object.values(this.villages)) for (const a of v.animals) {
+        const d = Math.hypot(a.position.x - pos.x, a.position.z - pos.z);
+        if (d < bd) { bd = d; best = { pos: a.position, name: 'animal' }; }
+      }
+      for (const a of this.fauna.animals) {
+        if (!a.alive || !['passive', 'neutral'].includes(a.spec.behavior)) continue;
+        const d = Math.hypot(a.root.position.x - pos.x, a.root.position.z - pos.z);
+        if (d < bd) { bd = d; best = { pos: a.root.position, name: a.spec.nome }; }
+      }
+    }
+    this.petInteraction.enabled = !!best;
+    this.petInteraction.pos = best?.pos ?? null;
+    if (best) this.petInteraction.label = best.name === 'animal' ? 'Acariciar o animal' : `Acariciar ${best.name}`;
+    this.ui.setSanity(this.sanity.value, this.sanity.max, SANITY_BAR.pulseBelow);
+  }
+
+  /** Morte de animal: trauma se o jogador viu (perto e na frente). */
+  onAnimalDeath(a) {
+    const q = a.root.position;
+    if (!this.inView(q.x, q.z, SANITY_TRIGGERS.witnessRadius, SANITY_TRIGGERS.witnessDot)) return;
+    this.sanity.drainSanity(SANITY_TRIGGERS.animalDeath, `Morte: ${a.spec.nome}`, { tags: ['SANGUE'] });
+  }
+
+  /**
+   * Morte de NPC presenciada (gancho: hoje nenhum NPC morre; chame daqui
+   * quando houver). `npc.root.position` ou `npc.position`.
+   */
+  onNpcDeath(npc) {
+    const q = npc.root?.position ?? npc.position;
+    const seen = !q || this.inView(q.x, q.z, SANITY_TRIGGERS.witnessRadius, SANITY_TRIGGERS.witnessDot);
+    if (seen) this.sanity.drainSanity(SANITY_TRIGGERS.npcDeath, `Morte de ${npc.name ?? 'alguém'}`, { tags: ['SANGUE'] });
+  }
+
+  /** Dano recebido: ataque surpresa (atacante fora da vista) e dano crítico abalam a mente. */
+  onPlayerHurt(amount, source, attacker) {
+    const T = SANITY_TRIGGERS;
+    if (amount >= this.state.maxHealth * T.criticalFraction) this.sanity.drainSanity(T.criticalHit, `Golpe crítico: ${source}`, { tags: ['SANGUE'] });
+    if (attacker) {
+      const q = attacker.root?.position ?? attacker.position;
+      if (q && !this.inView(q.x, q.z, Infinity, T.surpriseDot)) this.sanity.drainSanity(T.surpriseAttack, `Ataque surpresa: ${source}`);
+    }
+  }
+
+  /** Flauta (TOCAR_INSTRUMENTO) e livro (LER_LIVROS): atividades de conforto. */
+  useComfortItem(id) {
+    const d = ITEMS[id];
+    if (!d?.comfort) return false;
+    if (id === 'flauta_osso') this.phantomSounds.flute();
+    const got = this.sanity.comfort(d.comfort, 0, this.time);
+    if (!got) this.ui.toast(`${d.name}: você acabou de fazer isso. Espere um pouco.`);
+    return got > 0;
+  }
+
+  /** Acariciar o animal manso mais perto (PET_ANIMAIS). */
+  petAnimal() {
+    const got = this.sanity.comfort('PET_ANIMAIS', 0, this.time);
+    if (!got) this.ui.toast('O animal já recebeu carinho há pouco.');
   }
 
   // ------------------------------------------------------------ caça, coleta, fogueira
@@ -939,6 +1229,7 @@ export class Game {
     a.skinned = true;
     this.fauna.remove(a);
     this.survival.addDirt(SKINNING.dirt);
+    this.sanity.drainSanity(SANITY_TRIGGERS.skinning, 'Esfolar', { tags: ['SANGUE'] });
     this.ui.toast(`Esfolado: ${Object.entries(count).map(([id, n]) => `${ITEMS[id].name} ×${n}`).join(', ')}. As peças estão no chão (E para pegar).`);
   }
 
@@ -994,14 +1285,15 @@ export class Game {
       if (input.pressed('ArrowRight')) this.setGraphics(stepPreset(this.graphics.id, 1).id);
       if (input.pressed('Escape')) ui.toggleGraphics(false);
     }
-    const panels = this.inspection.active || this.backpack.open || this.notebookUI.open;
+    const panels = this.inspection.active || this.backpack.open || this.notebookUI.open || this.recipeBook.open;
     const busy = this.dead || this.survival.fainted || panels || ui.dialogue.isOpen || ui.graphicsOpen || !ui.worldMap.classList.contains('hidden');
     // Painéis de sobrevivência: C inspeção, I mochila, N caderneta, Esc fecha.
     if (!this.dead && !ui.dialogue.isOpen && !ui.graphicsOpen) {
       if (input.pressed('KeyC')) { if (this.inspection.active) this.inspection.close(); else if (!busy) this.inspection.open(); }
-      if (input.pressed('KeyI') && !this.inspection.active && !this.notebookUI.open) this.backpack.toggle();
-      if (input.pressed('KeyN') && !this.inspection.active) { this.backpack.hide(); this.notebookUI.toggle(); }
-      if (input.pressed('Escape')) { this.inspection.close(); this.backpack.hide(); this.notebookUI.toggle(false); }
+      if (input.pressed('KeyI') && !this.inspection.active && !this.notebookUI.open) { this.recipeBook.toggle(false); this.backpack.toggle(); }
+      if (input.pressed('KeyJ') && !this.inspection.active) { this.backpack.hide(); this.notebookUI.toggle(false); this.recipeBook.toggle(); }
+      if (input.pressed('KeyN') && !this.inspection.active) { this.backpack.hide(); this.recipeBook.toggle(false); this.notebookUI.toggle(); }
+      if (input.pressed('Escape')) { this.inspection.close(); this.backpack.hide(); this.notebookUI.toggle(false); this.recipeBook.toggle(false); }
       if (this.inspection.active) {
         [...Object.keys(LIMBS), null].forEach((id, i) => { if (input.pressed(`Digit${i + 1}`) || input.pressed(`Numpad${i + 1}`)) this.inspection.selectLimb(id); });
       }
@@ -1106,6 +1398,8 @@ export class Game {
     }
     this.applyWeatherDebuffs(dt);
     this.updateSurvival(dt);
+    this.updateSanity(dt);
+    this.updateLivingWorld(dt);
     ui.setWeather(this.gameClock.label(), this.weather.status, this.weather.overlays, this.weather.flash, this.debuffs);
     this.dungeons.update(dt, this.time, this.areaId);
     this.fireLights.update(this.time, this.areaId === 'overworld' ? pos : Game.NOWHERE);

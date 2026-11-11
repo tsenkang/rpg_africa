@@ -30,7 +30,7 @@ export class BackpackUI {
     this.root = el('div', 'backpack hidden', game.ui.root);
     this.root.innerHTML = `
       <div class="bp-card">
-        <div class="bp-head"><b>🎒 Mochila</b><span class="bp-hint">clique num item · arraste para a mesa · <kbd>I</kbd>/<kbd>Esc</kbd> fecha</span></div>
+        <div class="bp-head"><b>🎒 Mochila</b><button class="bp-book" title="Livro de receitas (J)">📚 Receitas <kbd>J</kbd></button><span class="bp-hint">clique num item · arraste para a mesa · <kbd>I</kbd>/<kbd>Esc</kbd> fecha</span></div>
         <div class="bp-body">
           <div class="bp-items"></div>
           <div class="bp-side">
@@ -55,6 +55,7 @@ export class BackpackUI {
     this.onDrop = null;
     this.onDragMove = null;
     this.root.querySelector('.bp-craft-btn').addEventListener('click', () => this.craft());
+    this.root.querySelector('.bp-book').addEventListener('click', () => { this.hide(); game.recipeBook.toggle(true); });
     this.root.querySelector('.bp-clear-btn').addEventListener('click', () => { this.table = []; this.refresh(); });
     this.tableEl.addEventListener('click', (e) => {
       const i = e.target.closest('[data-slot]')?.dataset.slot;
@@ -124,6 +125,8 @@ export class BackpackUI {
     if (!d || !n) { this.detail.innerHTML = '<i>Selecione um item.</i>'; return; }
     const acts = [];
     if (d.food) acts.push(`<button data-act="eat" data-id="${id}">Comer / beber</button>`);
+    if (d.comfort) acts.push(`<button data-act="use" data-id="${id}">Usar</button>`);
+    if (this.mode === 'full') acts.push(`<button data-act="book" data-id="${id}">📚 Receitas</button>`);
     if (d.hotbar) acts.push(`<button data-act="equip" data-id="${id}">Pôr na hotbar</button>`);
     if (this.mode === 'full' && this.table.length < 4) acts.push(`<button data-act="table" data-id="${id}">Pôr na mesa</button>`);
     this.detail.innerHTML = `<div class="bp-detail-head"><span class="ic">${d.icon}</span><b>${d.name}</b> <span class="ct">×${n}</span></div><p>${d.description ?? ''}</p><div class="bp-actions">${acts.join('')}</div>`;
@@ -132,7 +135,13 @@ export class BackpackUI {
   /** Ações dos botões (pedidos ao jogo; a UI não muda estado sozinha). */
   action(act, id) {
     const g = this.game;
-    if (act === 'eat') {
+    if (act === 'book') {
+      this.hide();
+      g.recipeBook.show(id, 'use');
+      return;
+    } else if (act === 'use') {
+      g.useComfortItem(id);
+    } else if (act === 'eat') {
       if (g.state.removeItem(id)) g.ui.toast(`Você consumiu: ${g.survival.consume(id)}`);
     } else if (act === 'equip') {
       g.equipFromBackpack(id);

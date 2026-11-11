@@ -130,9 +130,9 @@ test('survival_lowProteinAndFat_drainSanity_andTriggerWhispers', () => {
   s.nutrition.values.proteins = 1; s.nutrition.values.fats = 1;
   const whispers = [];
   s.on('whisper', (t) => whispers.push(t));
-  s.sanity = SANITY.hallucinate - 1;
+  s.sanity = 25; // nível 2 de alucinação (< 30): vozes
   step(s, 60);
-  assert.ok(s.sanity < SANITY.hallucinate - 1);
+  assert.ok(s.sanity < 25);
   assert.ok(whispers.length > 0);
 });
 

@@ -68,6 +68,8 @@ export class Input {
     this.lockListeners = [];
 
     window.addEventListener('keydown', (e) => {
+      // Digitando num campo de texto (busca do livro de receitas): o jogo não vê a tecla, só o Esc.
+      if (Input.isTyping(e.target) && e.code !== 'Escape') return;
       if (AltLockToggle.isAlt(e.code)) e.preventDefault(); // ALT não abre o menu do navegador
       if (this.alt.keyDown(e.code, e.repeat) && this.enabled) this.toggleLock();
       if (!this.keys.has(e.code)) this.justPressed.add(e.code);
@@ -119,6 +121,12 @@ export class Input {
       this.wheel += Math.sign(e.deltaY);
       e.preventDefault();
     }, { passive: false });
+  }
+
+  /** O alvo do evento é um campo de texto (input, textarea, contenteditable)? */
+  static isTyping(target) {
+    const tag = target?.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!target?.isContentEditable;
   }
 
   get locked() {
