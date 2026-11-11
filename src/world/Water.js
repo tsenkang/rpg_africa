@@ -214,9 +214,14 @@ export class Water {
     // Reflexo planar: a cena espelhada no plano da água (a água fica de fora).
     u.uHasRefl.value = 0;
     if (this.reflector && this.reflectionMode === 'planar' && !this.underwater && env.scene) {
+      // Limpa com alfa 0: onde a câmera espelhada não vê nada (abaixo do horizonte espelhado)
+      // o alfa fica 0 e a água usa o céu — sem isso aparecia uma faixa preta (manchas escuras).
+      const r = this.renderer, cc = r.getClearColor(this._cc ??= new THREE.Color()), ca = r.getClearAlpha();
+      r.setClearColor(0x000000, 0);
       this.mesh.visible = false;
-      this.reflector.onBeforeRender(this.renderer, env.scene, camera);
+      this.reflector.onBeforeRender(r, env.scene, camera);
       this.mesh.visible = true;
+      r.setClearColor(cc, ca);
       u.uReflMat.value.copy(this.reflector.material.uniforms.textureMatrix.value);
       u.uHasRefl.value = 1;
     }
@@ -367,7 +372,7 @@ void main() {
     vec4 pr = uReflMat * vec4(vWorld.x, uLevel, vWorld.z, 1.0);
     vec2 ruv = pr.xy / pr.w + n.xz * 0.06 * clamp(20.0 / max(dist, 1.0), 0.15, 1.0);
     vec4 rc = texture(uRefl, ruv);
-    refl = mix(refl, rc.rgb, 0.92);
+    refl = mix(refl, rc.rgb, 0.92 * smoothstep(0.5, 0.95, rc.a));
   }
   float sp = max(dot(R, L), 0.0);
   vec3 spec = uSunColor * (pow(sp, 600.0) * 8.0 + pow(sp, 60.0) * 0.25);
