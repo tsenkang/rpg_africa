@@ -3,6 +3,9 @@ import { BIOMES, UNDERGROUND_AMBIENCE } from '../config/biomes.js';
 import { RENDER } from '../config/worldConfig.js';
 import { DAY_NIGHT } from '../config/sky.js';
 import { celestial, horizonFade } from './SunPath.js';
+import { LIGHTING } from '../config/lighting.js';
+import { kelvinToRGB, sunKelvin } from '../systems/lighting/ColorTemperature.js';
+import { EnvironmentLighting } from '../render/lighting/EnvironmentLighting.js';
 
 const KEYS_COLOR = ['fogColor', 'skyTop', 'skyHorizon', 'sunColor', 'hemiSky', 'hemiGround'];
 const KEYS_NUM = ['fogDensity', 'sunIntensity', 'hemiIntensity', 'exposure'];
@@ -56,6 +59,10 @@ export class Environment {
 
     this.sky = this.createSkyDome();
     scene.add(this.sky);
+    // L1: luz por imagem do próprio céu (reflexos e luz ambiente PBR) + temperatura de cor
+    this.ibl = new EnvironmentLighting(renderer, scene, this.sky.material);
+    this._kColor = new THREE.Color();
+    this.kelvin = 6000;
   }
 
   /**
@@ -177,17 +184,23 @@ export class Environment {
     this.scene.fog.density = s.fogDensity;
     this.hemi.color.copy(s.hemiSky);
     this.hemi.groundColor.copy(s.hemiGround);
-    this.hemi.intensity = s.hemiIntensity * (1 + (N.hemiMul - 1) * n);
+    // com IBL o céu já ilumina por imagem: a hemisférica fica só como complemento
+    const iblOn = LIGHTING.ibl.enabled && !underground;
+    this.hemi.intensity = s.hemiIntensity * (1 + (N.hemiMul - 1) * n) * (iblOn ? LIGHTING.ibl.hemiKeep : 1);
+    // Temperatura de cor (K) pela altura do sol: dourado no horizonte → neutro ao meio-dia;
+    // lua azulada. O tom do bioma entra por cima (`LIGHTING.kelvin.mix`).
+    const KC = LIGHTING.kelvin;
+    this.kelvin = sunKelvin(this.sunElevation, this.isMoon, KC);
+    const kc = kelvinToRGB(this.kelvin);
+    this._kColor.setRGB(kc.r, kc.g, kc.b, THREE.SRGBColorSpace);
     if (underground) {
       this.sun.color.copy(s.sunColor);
       this.sun.intensity = s.sunIntensity;
     } else if (this.isMoon) {
-      this.sun.color.copy(nn.moon);
+      this.sun.color.copy(nn.moon).lerp(this._kColor, KC.mix * 0.5);
       this.sun.intensity = s.sunIntensity * N.moonMul * this.lightFade;
     } else {
-      // Sol baixo fica alaranjado (nascer / pôr do sol).
-      const low = 1 - Math.min(1, Math.max(0, this.sunElevation / DAY_NIGHT.sunsetTint.until));
-      this.sun.color.copy(s.sunColor).lerp(nn.sunset, low * 0.7);
+      this.sun.color.copy(s.sunColor).lerp(this._kColor, KC.mix);
       this.sun.intensity = s.sunIntensity * this.lightFade;
     }
     this.renderer.toneMappingExposure = s.exposure * (1 + (N.exposureMul - 1) * n);
@@ -199,6 +212,7 @@ export class Environment {
     this.skyUniforms.uSunStrength.value = this.isMoon ? 0.35 : Math.min(1, s.sunIntensity / 2) * this.lightFade;
     this.sky.position.copy(camera.position);
     this.sky.visible = !underground;
+    this.ibl.update(dt, this, underground);
 
     // Sombra acompanha o jogador, alinhada à grade de texels (sem tremor).
     const texel = (this.shadowRange * 2) / this.shadowMapSize;

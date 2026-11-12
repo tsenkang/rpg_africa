@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FIRE_LIGHTS } from '../config/settlements.js';
 import { pickNearest } from '../villages/Layout.js';
+import { LIGHTING } from '../config/lighting.js';
 
 /**
  * Luzes dinâmicas de fogo (e outras luzes "vivas" como as luzes errantes
@@ -22,7 +23,8 @@ export class FireLights {
     this.sources = [];
     this.lights = [];
     for (let i = 0; i < FIRE_LIGHTS.pool; i++) {
-      const l = new THREE.PointLight(0xff8a3a, 0, 20, 1.8);
+      // decaimento físico (inverso do quadrado) [L1]
+      const l = new THREE.PointLight(0xff8a3a, 0, 20, LIGHTING.fire.decay);
       scene.add(l); // sempre na cena (intensidade 0 = apagada): sem recompilar shaders
       this.lights.push(l);
     }
@@ -47,7 +49,10 @@ export class FireLights {
 
   /** Tremor da chama: soma de senóides fora de fase (sem ruído aleatório). */
   static flicker(t, seed) {
-    return 1 + FIRE_LIGHTS.flicker * (0.5 * Math.sin(t * 9.1 + seed) + 0.3 * Math.sin(t * 15.7 + seed * 2.3) + 0.2 * Math.sin(t * 4.3 + seed * 0.7));
+    // tremor rápido + rajadas lentas (o fogo "respira" de vez em quando) [L1]
+    const fast = 0.5 * Math.sin(t * 9.1 + seed) + 0.3 * Math.sin(t * 15.7 + seed * 2.3) + 0.2 * Math.sin(t * 4.3 + seed * 0.7);
+    const gust = Math.sin(t * 0.37 + seed * 1.9) * Math.sin(t * 0.83 + seed);
+    return 1 + FIRE_LIGHTS.flicker * fast + LIGHTING.fire.gust * Math.min(0, gust);
   }
 
   /**
@@ -65,7 +70,9 @@ export class FireLights {
       const l = this.lights[i];
       if (i >= n) { l.intensity = 0; continue; }
       const s = this.sources[this._idx[i]];
-      l.position.set(s.x, s.y, s.z);
+      // a luz oscila uns centímetros com a chama (as sombras e o brilho "dançam")
+      const j = LIGHTING.fire.jitter;
+      l.position.set(s.x + j * Math.sin(time * 7.3 + s.seed), s.y + j * 0.6 * Math.sin(time * 11.1 + s.seed * 1.7), s.z + j * Math.sin(time * 5.9 + s.seed * 0.4));
       l.color.copy(s.colorObj);
       l.distance = s.range;
       l.intensity = s.intensity * FireLights.flicker(time, s.seed);
