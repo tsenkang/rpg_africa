@@ -150,7 +150,9 @@ export class Game {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.graphics.pixelRatio));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // PCF (o PCFSoft foi removido no Three r187 e caía para PCF só depois do 1º quadro, já com
+    // shaders compilados para o tipo antigo: erro de sampler no 1º quadro). O PCF atual já é suave.
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(this.renderer.domElement);

@@ -96,7 +96,7 @@ src/systems/Projectiles.js  lança/flecha (zonas de acerto em classifyZone)
 
 ## 6. Pegadinhas conhecidas
 - Testes de imagem: `weather.force` dura só até a próxima hora sorteada; para clima fixo, substitua `weather.scheduler.roll` no teste.
-- `WakeSim` gera 1 erro WebGL (sampler) no primeiro quadro — antigo (A4), inofensivo, ainda não corrigido.
+- Sombras: use `THREE.PCFShadowMap` (o `PCFSoftShadowMap` foi removido no r187 e causava um erro WebGL de sampler no 1º quadro — parecia vir da esteira do barco).
 - **Teste instável (antigo)**: `tests/unit/animation/humanoid-animation.test.js` ("entrar e sair da água…") falha ~1 em 12 execuções — `Humanoid` sorteia `phase`/`idleT`/`strokePhase` com `Math.random`. Tornar injetável resolve.
 - Verificação na nuvem (Chromium sem GPU) roda ~1 FPS: o relógio do jogo anda ~25× mais devagar; encurte tempos no `cfg` do teste em vez de esperar.
 - `game.gameClock.totalHours` controla a hora (1 h de jogo = 50 s reais). Saltos de relógio fazem o `NPCManager` reposicionar todos (`snap`).
