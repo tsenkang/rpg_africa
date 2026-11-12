@@ -99,7 +99,7 @@ export const ANIMATION = {
   human: {
     jointRate: 24, // 1/s — slerp das juntas em locomoção
     actionRate: 48, // 1/s — durante soco/recuo (golpe nítido)
-    transition: 0.4, // s — crossfade terra ↔ água ↔ voo (ease-in-out)
+    transition: 0.45, // s — crossfade terra ↔ água ↔ voo (ease-in-out)
     transitionRate: 6, // 1/s — juntas mais macias dentro da janela
     swimStrokeHz: 0.55, // braçadas completas por segundo (crawl)
     kickHz: 1.6, // pernadas por segundo

@@ -103,6 +103,7 @@ export class Humanoid {
     height = 1.8, skin = SKIN_TONES[2], shirt = 0x8a5a3a, pants = 0x3a3028,
     hair = 0x111111, hat = null, robe = false, accessory = null, build = 1, hunch = 0,
     mergeParts = true,
+    rng = Math.random, // fonte de aleatoriedade (fase do passo, do ócio, da braçada); testes passam uma fixa
     // Vestuário por bioma (NPCVisualBuilder): cores; null = sem a peça.
     cape = null, apron = null, armor = null, straps = null, gloves = null, boots = null, hatColor = null,
   } = {}) {
@@ -112,8 +113,8 @@ export class Humanoid {
     this.body = new THREE.Group();
     this.body.scale.setScalar(s);
     this.root.add(this.body);
-    this.phase = Math.random() * 10;
-    this.idleT = Math.random() * 100;
+    this.phase = rng() * 10;
+    this.idleT = rng() * 100;
     this.hunch = hunch;
 
     const add = (mesh, parent = this.body) => {
@@ -283,10 +284,12 @@ export class Humanoid {
     this.mode = 'land';
     this.transitionT = 0;
     this.swimMove = 0;
-    this.strokePhase = Math.random() * TAU;
+    this.strokePhase = rng() * TAU;
     this.armAng = [-0.45, -0.45]; // ângulo integrado do ombro na água (rad)
     this.fadeFrom = this.joints.map((j) => j.quaternion.clone());
     this.fadeFromPos = new THREE.Vector3();
+    this.fadeTo = this.joints.map((jt) => jt.quaternion.clone()); // alvo do crossfade no quadro anterior (sinal contínuo)
+    this.fadeW = 0;
     this.ik = [0, 0]; // compensação suavizada de cada pé (m)
     this.ikDrop = 0;
     this.slope = 0;
@@ -319,6 +322,7 @@ export class Humanoid {
       // Crossfade: congela a pose mostrada; o alvo novo entra com ease-in-out.
       this.mode = mode;
       this.transitionT = H.transition;
+      this.fadeW = 0;
       this.shown.forEach((q, i) => this.fadeFrom[i].copy(q));
       this.fadeFromPos.copy(this.shownPos);
       if (mode !== 'land') this.armAng = this.arms.map((a) => new THREE.Euler().setFromQuaternion(a.quaternion).x);
@@ -344,12 +348,20 @@ export class Humanoid {
       // Dentro da janela: peso da pose nova cresce em ease-in-out (sem "chute" inicial).
       const u = 1 - this.transitionT / H.transition;
       const wgt = u * u * (3 - 2 * u);
+      // Interpola de `fadeFrom` até o alvo deste quadro, mas com o sinal do alvo contínuo de um
+      // quadro para o outro (sem o "caminho mais curto" do slerp do Three): quando a braçada
+      // girando cruzava o lado oposto de `fadeFrom`, o caminho curto trocava de lado e o braço
+      // saltava ~20° num quadro.
       for (let i = 0; i < this.joints.length; i++) {
-        const j = this.joints[i];
+        const j = this.joints[i], prev = this.fadeTo[i];
         _qA.copy(j.quaternion);
-        j.quaternion.copy(this.fadeFrom[i]).slerp(_qA, wgt);
+        if (this.fadeW > 0 && _qA.dot(prev) < 0) _qA.set(-_qA.x, -_qA.y, -_qA.z, -_qA.w);
+        else if (this.fadeW === 0 && _qA.dot(this.fadeFrom[i]) < 0) _qA.set(-_qA.x, -_qA.y, -_qA.z, -_qA.w);
+        prev.copy(_qA);
+        slerpSigned(this.fadeFrom[i], _qA, wgt, j.quaternion);
         this.shown[i].copy(j.quaternion);
       }
+      this.fadeW = wgt;
       this.shownPos.lerpVectors(this.fadeFromPos, this.body.position, wgt);
       this.body.position.copy(this.shownPos);
       return;
@@ -552,4 +564,17 @@ export class Humanoid {
       this.arms[1].rotation.x -= f * 0.6;
     }
   }
+}
+
+/**
+ * Slerp de `a` até `b` SEM inverter `b` para o caminho curto (quem chama escolhe o sinal).
+ * @param {THREE.Quaternion} a @param {THREE.Quaternion} b @param {number} t @param {THREE.Quaternion} out
+ */
+export function slerpSigned(a, b, t, out) {
+  const d = Math.max(-1, Math.min(1, a.dot(b)));
+  const th = Math.acos(d), sn = Math.sin(th);
+  let wa, wb;
+  if (sn < 1e-4) { wa = 1 - t; wb = t; } else { wa = Math.sin((1 - t) * th) / sn; wb = Math.sin(t * th) / sn; }
+  out.set(a.x * wa + b.x * wb, a.y * wa + b.y * wb, a.z * wa + b.z * wb, a.w * wa + b.w * wb).normalize();
+  return out;
 }

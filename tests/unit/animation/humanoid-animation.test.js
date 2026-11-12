@@ -16,10 +16,16 @@ function worstStep(h, frames, stateAt, dt = 1 / 60) {
   return worst;
 }
 
-test('Humanoid: entrar e sair da água é um crossfade (sem salto de pose)', () => {
-  const h = new Humanoid({ mergeParts: false });
-  const worst = worstStep(h, 240, (f) => (f < 60 ? [1.4, {}] : f < 150 ? [1, { swimming: true }] : [0, {}]));
-  assert.ok(worst < 0.2, `maior salto ${worst.toFixed(3)} rad`);
+test('Humanoid: entrar e sair da água é um crossfade sem salto de pose, em qualquer fase da braçada', () => {
+  // Varre fases fixas (antes era Math.random: falhava ~1 em 12 — o braço saltava até 120° ao
+  // sair da água quando a braçada cruzava o lado oposto da pose inicial do crossfade).
+  for (let a = 0; a < 12; a++) for (let c = 0; c < 12; c++) {
+    const vals = [a / 12, 0.5, c / 12];
+    let k = 0;
+    const h = new Humanoid({ mergeParts: false, rng: () => vals[k++ % 3] });
+    const worst = worstStep(h, 240, (f) => (f < 60 ? [1.4, {}] : f < 150 ? [1, { swimming: true }] : [0, {}]));
+    assert.ok(worst < 0.2, `fase ${a}/${c}: maior salto ${worst.toFixed(3)} rad`);
+  }
 });
 
 test('Humanoid: nadando em crawl o corpo fica deitado; parado na água fica em pé', () => {

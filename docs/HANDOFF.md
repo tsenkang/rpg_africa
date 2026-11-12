@@ -97,7 +97,7 @@ src/systems/Projectiles.js  lança/flecha (zonas de acerto em classifyZone)
 ## 6. Pegadinhas conhecidas
 - Testes de imagem: `weather.force` dura só até a próxima hora sorteada; para clima fixo, substitua `weather.scheduler.roll` no teste.
 - Sombras: use `THREE.PCFShadowMap` (o `PCFSoftShadowMap` foi removido no r187 e causava um erro WebGL de sampler no 1º quadro — parecia vir da esteira do barco).
-- **Teste instável (antigo)**: `tests/unit/animation/humanoid-animation.test.js` ("entrar e sair da água…") falha ~1 em 12 execuções — `Humanoid` sorteia `phase`/`idleT`/`strokePhase` com `Math.random`. Tornar injetável resolve.
+- `Humanoid` aceita `rng` (fases do passo/ócio/braçada); testes passam um fixo. O antigo teste instável da água era um bug real de crossfade (corrigido com slerp de sinal contínuo).
 - Verificação na nuvem (Chromium sem GPU) roda ~1 FPS: o relógio do jogo anda ~25× mais devagar; encurte tempos no `cfg` do teste em vez de esperar.
 - `game.gameClock.totalHours` controla a hora (1 h de jogo = 50 s reais). Saltos de relógio fazem o `NPCManager` reposicionar todos (`snap`).
 - Moradores sem boneco são simulados a cada 0,25 s sem colisão; com boneco usam `collisions.move`.
