@@ -117,6 +117,7 @@ import { grudgeReaction } from '../systems/law/Grudge.js';
 import { BountyHunter } from '../entities/BountyHunter.js';
 import { BoatController } from '../systems/boat/BoatController.js';
 import { PauseMenu } from '../ui/PauseMenu.js';
+import { MaterialFactory } from '../render/lighting/MaterialFactory.js';
 
 /**
  * Orquestra o jogo: gera o mundo (terreno → vilas → malha → água →
@@ -259,6 +260,10 @@ export class Game {
     this.water = new Water({ renderer: this.renderer, terrain: this.terrain });
     this.water.installUnderwater(this.terrain.material); // cáusticas e luz debaixo d'água no fundo
     if (this.water.fft) this.scene.add(this.water.buildOceanFloor(this.terrain)); // fundo além da borda do mapa
+    // L2: materiais PBR por superfície (metais, Kaelen, gelo) e chão molhado na chuva
+    this.materialFactory = new MaterialFactory();
+    this.materialFactory.applyLibrary(this.materials);
+    this.materialFactory.install(this.terrain.material, { wet: true, glint: true });
     this.scene.add(this.water.mesh);
     this.environment = new Environment(this.scene, this.renderer);
     // Clima por bioma + névoa paranormal (roda depois do Environment no loop).
@@ -1812,6 +1817,7 @@ export class Game {
       this.environment.update(dt, pos, this.camera, w, false);
       const indoor = !!this.interiors.insideAt(pos);
       this.weather.update(dt, { time: this.time, camera: this.camera, player: pos, weights: w, underground: false, shelter: indoor ? 1 : this.villageShelter(pos), hourIndex, indoor });
+      this.materialFactory.update(dt, this.weather); // umidade das superfícies pela chuva
       this.clouds.update(dt, this.environment, this.weather.overcast);
       let best = 0;
       for (let i = 1; i < w.length; i++) if (w[i] > w[best]) best = i;

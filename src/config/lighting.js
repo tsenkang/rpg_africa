@@ -36,3 +36,37 @@ export const LIGHTING = {
   /** Fogo vivo: tremulação, rajadas lentas e a luz que oscila de lugar. */
   fire: { decay: 2, gust: 0.18, jitter: 0.06 },
 };
+
+/**
+ * Materiais PBR por superfície (Etapa L2). Chave = nome do material em `createMaterials()`.
+ * `surface`: efeitos no shader (veios polidos, gelo, micro-brilho, molhado).
+ *
+ * @example MATERIAL_PROFILES.metal.roughness = 0.2 // metais mais espelhados
+ */
+export const MATERIAL_PROFILES = {
+  /** Metais: espelham o ambiente (IBL). */
+  metal: { keys: ['iron', 'brass', 'gold', 'metalRoof'], metalness: 0.95, roughness: 0.24, envMapIntensity: 1.2, overrides: { metalRoof: { metalness: 0.8, roughness: 0.38 }, gold: { roughness: 0.18 } } },
+  /** Vidro e água parada: quase espelho. */
+  glass: { keys: ['glass'], metalness: 0.05, roughness: 0.05, envMapIntensity: 1.4 },
+  /** Ruínas de Kaelen: pedra negra áspera com veios polidos que refletem. */
+  obsidian: { keys: ['basalt', 'basaltDark', 'blackMoss'], roughness: 0.88, surface: { veins: true } },
+  /** Taiga: gelo (IOR 1,31 → reflexo especular ~2% de frente) e neve com cintilação. */
+  ice: { keys: ['snowCap', 'frozenLog'], surface: { ice: true, glint: true } },
+};
+
+/** Clima: superfícies molhadas na chuva e poças. */
+export const WETNESS = {
+  /** Biomas cuja precipitação molha (riscos caindo rápido): o resto é neve, areia, cinza. */
+  rainFall: 5, // m/s mínimos da partícula 'streak' para contar como chuva
+  wetUp: 1 / 20, // por segundo (molha em ~20 s de chuva forte)
+  dryDown: 1 / 120, // seca em ~2 min
+  darken: 0.55, // albedo molhado (poros cheios d'água escurecem)
+  roughness: 0.08, // rugosidade molhada (verniz de água)
+  vertical: 0.35, // paredes molham menos que o chão
+  puddles: { threshold: 0.74, scale: 0.35, minWet: 0.4 }, // ~12% do chão plano vira poça
+  /** Materiais que não molham (emissivos, tecidos à sombra das feiras, água, teias). */
+  skip: ['flame', 'runeGlow', 'eerie', 'water', 'waterOasis', 'cobweb', 'darkOpening', 'glass', 'clockFace'],
+};
+
+/** Micro-brilho da areia/neve no terreno (micro-facetas lisas aleatórias). */
+export const GLINT = { density: 0.012, scale: 22, sandMin: 0.35 }; // facetas de ~4,5 cm
