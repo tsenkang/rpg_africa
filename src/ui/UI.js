@@ -3,6 +3,7 @@ import { VILLAGES } from '../config/villages.js';
 import { BIOMES } from '../config/biomes.js';
 import { WORLD, REFERENCE_MAP, worldToUv, uvToWorld } from '../config/worldConfig.js';
 import { GRAPHICS_PRESETS } from '../config/graphics.js';
+import { minimapPoint } from './minimapMath.js';
 import { icon } from './Icons.js';
 import { UI_TIMING } from '../config/gameplay.js';
 
@@ -530,6 +531,7 @@ export class UI {
       c.stroke();
       c.setLineDash([]);
     }
+    if (!under) this.drawBoatMarker(c, S, k, p);
     this.drawArrow(c, S / 2, S / 2, 7);
     c.restore();
     // Norte
@@ -539,6 +541,38 @@ export class UI {
     this.coords.textContent = this.game.areaId === 'overworld'
       ? `${Math.round(p.x)} m L · ${Math.round(p.z)} m S · alt. ${Math.round(p.y)} m`
       : this.game.areas[this.game.areaId]?.name ?? '';
+  }
+
+  /**
+   * Barco no minimapa: casco virado para a proa; fora do quadro, um ponto na borda apontando
+   * para onde ele ficou. Não aparece enquanto o jogador pilota (a seta já é o barco).
+   */
+  drawBoatMarker(c, S, k, p) {
+    const boat = this.game.boat;
+    if (!boat?.physics || boat.piloting) return;
+    const b = boat.physics.renderPosition;
+    const { x, y, clamped } = minimapPoint(b.x - p.x, b.z - p.z, k, S);
+    c.save();
+    c.translate(x, y);
+    if (clamped) {
+      c.rotate(Math.atan2(y - S / 2, x - S / 2));
+      c.fillStyle = 'rgba(120, 200, 255, 0.95)';
+      c.beginPath(); c.moveTo(7, 0); c.lineTo(-3, -5); c.lineTo(-3, 5); c.closePath(); c.fill();
+    } else {
+      const yaw = boat.physics.angles().yaw;
+      c.rotate(Math.atan2(Math.cos(yaw), Math.sin(yaw))); // proa (sin, cos) no plano xz → canvas
+      const L = Math.max(12, 7.6 * k), B = Math.max(6, 2.7 * k); // tamanho mínimo legível
+      c.fillStyle = '#7a4a28';
+      c.strokeStyle = 'rgba(255,255,255,0.9)';
+      c.lineWidth = 1.2;
+      c.beginPath();
+      c.moveTo(L / 2, 0);
+      c.quadraticCurveTo(L * 0.1, -B / 2, -L / 2, -B / 2);
+      c.lineTo(-L / 2, B / 2);
+      c.quadraticCurveTo(L * 0.1, B / 2, L / 2, 0);
+      c.closePath(); c.fill(); c.stroke();
+    }
+    c.restore();
   }
 
   update(dt) {
