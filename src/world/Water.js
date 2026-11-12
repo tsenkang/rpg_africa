@@ -120,7 +120,7 @@ export class Water {
    */
   setQuality(level) {
     if (!this.fft) return;
-    const seg = { 'muito-baixo': 112, baixo: 144, medio: 192, alto: 224, ultra: 256 }[level] ?? 192;
+    const seg = { 'muito-baixo': 112, baixo: 144, medio: 192, alto: 224, ultra: 256, cinematico: 256 }[level] ?? 192;
     if (seg === this._segments) return;
     this._segments = seg;
     const m = this.cfg.mesh;

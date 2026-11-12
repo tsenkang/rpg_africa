@@ -12,7 +12,7 @@ test('presets: vão do mais leve ao mais pesado (nenhum valor diminui ao subir)'
   for (let i = 1; i < GRAPHICS_PRESETS.length; i++) {
     for (const k of NUMERIC) assert.ok(GRAPHICS_PRESETS[i][k] >= GRAPHICS_PRESETS[i - 1][k], `${k} em ${GRAPHICS_PRESETS[i].id}`);
   }
-  assert.equal(GRAPHICS_PRESETS.length, 5);
+  assert.equal(GRAPHICS_PRESETS.length, 6); // 5 originais + Cinemático (L4)
 });
 
 test('ultra = visual original (mesmos valores de RENDER)', () => {
@@ -36,7 +36,8 @@ test('stepPreset: anda um degrau e para nas pontas', () => {
   assert.equal(stepPreset('medio', -1).id, 'baixo');
   assert.equal(stepPreset('medio', 1).id, 'alto');
   assert.equal(stepPreset(GRAPHICS_PRESETS[0].id, -1).id, GRAPHICS_PRESETS[0].id);
-  assert.equal(stepPreset('ultra', 1).id, 'ultra');
+  assert.equal(stepPreset('ultra', 1).id, 'cinematico');
+  assert.equal(stepPreset('cinematico', 1).id, 'cinematico');
 });
 
 test('GraphicsStore: salva, lê e sobrevive a armazenamento quebrado', () => {

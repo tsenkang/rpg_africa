@@ -54,6 +54,8 @@ import { LANDMARKS } from '../config/landmarks.js';
 import { UI } from '../ui/UI.js';
 import { WeatherManager } from '../render/WeatherManager.js';
 import { RenderPipeline } from '../render/RenderPipeline.js';
+import { ReflectionProbe } from '../render/lighting/ReflectionProbe.js';
+import { PROBE } from '../config/lighting.js';
 import { Thunder } from '../audio/Thunder.js';
 import { Minimap } from '../render/Minimap.js';
 import { MINIMAP } from '../config/minimap.js';
@@ -264,6 +266,7 @@ export class Game {
     this.materialFactory = new MaterialFactory();
     this.materialFactory.applyLibrary(this.materials);
     this.materialFactory.install(this.terrain.material, { wet: true, glint: true });
+    this.probe = new ReflectionProbe(this.renderer, this.scene, PROBE.keys.map((k) => this.materials[k]));
     this.scene.add(this.water.mesh);
     this.environment = new Environment(this.scene, this.renderer);
     // Clima por bioma + névoa paranormal (roda depois do Environment no loop).
@@ -1880,6 +1883,7 @@ export class Game {
     if (this.cameraRig.isFirstPerson) this.fpArm.update(dt, busy ? 0 : this.player.speed, this.player.sprinting);
     ui.update(dt);
 
+    this.probe.update(dt, this.player.position, { active: this.areaId === 'overworld', hide: [this.player.root ?? this.player.mesh].filter(Boolean) });
     // pós-processamento (L3): raios de sol/SSR só na superfície; bloom do clima soma ao base
     this.pipeline.update(this.environment, this.areaId === 'overworld' ? this._w : null, this.materialFactory.uniforms.uWet.value, this.weather.bloomStrength);
     this.pipeline.render();

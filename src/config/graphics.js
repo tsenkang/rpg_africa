@@ -20,7 +20,7 @@
  * - bloom: brilho das ondas de calor do Kalahari (sem ele, o clima compensa só com exposição).
  * - post: pós-processamento cinematográfico (RenderPipeline, L3) ou null = desenho direto.
  *   ao (oclusão de contato), godrays (raios de sol), bloom (sempre ligado), ssr (reflexo em
- *   tela no chão), grade (correção de cor). Intensidades em POST (config/lighting.js).
+ *   tela no chão), grade (correção de cor), probe (sonda de reflexo local, L4). Intensidades em POST (config/lighting.js).
  * - minimapInterval: o minimapa é redesenhado a cada N quadros (1 = sempre).
  */
 export const GRAPHICS_PRESETS = [
@@ -43,13 +43,19 @@ export const GRAPHICS_PRESETS = [
     id: 'alto', name: 'Alto', hint: 'Placa de vídeo dedicada',
     pixelRatio: 1.25, antialias: true, shadows: true, shadowMapSize: 2048, shadowRange: 110,
     grassRadius: 54, treeViewDistance: 1000, treeHighDetailDistance: 135, weatherDensity: 0.85, bloom: true, minimapInterval: 2, waterReflection: 'planar',
-    post: { ao: false, godrays: true, bloom: true, ssr: false, grade: true },
+    post: { ao: false, godrays: true, bloom: true, ssr: false, grade: true, probe: false },
   },
   {
     id: 'ultra', name: 'Ultra', hint: 'Máximo detalhe, visual completo',
     pixelRatio: 1.75, antialias: true, shadows: true, shadowMapSize: 4096, shadowRange: 110,
     grassRadius: 62, treeViewDistance: 1100, treeHighDetailDistance: 150, weatherDensity: 1, bloom: true, minimapInterval: 1, waterReflection: 'planar',
-    post: { ao: true, godrays: true, bloom: true, ssr: false, grade: true },
+    post: { ao: true, godrays: true, bloom: true, ssr: false, grade: true, probe: true },
+  },
+  {
+    id: 'cinematico', name: 'Cinemático', hint: 'Placa forte: reflexos em tela, sondas, sombras de 4K',
+    pixelRatio: 2, antialias: true, shadows: true, shadowMapSize: 4096, shadowRange: 130,
+    grassRadius: 70, treeViewDistance: 1200, treeHighDetailDistance: 170, weatherDensity: 1, bloom: true, minimapInterval: 1, waterReflection: 'planar',
+    post: { ao: true, godrays: true, bloom: true, ssr: true, grade: true, probe: true },
   },
 ];
 

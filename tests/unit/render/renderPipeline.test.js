@@ -17,12 +17,16 @@ test('RenderPipeline: ordem dos passes é AO → SSR → raios → bloom → sa�
   assert.deepEqual(activePassNames({}), ['output'], 'ACES + sRGB sempre que há alvo HDR');
 });
 
-test('RenderPipeline: níveis baixos desenham direto; Alto/Ultra têm pós; SSR fica para o Cinemático', () => {
+test('RenderPipeline: níveis baixos desenham direto; Alto/Ultra têm pós; SSR só no Cinemático', () => {
   const by = Object.fromEntries(GRAPHICS_PRESETS.map((p) => [p.id, p.post]));
   for (const id of ['muito-baixo', 'baixo', 'medio']) assert.equal(by[id], null, id);
   assert.equal(by.alto.ao, false);
   assert.equal(by.ultra.ao, true);
-  for (const p of GRAPHICS_PRESETS) assert.ok(!p.post?.ssr, `${p.id} sem SSR`);
+  for (const p of GRAPHICS_PRESETS) if (p.id !== 'cinematico') assert.ok(!p.post?.ssr, `${p.id} sem SSR`);
+  const cine = GRAPHICS_PRESETS.at(-1);
+  assert.equal(cine.id, 'cinematico', 'Cinemático é o degrau mais alto (acima do Ultra)');
+  assert.ok(cine.post.ssr && cine.post.probe && cine.post.ao, 'Cinemático liga tudo');
+  assert.equal(GRAPHICS_PRESETS.length, 6, 'os 5 níveis antigos continuam');
 });
 
 test('Raios de sol: floresta > savana > deserto; zero sem sol ou de costas', () => {

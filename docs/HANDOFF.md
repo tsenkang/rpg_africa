@@ -67,6 +67,9 @@ Outras teclas (todas listadas no menu do **Esc** → Controles): **T** câmera 1
 - **Interface sem emojis**: ícones de linha próprios em `ui/Icons.js`; dados guardam a chave (`icon: 'leaf'`). Um teste falha se um ícone não existir.
 - Roubo = **vasculhar com E** dentro de casa alheia (móveis dos interiores são só visuais). Lança/flecha nas **pernas derruba**, cabeça/corpo mata.
 
+### Iluminação e gráficos (L1–L4)
+- IBL do céu, Kelvin, fogo, materiais PBR com chuva molhando, pós-processamento cinematográfico, sonda de reflexo e o nível **Cinemático** (6º nível, acima do Ultra). Arquitetura e ajustes: `docs/LIGHTING-SYSTEM.md`.
+
 ## 4. Próximos passos (sugestões — confirmar com o dono)
 
 A Etapa C foi entregue em 5 fatias (C1 crimes · C2 testemunhas · C3 procurado · C4 guardas · C5 caçadores/redenção/rancor), cada uma com testes em `tests/unit/law/` e prints em `production/qa/evidence/lei-c*.jpg`.
@@ -92,6 +95,8 @@ src/systems/Projectiles.js  lança/flecha (zonas de acerto em classifyZone)
 ```
 
 ## 6. Pegadinhas conhecidas
+- Testes de imagem: `weather.force` dura só até a próxima hora sorteada; para clima fixo, substitua `weather.scheduler.roll` no teste.
+- `WakeSim` gera 1 erro WebGL (sampler) no primeiro quadro — antigo (A4), inofensivo, ainda não corrigido.
 - **Teste instável (antigo)**: `tests/unit/animation/humanoid-animation.test.js` ("entrar e sair da água…") falha ~1 em 12 execuções — `Humanoid` sorteia `phase`/`idleT`/`strokePhase` com `Math.random`. Tornar injetável resolve.
 - Verificação na nuvem (Chromium sem GPU) roda ~1 FPS: o relógio do jogo anda ~25× mais devagar; encurte tempos no `cfg` do teste em vez de esperar.
 - `game.gameClock.totalHours` controla a hora (1 h de jogo = 50 s reais). Saltos de relógio fazem o `NPCManager` reposicionar todos (`snap`).

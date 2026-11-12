@@ -113,6 +113,7 @@ export function applyGraphics(game, preset, devicePixelRatio = globalThis.device
   game.weather?.setQuality(preset);
   game.pipeline?.configure(preset.post ?? null, preset.antialias);
   game.pipeline?.setSize();
+  game.probe?.setEnabled(!!preset.post?.probe);
   game.minimap?.setInterval(preset.minimapInterval);
   game.water?.setReflection?.(preset.waterReflection ?? 'sky');
   game.water?.setQuality?.(preset.id);

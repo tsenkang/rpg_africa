@@ -97,3 +97,18 @@ export const POST = {
   /** Correção de cor final (no espaço da tela, depois do ACES). */
   grade: { saturation: 1.08, contrast: 1.06, shadows: [0.97, 0.99, 1.05], highlights: [1.04, 1.0, 0.95], vignette: 0.22 },
 };
+
+/**
+ * Sonda de reflexo local (Etapa L4): um `CubeCamera` perto do jogador captura o mundo real em
+ * volta (casas, árvores, NPCs) — uma face por quadro, a cada `faceEvery` quadros — e vira o
+ * reflexo dos metais e do vidro no lugar do céu genérico do IBL. Só nos níveis com `post.probe`.
+ */
+export const PROBE = {
+  size: 128, // texels por face
+  near: 0.5, far: 140, // m (longe = mais objetos a desenhar)
+  height: 2.2, // m acima do jogador
+  faceEvery: 2, // desenha uma face a cada N quadros (6 faces = 12 quadros por volta)
+  moveDist: 18, // m: anda isso e a sonda recomeça no novo lugar
+  refresh: 20, // s: recaptura mesmo parado (dia/noite, clima)
+  keys: ['iron', 'brass', 'gold', 'metalRoof', 'glass'], // materiais que usam a sonda
+};
