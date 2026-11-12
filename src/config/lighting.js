@@ -70,3 +70,30 @@ export const WETNESS = {
 
 /** Micro-brilho da areia/neve no terreno (micro-facetas lisas aleatórias). */
 export const GLINT = { density: 0.012, scale: 22, sandMin: 0.35 }; // facetas de ~4,5 cm
+
+/**
+ * Pós-processamento cinematográfico (Etapa L3, `RenderPipeline`). Quais efeitos cada nível
+ * gráfico liga fica em `GRAPHICS_PRESETS[*].post`; aqui ficam as intensidades.
+ *
+ * @example POST.bloom.strength = 0.6 // brilho mais forte em tudo
+ */
+export const POST = {
+  /** Oclusão ambiental (GTAO): sombra de contato em cantos, sob objetos e entre pedras. */
+  ao: { scale: 0.5, radius: 0.6, distanceExponent: 1.2, thickness: 1.5, intensity: 0.85, samples: 12 },
+  /** Bloom sempre ligado: só o que passa do limiar brilha (sol, fogo, runas, reflexos fortes). */
+  bloom: { strength: 0.4, radius: 0.5, threshold: 1.6, scale: 0.5 }, // limiar em luminância HDR linear (antes do ACES): céu claro ~1, sol/fogo ≫ 1
+  /**
+   * Raios de sol (luz volumétrica em espaço de tela): o céu atrás das copas e da névoa vira
+   * feixes radiais a partir do sol. Força por bioma (florestas e a névoa de Kaelen mais).
+   */
+  godrays: {
+    samples: 48, density: 0.9, decay: 0.96, exposure: 0.08, skyMin: 1.0,
+    biomes: { savana: 0.35, taiga: 0.45, deserto: 0.15, kalahari: 0.2, tropical: 1, equatorial: 1, preta: 1.1 },
+    night: 0.25, // a lua faz feixes bem mais fracos
+    facing: 0.15, // abaixo deste cos(câmera·sol) não há feixes
+  },
+  /** Reflexo em espaço de tela (só no Cinemático): chão plano, mais forte molhado. */
+  ssr: { base: 0.12, wet: 0.55, steps: 32, maxDistance: 60, thickness: 1.2, waterBand: 0.5 },
+  /** Correção de cor final (no espaço da tela, depois do ACES). */
+  grade: { saturation: 1.08, contrast: 1.06, shadows: [0.97, 0.99, 1.05], highlights: [1.04, 1.0, 0.95], vignette: 0.22 },
+};

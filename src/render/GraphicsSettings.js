@@ -111,8 +111,8 @@ export function applyGraphics(game, preset, devicePixelRatio = globalThis.device
   game.grass?.setRadius(preset.grassRadius);
   game.vegetation?.setDistances(preset.treeViewDistance, preset.treeHighDetailDistance);
   game.weather?.setQuality(preset);
-  game.postfx?.setEnabled(preset.bloom);
-  game.postfx?.setSize();
+  game.pipeline?.configure(preset.post ?? null, preset.antialias);
+  game.pipeline?.setSize();
   game.minimap?.setInterval(preset.minimapInterval);
   game.water?.setReflection?.(preset.waterReflection ?? 'sky');
   game.water?.setQuality?.(preset.id);

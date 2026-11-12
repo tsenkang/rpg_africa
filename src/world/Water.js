@@ -150,9 +150,12 @@ export class Water {
     const rt = r.getRenderTarget();
     if (rt && rt.samples > 0) { u.uHasFrame.value = 0; return; } // cópia de alvo MSAA não é permitida
     const size = rt ? this._size.set(rt.width, rt.height) : r.getDrawingBufferSize(this._size);
-    if (!this.frameTex || this.frameTex.image.width !== size.x || this.frameTex.image.height !== size.y) {
+    // o formato da cópia tem de bater com o do alvo (tela = 8 bits; RenderPipeline = meia-precisão)
+    const type = rt ? rt.texture.type : THREE.UnsignedByteType;
+    if (!this.frameTex || this.frameTex.image.width !== size.x || this.frameTex.image.height !== size.y || this.frameTex.type !== type) {
       this.frameTex?.dispose();
       this.frameTex = new THREE.FramebufferTexture(size.x, size.y);
+      this.frameTex.type = type;
       this.frameTex.minFilter = this.frameTex.magFilter = THREE.LinearFilter;
     }
     r.copyFramebufferToTexture(this.frameTex);

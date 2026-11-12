@@ -53,7 +53,7 @@ import { Landmarks } from '../world/Landmarks.js';
 import { LANDMARKS } from '../config/landmarks.js';
 import { UI } from '../ui/UI.js';
 import { WeatherManager } from '../render/WeatherManager.js';
-import { PostFX } from '../render/PostFX.js';
+import { RenderPipeline } from '../render/RenderPipeline.js';
 import { Thunder } from '../audio/Thunder.js';
 import { Minimap } from '../render/Minimap.js';
 import { MINIMAP } from '../config/minimap.js';
@@ -278,7 +278,7 @@ export class Game {
     // Fogueiras e luzes errantes: poucas PointLights reais vão para as mais próximas.
     this.fireLights = new FireLights(this.scene);
     for (const v of Object.values(this.villages)) for (const f of v.fires) this.fireLights.add(f);
-    this.postfx = new PostFX(this.renderer);
+    this.pipeline = new RenderPipeline(this.renderer, this.scene, this.camera);
     this.clouds = new Clouds({ seed: WORLD.seed });
     this.scene.add(this.clouds.mesh);
 
@@ -1702,7 +1702,7 @@ export class Game {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.postfx?.setSize();
+    this.pipeline?.setSize();
   }
 
   start() {
@@ -1880,7 +1880,9 @@ export class Game {
     if (this.cameraRig.isFirstPerson) this.fpArm.update(dt, busy ? 0 : this.player.speed, this.player.sprinting);
     ui.update(dt);
 
-    this.postfx.render(this.scene, this.camera, this.weather.bloomStrength);
+    // pós-processamento (L3): raios de sol/SSR só na superfície; bloom do clima soma ao base
+    this.pipeline.update(this.environment, this.areaId === 'overworld' ? this._w : null, this.materialFactory.uniforms.uWet.value, this.weather.bloomStrength);
+    this.pipeline.render();
     if (this.areaId === 'overworld') this.minimap.render(this.player.position, ui.minimapRect(), { viewMeters: this.minimapViewMeters() });
     input.endFrame();
   }
